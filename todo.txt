@@ -1,0 +1,40 @@
+===================================
+Specific - updated frequently :-)
+===================================
+1. To do:
+- is annoInv a fixpoint? check: Inv * onestep => Inv
+- duplicate recursive functions in FST and REC, to be able to use Strong prederivation safely
+(if separateFstFromRec = True, LU does not type-check)
+- propagate additional precondition (Invariant), from the REC to FST copy of a recursive method
+- while-for: in IMP use pass-by-reference; in C code convert back to loops.
+- printProgImpp should be done after type-checking (for the specialized program, post is computed after type-checking)
+- desugaring (sgFwDeclInExp) cannot handle code like: t v:= if b then e1 else e2; e
+This should be desugared to: t v:=dummy; if b then [t:=e1] else [t:=e2];e
+- pretty-printed Imp+ uses "fresh" size variables. (conflict with those freshly generated).
+- No aliasing? insert automatically code to deallocate arrays (end of scope of declared arrays)
+- Aliasing? use a garbage collector...
+
+2. Bugs:
+- noX in postcondition (used by TD fixpoint)
+- checks from array declaration in recursive functions are not handled specially
+- show Formula in Omega_types.hs does not generate fresh names for variables quantified in Exists and Forall
+
+3. Be careful:
+- after conditional, constraints are lost? NO. Be careful with operator precedence: if must be enclosed in accolades.
+- functions generated in C need a prototype, if they have a float as parameter (other than the last one).
+  Without the prototype, the generated executable will crash, or simply give wrong results.
+- keep Primitives.c synchronized with Primitives.all.c
+
+===========
+General
+===========
+1. type checking works on all examples
+2. pre-condition derivation + specialization on all examples
+3. fixpoint inference on all examples
+4. scale-up 
+- to large examples
+- to include more features from C (what are the problems? aliasing, pointers?)
+
+5. Add other features:
+- convert (for,while) to recursion
+- polyvariant specialization (code duplication).

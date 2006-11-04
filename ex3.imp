@@ -1,0 +1,11 @@
+#include "Primitives.imp"
+
+void hoo(int[int] a,ref int i){
+ if (i>10) then { Void }
+ else {
+  assign(a,i,0);
+  i:=i+1;
+  hoo(a,i)
+ }
+}
+

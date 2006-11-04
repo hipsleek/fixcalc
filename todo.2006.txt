@@ -1,0 +1,100 @@
+Log:
+15.April.2006 
+- Paper submitted to FSE'06
+April.2006 
+- The affinity operator becomes higher-order: to be used as "affinity for hulling" and "affinity for widening". 
+- Implemented a variant of the widening operator proposed in (Bagnara - VMCAI'04). This widenPPL (based on subsets) performs worse compared to our widening.
+June.2006 
+- Implemented the (range-based) Hausdorff heuristic (Sankaranarayanan - SAS'06): its results are worse compared to the Similarity heuristic.
+- Command-line flags for kind-of-postderivation, kind-of-prederivation, m-bound, heuristic.
+
+To do:
+- pretty print for Omega formulae
+
+
+Questions:
+1. what is the difference between:
+- PairwiseCheck (f1 union f2)
+- Hull (f1 union f2), if (Hull (f1 union f2)) intersection (complement (f1 union f2)) == False
+2. Useful to do a "closure" of f1, before widen(f1,f2) ?
+- probably needed if widening is done "early" (before related disjuncts are hulled)
+3. Is it ok to choose m=min(givenM,minPairWiseF3) ?
+Situations when no of disjuncts in PairWiseF3 is bigger than 3:
+- mergesort.mergeF2: Post(m=4) => Post(m=3); Post(m=5) = Post(m=4), with minPairWiseF3 is 5
+- bsearch.lookup: Post(m=3) unrelated Post(m=2), while minPairWiseF3 is 9
+- SOR.loop1: Post(m=4) => Post(m=3), with minPairWiseF3 is 4
+- FFT.bitrevloop: minPairWiseF3 is 5
+- FFT.loop_a0: minPairWiseF3 is 4
+- FFT.loopb:  minPairWiseF3 is 4
+- FFT.loop_a1: minPairWiseF3 is 4
+4. Why is the BU fix not convergent in the following situations?
+- FFT.loop_a0
+- FFT.whilef_0
+5. Is affinity a good measure for pairing disjuncts for widening?
+- example: bubblesort.doi with mdisj=3 gives a matrix with 6 affinities of 100, but widening any pair should not be equivalent?
+6. queens, quicksort need strong-post for 100% check elimination. Why?
+- "imp mergesort.imp StrongWeak" is able to eliminate all checks. But either StrongStrong or StrongWeak infers TDinv for msort as (0=1)
+7. combSelHullBase: what to do when (length nonRec==0) ? (bsearch,mergesort,FFT)
+- combSelHullBase: does it happen that (length rec==0) ? if it is possible, what to do?
+8. Some methods have long inference time. Why?
+- LU: precondition for function "loop" is huge
+- mergesort: many preconditions (use amalgamation?)
+- linpack (? - todo: draw complete call graph)
+9. How to combine part-eval (affine-equalities?) with precise polyhedra analysis?
+- problems with bsearch, FFT, linpack: getMid, mul2, mul201
+- be careful to change back the benchmarks, so that 100% checks can be eliminated.
+
+=========
+Differences between fixpoint(old) and fixpoint2k:
+1. fixpoint:
+- conjunctive BUfix may not converge (on functions like initarr)
+- not able to compute postcondition for passByRef parameters
+- combSelHullBase
+2. fixpoint2k:
+- new widening strategy: iterates using previous widened formula...it converges (without losing precision on the benchmarks)
+- passByRef
+- combSelHull, widen (pairs matching disjuncts)
+- more expensive: iterateAffinMx computes Fhull,Fdiff n^2 times
+
+=========
+No of disjuncts for F1,F2,F3 during BUfix:
+- initarr,copyseq,dotprod,sumvec,sentinel: 1,2,3
+- bsearch: lookup: 2,5,11;
+- bubblesort: 1,2,3
+- hanoi: 1,2,3
+- mergesort: mergeF2: 2,4,6; msort: 1,2,4;
+- queens: test: 2,3,4; loopQ: 2,3,4;
+- quicksort: changeM: 1,3,6; quick_sort: 1,2,5;
+
+- FFT: bitrevloop: 3,4,6; loop_a0: 3,4,5; loop_log2: 2,3,4;
+- LU: loopi_jp: 1,3,6; loop: 2,2,2
+- SOR: loop2: 1,2,3
+- linpack: loop_dgesl2_kb: 1,3,6; loop_dgesl2_k: 1,3,6; loop_idamax1_i: 1,3,6; loop_dgefa2_j: 1,7,13
+
+=========
+Experiments on loris-1 (2nd of March 2006):
+> ./imp quicksort.imp
+3 runtime tests. {quick_sort: l_23.l_32.H1,l_23.l_36.l_45.H1}{partition: l_37.l_58.H1}
+> ./imp quicksort.imp -widenEarly +selHull
+Total CPU time: 1.871716 seconds
+> ./imp mergesort.imp
+6 runtime tests. {main: l_7.l_26.l_38.l_52.L1}{mergeF2: l_49.l_71.l_85.H1,l_51.l_71.l_84.L1,l_51.l_71.l_85.H1,l_56.H1,l_61.H1}
+> ./imp mergesort.imp +selHull
+Inferring msort...fixpoint done in (0.06999 seconds, 0.170974 seconds)
+Segmentation fault
+> ./imp mergesort.imp -widenEarly +selHull
+Inferring msort...fixpoint done in (0.122982 seconds, 0.197969 seconds)
+imp: ../src/omega_core/oc.c:65: int Problem::simplifyProblem(int, int, int): Assertion `0 && "Added equality constraint to verified problem generates false"' failed.
+Aborted
+> ./imp mergesort.imp StrongWeak
+Total CPU time: 21.666706 seconds
+> ./imp FFT.imp
+Total CPU time: 26.397649 seconds
+> ./imp LU.imp
+Total CPU time: 112.613881 seconds
+> ./imp linpack.imp
+Assertion "((2147483647)/4) / x > y" failed: file "../../basic/include/basic/util.h", line 76
+> ./imp linpack.imp StrongWeak
+4 runtime tests. {loop_dgesl1_k: l_348.L1,l_348.H1}{loop_dgesl2_kb: l_433.L1,l_433.H1}
+Total CPU time: 204.969841 seconds
+
