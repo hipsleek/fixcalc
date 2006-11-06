@@ -1,10 +1,11 @@
 #include "Primitives.imp"
 
-int f(int i, int z) {
- if (i>=10) then { 1 }
+void hoo(int[int] a,ref int i){
+ if (i>10) then { Void }
  else {
-  f(i+1,z);
-  if (i=z) then { ierror() }
-  else { 2 }
+  assign(a,i,0);
+  i:=i+1;
+  hoo(a,i)
  }
 }
+
