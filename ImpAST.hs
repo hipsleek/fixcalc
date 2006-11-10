@@ -112,6 +112,7 @@ data Exp = KTrue
   | KFloatNum Float
   | ExpVar Lit
   | If Exp Exp Exp
+  | IfNonDet Exp Exp Exp
   | LblMethCall (Maybe Label) Lit [Exp]
   | AssignVar Lit Exp
   | Seq Exp Exp

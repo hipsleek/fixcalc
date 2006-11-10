@@ -8,14 +8,3 @@ void goo(int[int] a,ref int i){
     goo(a,i)
   }
 }
-
-{-
-# NEVER_BUG;
-
-{[a,i]: 1 <= i < a} union
- {[a,i]: i <= 0 && 1 <= a}
-
-# MUST_BUG;
-
-{[a,i]: 1 <= a <= i}
--}

@@ -301,7 +301,7 @@ void havoc(int<a> a)
 --bsearch.loookup
 Int<res> getmidPOS(Int<i> i,Int<j> j) 
 -- assumes i,j are positive
-	where (0<=2res<=i+j && i=i' && j=j'),{},{}
+	where (0<=2res<=i+j && i>=0 && j>=0 && i=i' && j=j'),{L:(i>=0 && j>=0)},{}
 
 void ferror( )
   where (0=1),{L: (0=1)},{}

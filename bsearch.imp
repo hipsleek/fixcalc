@@ -42,12 +42,23 @@ Int lookup(Float[Int] a,Float k,Int i,Int j)
     }
   }
 }
-
+{-
+int all_lookup(Float[Int] a,Float k,Int i,Int j)
+{	
+  if i>j then { -1 }
+  else {
+  	Int m:=getmid(i,j); 
+    Float v:=subF(a,m);
+    all_lookup (a,k,i,m-1);
+    all_lookup (a,k,m+1,j)
+  }
+}
+-}
 Int getmid(Int i,Int j) { 
 -- postcondition of div2 is tricky: fixpoint infers a useless post for lookup
---  div2(i+j) 
+  div2(i+j) 
 -- assumes i,j are positive
-  getmidPOS(i,j)
+--  getmidPOS(i,j)
 -- imprecise: bound-check is not eliminated with PADO prederivation
 --  divide(i+j,2)
 }

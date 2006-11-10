@@ -13,7 +13,7 @@ import Monad(filterM,foldM,when)
 --fixFlags2 = (3,SimilarityHeur)
 maxIter:: RecPost -> Int
 maxIter _ = 10
-showDebugMSG = True
+showDebugMSG = False
 
 -- uses RecPost and the rewritten fixpoint methods, but should give same result as the old fixpoint
 -- flags: widenEarly, selHull
@@ -108,7 +108,7 @@ bottomUp2k recpost (m,heur) initFormula =
   addOmegaStr ("# F3:="++showSet(fqsv f3r,f3r)) >>
 --  putStrFS ("    Disj during BUfix: "++show (countDisjuncts f1r) ++ ", " ++ show (countDisjuncts f2r) ++ ", " ++ show (countDisjuncts f3r)) >>
   pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
---  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts pwF3)) >>
+  putStrFS("Upper-bound m:="++show m++", Heuristic m:=" ++ show (countDisjuncts pwF3)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4
     
@@ -431,7 +431,7 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 iterateMx:: Heur -> (DisjMFormula,DisjMFormula) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
   let (i,j) = chooseMaxElem affinMx in
-  when showDebugMSG (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
+  when True (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -467,8 +467,55 @@ closure f =
   let conjs = buildClauses updSubst f in
 --    addOmegaStr ("Subst:"++show updSubst) >> 
 --    addOmegaStr ("FPlusClosure:=" ++ showSet (fqsv (And conjs),And conjs)) >>
-  return conjs
+  let noconst = discoverIneqWithoutNegConstant conjs in
+  discover2Ineq conjs >>= \discov ->
+--  putStrFS ("###"++showSet(fqsv (fAnd conjs),fAnd conjs)++"\n>>>"++showSet(fqsv (fAnd discov),fAnd discov)++"\n|||"++showSet(fqsv (fAnd noconst),fAnd noconst)) >>
+  return (conjs++discov++noconst)
   where
+    -- input: (i+13<=j)
+    -- output: (i<=j)
+    discoverIneqWithoutNegConstant:: ConjFormula -> ConjFormula
+    -- requires: formula is in conjunctive form
+    discoverIneqWithoutNegConstant fs = 
+      let newfs = map discoverIneqWithoutNegConstant1 fs in
+      (nub newfs) \\ fs
+    discoverIneqWithoutNegConstant1:: Formula -> Formula
+    discoverIneqWithoutNegConstant1 formula = case formula of
+      And fs -> fAnd (map discoverIneqWithoutNegConstant1 fs)
+      GEq us -> let newus = filter (\u -> case u of {Const x -> if x<0 then False else True; Coef _ _ -> True}) us in
+                GEq newus
+      EqK us -> formula
+      _ -> error ("unexpected argument: "++show formula)
+    
+    -- input: (i<=j && 4a<=2+i+3j)
+    -- output: (a<=j)
+    discover2Ineq:: ConjFormula -> FS ConjFormula
+    discover2Ineq fs =
+      let vars = fqsv (fAnd fs) in
+      let singletons = map (\x -> [x]) vars in
+      let pairs = genPairs vars in
+      mapM (discover2Relation fs vars) (pairs) >>= \newfs ->
+      let filtfs = filter (\f -> formulaIsNotEqK f) (nub $ concat newfs) in
+      return (filtfs \\ fs)
+    discover2Relation:: ConjFormula -> [QSizeVar] -> [QSizeVar] -> FS ConjFormula
+    discover2Relation fs allvars varsToKeep = hull (fExists (allvars \\ varsToKeep) (fAnd fs)) >>= \fsimpl ->
+      return (formulaToConjList fsimpl)
+    genPairs:: [a] -> [[a]]
+    genPairs xs | length xs <=1 = []
+    genPairs (x:xs) = 
+      let p1 = map (\y -> [x,y]) xs in
+      let p2 = genPairs xs in p1++p2
+    formulaToConjList:: Formula -> ConjFormula
+    -- requires: formula is in conjunctive form
+    formulaToConjList formula = case formula of
+      And fs -> concatMap formulaToConjList fs
+      GEq us -> [formula]
+      EqK us -> [formula]
+      _ -> error ("unexpected argument: "++show formula)
+    formulaIsNotEqK formula = case formula of
+      EqK us -> False
+      _ -> True
+
     -- input: (f1-f3>=0 && f1+f2=0)
     -- output: [(f1,[-f2]),(f2,[-f1])]
     collectUpdSubst:: Formula -> [(QSizeVar,[Update])]
@@ -586,6 +633,7 @@ computeHalfCol heur mat (m,n) i j disj =
 iterateHalfMx:: FixFlags -> DisjMFormula -> AffinMx -> FS DisjMFormula
 iterateHalfMx (m,heur) disjM affinMx = 
   let (i,j) = chooseMaxElem affinMx in
+  when ((affinMx!(i,j))<100) (putStrFS ("SelHull chooses disjuncts with less than 100%: "++ show (affinMx!(i,j)))) >>
   when showDebugMSG (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
   when showDebugMSG (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) replDisjM))) >>

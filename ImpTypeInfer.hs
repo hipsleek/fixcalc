@@ -52,7 +52,8 @@ typeInferScc prog scc =
   case scc of
     AcyclicSCC mDecl ->
       putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
-      typeInferMethDeclNonRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
+--      typeInferMethDeclNonRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
+      let (updProg,time2) = (prog,0) in
       outInferMethDeclNonRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->
       putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
       return updProg2
@@ -61,7 +62,8 @@ typeInferScc prog scc =
       else
         let mDecl = (head mDecls) in
         putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
-        typeInferMethDeclRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
+--        typeInferMethDeclRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
+        let (updProg,time2) = (prog,0) in
         outInferMethDeclRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->  
         putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
         return updProg2
@@ -599,6 +601,11 @@ outoutcomposition:: [QSizeVar] -> Outcomes -> Outcomes -> FS Outcomes
 outoutcomposition u [OK f1,ERR f2] [OK fa,ERR fb] = 
   composition u f1 fa >>= \f1a -> composition u f1 fb >>= \f1b ->
   return [OK f1a,ERR (Or [f2,f1b])]
+outNonDet:: [QSizeVar] -> Outcomes -> Outcomes -> Outcomes
+outNonDet ress [OK f1, ERR f3] [OK f2, ERR f4] =
+  let outOK = fAnd [fExists ress f1,fExists ress f2,fOr[f1,f2]] in
+  let outERR = fOr [f3,f4] in
+  [OK outOK, ERR outERR]
 
 outInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclRec prog m =
@@ -611,6 +618,7 @@ outInferMethDeclRec prog m =
       outdebugApply rho out >>= \outp -> 
       let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
       let recPostOK = RecPost fname (inputs `union` outputs) (getOKOutcome out1) (inputs,outputs,qsvByVal) in
+      putStrFS("Fixpoint for OK outcome:") >>
       fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
       let fixOKM = m{methOut=[OK fixedPostOK,ERR FormulaBogus]} in
       let fixOKProg = updateMethDecl prog fixOKM in
@@ -619,15 +627,18 @@ outInferMethDeclRec prog m =
         outdebugApply rho out >>= \outp -> 
         let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
         let recPostERR= RecPost fname (inputs `union` outputs) (getERROutcome out1) (inputs,outputs,qsvByVal) in
+        putStrFS("Fixpoint for ERR outcome:") >>
         fixpoint2k m recPostERR >>= \(fixedPostERR,fixedInvERR) ->
         let fixedOut = [OK fixedPostOK,ERR fixedPostERR] in
         let fixedProg = updateMethDecl prog m{methOut=fixedOut} in
 ------prederivation
             simplify (And [fExists outputs (getOKOutcome fixedOut),fNot (getERROutcome fixedOut)]) >>= \pre1 ->
             simplify (And[getERROutcome fixedOut,fNot(fExists outputs (getOKOutcome  fixedOut))]) >>= \pre2 ->
+            simplify (And[getERROutcome fixedOut,fExists outputs (getOKOutcome  fixedOut)]) >>= \pre3 ->
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2= (["MUST_BUG"],pre2) in
-            return (updateMethDecl prog m{methOut=fixedOut,methOutPres=[lpre1,lpre2]})
+            let lpre3= (["MAY_BUG"],pre3) in
+            return (updateMethDecl prog m{methOut=fixedOut,methOutPres=[lpre1,lpre2,lpre3]})
 
 outInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclNonRec prog m =
@@ -643,9 +654,11 @@ outInferMethDeclNonRec prog m =
 ------prederivation
             simplify (And [fExists outputs (getOKOutcome out2),fNot (getERROutcome out2)]) >>= \pre1 ->
             simplify (And[getERROutcome out2,fNot(fExists outputs (getOKOutcome  out2))]) >>= \pre2 ->
+            simplify (And[getERROutcome out2,fExists outputs (getOKOutcome  out2)]) >>= \pre3 ->
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2 = (["MUST_BUG"],pre2) in
-            return (updateMethDecl prog m{methOut=out2,methOutPres=[lpre1,lpre2]})
+            let lpre3 = (["MAY_BUG"],pre3) in
+            return (updateMethDecl prog m{methOut=out2,methOutPres=[lpre1,lpre2,lpre3]})
 
 outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> Outcomes -> RecFlags 
   -> FS (AnnoType,Outcomes,[LabelledFormula],[QLabel])
@@ -729,6 +742,25 @@ outInferExp prog exp@(If (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags =
                   let upsis = upsis1 `union` upsis2 in
                     return (ty,outcomesp,phis,upsis)
 
+-------IfNonDet--------------------------
+outInferExp prog exp@(IfNonDet (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
+  invFromTyEnv gamma >>= \deltaInit ->
+  let outcomes0 = [OK deltaInit, ERR fFalse] in 
+  outInferExp prog exp1 mn v gamma outcomes0 recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
+  outInferExp prog exp2 mn v gamma outcomes0 recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
+  (case (ty1,ty2) of
+    (_,_) -> freshTy ty1) >>= \ty ->
+    rename ty1 ty >>= \(Just rho1) -> --can't fail
+    rename ty2 ty >>= \(Just rho2) -> 
+        outdebugApply rho1 outcomes1 >>= \rho1outcomes1 ->
+        outdebugApply rho2 outcomes2 >>= \rho2outcomes2 ->
+        impFromTyEnv gamma >>= \v ->
+        let outcomesNonDet = outNonDet v rho1outcomes1 rho2outcomes2 in
+        outoutcomposition v outcomes outcomesNonDet >>= \outcomesp ->
+        let phis = phis1 `union` phis2 in
+        let upsis = upsis1 `union` upsis2 in
+          return (ty,outcomesp,phis,upsis)
+        
 -------Empty Block-----------------
 outInferExp prog (ExpBlock [] exp1) mn v gamma outcomes recFlags = 
   outInferExp prog exp1 mn v gamma outcomes recFlags 
