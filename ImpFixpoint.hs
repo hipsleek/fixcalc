@@ -2,7 +2,7 @@ module ImpFixpoint(fixpoint) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(useTrueFixpoint,useAnnotatedFixpoint,useSelectiveHull,widenEarly,pairwiseDuringFix)
-import ImpFormula(inverseSubst,debugApply,noChange,fsvTy,Subst,fqsv,fqsvU,primeTheseQSizeVars,simplify,hull,subset,pairwiseCheck)
+import ImpFormula(inverseSubst,debugApply,noChange,fsvTy,Subst,primeTheseQSizeVars,simplify,hull,subset,pairwiseCheck)
 import ImpTypeCommon(setsForParamPassing)
 import InSolver(impUnion,impCompose)
 import MyPrelude(tr,concatMapM,showDiffTimes)

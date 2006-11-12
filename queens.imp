@@ -16,7 +16,7 @@ void loopQ (int i, int size, int[int] board)
 {
   if (i<size) then {
     int next := 1 + board[i];
-    if (next > size) then {
+    if (next > size) then { 
         board [i] := 0;
         if (i = 0) then { void }
         else { loopQ (i-1, size, board) }
@@ -37,10 +37,12 @@ bool test(int j, int i, int qi, int[int] board)
   if (j >= i) then { True }
   else {
     int qj := board[j];
-    if (qi = qj) then { False }
+    ifnd (qi = qj) then { True }
     else {
-      if ((abs (qi - qj)) = (i - j)) then { False }
-      else { test (j+1, i, qi, board) }
+      ifnd ((abs (qi - qj)) = (i - j)) then { False }
+      else { 
+        test (j+1, i, qi, board) 
+      }
     }
   }
 }

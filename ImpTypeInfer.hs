@@ -1,5 +1,5 @@
 module ImpTypeInfer(typeInferProg) where
-import Fresh(runFS,FS(),initialState,fresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
+import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(Flags,checkingAfterInference,noRecPreDerivation,separateFstFromRec,Prederivation(..),prederivation,Postcondition(..),postcondition,useFixpoint2k)
 import ImpFormula
@@ -74,7 +74,7 @@ typeInferMethDeclRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
   addOmegaStr ("Inference for recursive " ++ fname) >>
   setsForParamPassing (Meth m) >>= \(inputs,outputs,res,qsvByRef,qsvByVal) ->
-  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in invFromTyEnv gamma >>= \deltaInit ->
+  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
 --phase 1
   typeInferExp prog (methBody m) fname inputs gamma (triple deltaInit) (1,[fname]) >>= \(tp,delta,_,_) ->
   rename tp t >>= \maybeRho ->
@@ -107,7 +107,7 @@ typeInferMethDeclNonRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
   addOmegaStr ("Inference for " ++ fname) >>
   setsForParamPassing (Meth m) >>= \(v,outputs,_,qsvByRef,qsvByVal) ->
-  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in invFromTyEnv gamma >>= \deltaInit ->
+  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
   typeInferExp prog (methBody m) fname v gamma (triple deltaInit) (0,[]) >>= \(tp,delta,newPres,newUpsis) ->
   rename tp t >>= \maybeRho ->
   case maybeRho of
@@ -203,7 +203,7 @@ typeInferExp prog (Seq e1 e2) mn v gamma delta recFlags =
         return $ (ty2,delta2,phis,upsis)
 
 -------If--------------------------
-typeInferExp prog exp@(If (ExpVar lit) exp1 exp2) mn v gamma delta recFlags = 
+typeInferExp prog exp@(If nonDet (ExpVar lit) exp1 exp2) mn v gamma delta recFlags = 
   let bty = case lookupVar lit gamma of
         Nothing -> error $ "undefined variable " ++ lit ++ "\n "++showImppTabbed exp 1++"\n in function " ++ mn
         Just ty@PrimBool{} -> ty
@@ -239,7 +239,7 @@ typeInferExp prog exp@(If (ExpVar lit) exp1 exp2) mn v gamma delta recFlags =
                     return (ty,deltap,phis,upsis)
       PrimBool{anno=Nothing} ->
         error $ "no annotation for the test value in conditional\n "++showImppTabbed exp 1
-typeInferExp prog exp@(If _ exp1 exp2) mn v gamma delta recFlags = 
+typeInferExp prog exp@(If nonDet _ exp1 exp2) mn v gamma delta recFlags = 
   error $ "test in conditional is not NQVar -- not implemented" ++ showImppTabbed exp 1
 
 -------Empty Block-----------------
@@ -250,7 +250,7 @@ typeInferExp prog (ExpBlock [] exp1) mn v gamma delta recFlags =
 typeInferExp prog exp@(ExpBlock [VarDecl ty lit exp1] exp2) mn v gamma delta recFlags = 
   typeInferExp prog exp1 mn v gamma delta recFlags >>= \(ty1,delta1,phis1,upsis1) ->
   impFromTyEnv gamma >>= \u ->
-  invFromTy ty >>= \psi ->
+  initialTransFromTy ty >>= \psi ->
 --  equate (ty1,ty) (Unprimed,Unprimed) >>= \subst ->
   equate (ty1,ty) (Unprimed,Primed) >>= \subst ->
   case subst of
@@ -307,7 +307,7 @@ typeInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v
           impFromTyEnv gammap >>= \u ->
           let delta1p = map (\context -> fAnd[context,sndComp]) fstComp in
             addOmegaStr ("=========\nDuring inference: declaration of array " ++ lit ++ "\n=========") >>
-            invFromTyEnv gamma >>= \invFromGamma ->
+            initialTransFromTyEnv gamma >>= \invFromGamma ->
             mkChks v u delta1 invFromGamma checks >>= \(phisp,errs) ->
               fsvTy tp >>= \x ->
               fsvTy ty >>= \svty -> 
@@ -366,7 +366,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
       0 -> -- caller (current funtion) is a non-recursive function
 -- Point? 
           mapM simplify delta >>= \delta ->
-          invFromTyEnv gamma >>= \invFromGamma ->
+          initialTransFromTyEnv gamma >>= \invFromGamma ->
           mkChks v u delta invFromGamma rhoPhim >>= \(phis,upsis) ->
           mapM (debugApply rho) deltam >>= \rhoDeltam ->
           mapM (\(context1,context2) -> composition w context1 context2) (zip delta rhoDeltam) >>= \delta2 ->
@@ -397,7 +397,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
           if isRecCall then 
                getFlags >>= \flags -> 
               (if (prederivation flags == PostPD) then --if self-Recursive call and PostPD - enable checking!!
-                invFromTyEnv gamma >>= \invFromGamma ->
+                initialTransFromTyEnv gamma >>= \invFromGamma ->
                 mkChksRec v u uRec realTys delta crtInv invFromGamma rhoPhim >>= \(phis,upsis) -> return upsis
               else --if self-Recursive call - disable checking!!
                 return []) >>= \newUpsis ->
@@ -407,7 +407,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
           else --derive preFst and preRec
 -- Point? 
               mapM simplify delta >>= \delta ->
-              invFromTyEnv gamma >>= \invFromGamma ->
+              initialTransFromTyEnv gamma >>= \invFromGamma ->
               mkChksRec v u uRec realTys delta crtInv invFromGamma rhoPhim >>= \(phis,upsis) ->
               mapM (debugApply rho) deltam >>= \rhoDeltam ->
               mapM (\(context1,context2) -> composition w context1 context2) (zip delta rhoDeltam) >>= \deltap ->
@@ -550,7 +550,7 @@ getCalleesFromExp:: Exp -> [Lit]
 getCalleesFromExp exp = case exp of
   LblMethCall lbl id exps -> id : (concatMap getCalleesFromExp exps)
   AssignVar id exp -> getCalleesFromExp exp
-  If test exp1 exp2 -> concatMap getCalleesFromExp [test,exp1,exp2]
+  If nonDet test exp1 exp2 -> concatMap getCalleesFromExp [test,exp1,exp2]
   Seq exp1 exp2 -> concatMap getCalleesFromExp [exp1,exp2]
   ExpBlock varDecls exp -> (concatMap getCalleesFromDecl varDecls) ++ getCalleesFromExp exp
   _ -> []
@@ -601,18 +601,26 @@ outoutcomposition:: [QSizeVar] -> Outcomes -> Outcomes -> FS Outcomes
 outoutcomposition u [OK f1,ERR f2] [OK fa,ERR fb] = 
   composition u f1 fa >>= \f1a -> composition u f1 fb >>= \f1b ->
   return [OK f1a,ERR (Or [f2,f1b])]
-outNonDet:: [QSizeVar] -> Outcomes -> Outcomes -> Outcomes
+outNonDet:: [QSizeVar] -> Outcomes -> Outcomes -> FS Outcomes
 outNonDet ress [OK f1, ERR f3] [OK f2, ERR f4] =
-  let outOK = fAnd [fExists ress f1,fExists ress f2,fOr[f1,f2]] in
+  takeFresh (length ress) >>= \freshies1 ->
+  let freshQsvs1 = map (\fsh -> (SizeVar fsh,Unprimed)) freshies1 in
+  let subst1 = zip ress freshQsvs1 in
+  debugApply subst1 f1 >>= \rhof1 ->
+  takeFresh (length ress) >>= \freshies2 ->
+  let freshQsvs2 = map (\fsh -> (SizeVar fsh,Unprimed)) freshies2 in
+  let subst2 = zip ress freshQsvs2 in
+  debugApply subst2 f2 >>= \rhof2 ->
+  let outOK = fAnd [fExists freshQsvs1 rhof1,fExists freshQsvs2 rhof2,fOr[f1,f2]] in
   let outERR = fOr [f3,f4] in
-  [OK outOK, ERR outERR]
+  return [OK outOK, ERR outERR]
 
 outInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclRec prog m =
   getFlags >>= \flags ->  
   let ((passbyM,t,fname):args) = methParams m in
   setsForParamPassing (Meth m) >>= \(inputs,outputs,res,qsvByRef,qsvByVal) ->
-  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in invFromTyEnv gamma >>= \deltaInit ->
+  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
   outInferExp prog (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (1,[fname]) >>= \(tp,out,_,_) ->
   rename tp t >>= \(Just rho) -> 
       outdebugApply rho out >>= \outp -> 
@@ -631,34 +639,40 @@ outInferMethDeclRec prog m =
         fixpoint2k m recPostERR >>= \(fixedPostERR,fixedInvERR) ->
         let fixedOut = [OK fixedPostOK,ERR fixedPostERR] in
         let fixedProg = updateMethDecl prog m{methOut=fixedOut} in
+        invFromTyEnv gamma >>= \typeInv ->
+        gistCtxGivenInv (getOKOutcome fixedOut) typeInv >>= \gistedOK ->
+        gistCtxGivenInv (getERROutcome fixedOut) typeInv >>= \gistedERR ->
+        let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
-            simplify (And [fExists outputs (getOKOutcome fixedOut),fNot (getERROutcome fixedOut)]) >>= \pre1 ->
-            simplify (And[getERROutcome fixedOut,fNot(fExists outputs (getOKOutcome  fixedOut))]) >>= \pre2 ->
-            simplify (And[getERROutcome fixedOut,fExists outputs (getOKOutcome  fixedOut)]) >>= \pre3 ->
+            simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
+            simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
+            simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2= (["MUST_BUG"],pre2) in
             let lpre3= (["MAY_BUG"],pre3) in
-            return (updateMethDecl prog m{methOut=fixedOut,methOutPres=[lpre1,lpre2,lpre3]})
+            return (updateMethDecl prog m{methOut=gistedOut,methOutPres=[lpre1,lpre2,lpre3]})
 
 outInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclNonRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
   setsForParamPassing (Meth m) >>= \(v,outputs,_,qsvByRef,qsvByVal) ->
-  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in invFromTyEnv gamma >>= \deltaInit ->
+  let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
   outInferExp prog (methBody m) fname v gamma [OK deltaInit, ERR fFalse] (0,[]) >>= \(tp,out,newPres,newUpsis) ->
   rename tp t >>= \(Just rho) ->
           outdebugApply rho out >>= \outp ->
           let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-          outsimplify out1 >>= \out2 -> 
-          getFlags >>= \flags -> 
+          invFromTyEnv gamma >>= \typeInv ->
+          gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
+          gistCtxGivenInv (getERROutcome out1) typeInv >>= \gistedERR ->
+          let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
-            simplify (And [fExists outputs (getOKOutcome out2),fNot (getERROutcome out2)]) >>= \pre1 ->
-            simplify (And[getERROutcome out2,fNot(fExists outputs (getOKOutcome  out2))]) >>= \pre2 ->
-            simplify (And[getERROutcome out2,fExists outputs (getOKOutcome  out2)]) >>= \pre3 ->
+            simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
+            simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
+            simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2 = (["MUST_BUG"],pre2) in
             let lpre3 = (["MAY_BUG"],pre3) in
-            return (updateMethDecl prog m{methOut=out2,methOutPres=[lpre1,lpre2,lpre3]})
+            return (updateMethDecl prog m{methOut=gistedOut,methOutPres=[lpre1,lpre2,lpre3]})
 
 outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> Outcomes -> RecFlags 
   -> FS (AnnoType,Outcomes,[LabelledFormula],[QLabel])
@@ -722,7 +736,7 @@ outInferExp prog (Seq e1 e2) mn v gamma outcomes recFlags =
         return $ (ty2,outcomes2,phis,upsis)
 
 -------If--------------------------
-outInferExp prog exp@(If (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
+outInferExp prog exp@(If False (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
   let bty = (case lookupVar lit gamma of Just ty@PrimBool{} -> ty) in
   case bty of
       PrimBool{anno=Just b} ->
@@ -743,8 +757,8 @@ outInferExp prog exp@(If (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags =
                     return (ty,outcomesp,phis,upsis)
 
 -------IfNonDet--------------------------
-outInferExp prog exp@(IfNonDet (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
-  invFromTyEnv gamma >>= \deltaInit ->
+outInferExp prog exp@(If {-nonDet-} True (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
+  initialTransFromTyEnv gamma >>= \deltaInit ->
   let outcomes0 = [OK deltaInit, ERR fFalse] in 
   outInferExp prog exp1 mn v gamma outcomes0 recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
   outInferExp prog exp2 mn v gamma outcomes0 recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
@@ -754,9 +768,10 @@ outInferExp prog exp@(IfNonDet (ExpVar lit) exp1 exp2) mn v gamma outcomes recFl
     rename ty2 ty >>= \(Just rho2) -> 
         outdebugApply rho1 outcomes1 >>= \rho1outcomes1 ->
         outdebugApply rho2 outcomes2 >>= \rho2outcomes2 ->
-        impFromTyEnv gamma >>= \v ->
-        let outcomesNonDet = outNonDet v rho1outcomes1 rho2outcomes2 in
-        outoutcomposition v outcomes outcomesNonDet >>= \outcomesp ->
+        impFromTyEnv gamma >>= \imp -> impFromTy ty >>= \res -> 
+        let v = primeTheseQSizeVars imp ++ res in
+        outNonDet v rho1outcomes1 rho2outcomes2 >>= \outcomesNonDet ->
+        outoutcomposition imp outcomes outcomesNonDet >>= \outcomesp ->
         let phis = phis1 `union` phis2 in
         let upsis = upsis1 `union` upsis2 in
           return (ty,outcomesp,phis,upsis)
@@ -769,7 +784,7 @@ outInferExp prog (ExpBlock [] exp1) mn v gamma outcomes recFlags =
 outInferExp prog exp@(ExpBlock [VarDecl ty lit exp1] exp2) mn v gamma outcomes recFlags = 
   outInferExp prog exp1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
   impFromTyEnv gamma >>= \u ->
-  invFromTy ty >>= \psi ->
+  initialTransFromTy ty >>= \psi ->
   equate (ty1,ty) (Unprimed,Primed) >>= \(Just equ) ->
           let outcomes1p = outAnd outcomes1 equ in
           let extGamma = extendTypeEnv gamma (lit,ty) in
@@ -822,7 +837,7 @@ outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v 
           impFromTyEnv gammap >>= \u ->
           let outcomes1p = outAnd fstComp sndComp in -- map (\context -> fAnd[context,sndComp]) fstComp in
             addOmegaStr ("=========\nDuring inference: declaration of array " ++ lit ++ "\n=========") >>
-            invFromTyEnv gamma >>= \invFromGamma ->
+            initialTransFromTyEnv gamma >>= \invFromGamma ->
             mkChks v u (triple (getOKOutcome outcomes1)) invFromGamma checks >>= \(phisp,errs) ->
               fsvTy tp >>= \x ->
               fsvTy ty >>= \svty -> 
@@ -864,7 +879,7 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
     case wPhase of
       0 -> -- caller (current funtion) is a non-recursive function
           outsimplify out >>= \out ->
-          invFromTyEnv gamma >>= \invFromGamma ->
+          initialTransFromTyEnv gamma >>= \invFromGamma ->
           mkChks v u (triple (getOKOutcome out)) invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) ->
           outdebugApply rho outm >>= \rhooutm ->
           outoutcomposition w out rhooutm >>= \out2 ->
@@ -907,7 +922,7 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
           if isRecCall then 
                getFlags >>= \flags -> 
               (if (prederivation flags == PostPD) then --if self-Recursive call and PostPD - enable checking!!
-                invFromTyEnv gamma >>= \invFromGamma ->
+                initialTransFromTyEnv gamma >>= \invFromGamma ->
                 mkChksRec v u uRec realTys (triple $ getOKOutcome out) crtInv invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) -> return upsis
               else --if self-Recursive call - disable checking!!
                 return []) >>= \newUpsis ->
@@ -916,7 +931,7 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
               return $ (typ,out2,[],newUpsis) 
           else --derive preFst and preRec
               outsimplify out >>= \out ->
-              invFromTyEnv gamma >>= \invFromGamma ->
+              initialTransFromTyEnv gamma >>= \invFromGamma ->
               mkChksRec v u uRec realTys (triple $ getOKOutcome out) crtInv invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) ->
               outdebugApply rho outm >>= \rhooutm ->
               outoutcomposition w out rhooutm >>= \outp ->

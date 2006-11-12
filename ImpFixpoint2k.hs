@@ -2,7 +2,7 @@ module ImpFixpoint2k(fixpoint2k,bottomUp2k,Heur(..),subrec,combSelHull,getDisjun
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(useSelectiveHull,widenEarly,noExistentialsInDisjuncts,Heur(..),FixFlags,fixFlags)
-import ImpFormula(debugApply,noChange,fqsv,simplify,hull,subset,equivalent,recTheseQSizeVars,pairwiseCheck,projectQSV,hausdorffDistance,addHDistances)
+import ImpFormula(debugApply,noChange,simplify,hull,subset,equivalent,recTheseQSizeVars,pairwiseCheck,projectQSV,hausdorffDistance,addHDistances)
 import MyPrelude(tr,showDiffTimes,noElemFromFstIsInSnd,singleton,zipOrFail,numsFrom,updateList)
 ---------------
 import Data.Array
@@ -27,6 +27,8 @@ undefinedF = error "this dummy argument (formula) should not be used"
 
 -- fixpoint2k:: Method_declaration -> CAbst -> (Postcondition,Invariant)
 fixpoint2k:: MethDecl -> RecPost -> FS (Formula,Formula)
+-- requires: CAbst has ex-quantified variables that are all different
+-- otherwise simplifyRecPost is incorrect: (ex x: x=1 & (ex x: x=2)) is transformed to (ex x: (ex x: (x=1 & x=2)))
 fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
   if simulateOldFixpoint then fixpoint m recPost
   else
@@ -102,7 +104,8 @@ bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 bottomUp2k recpost (m,heur) initFormula = 
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet(fqsv f1r,f1r)) >>
-    subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
+    subrec recpost f1r >>= \f2 -> 
+    simplify f2 >>= \f2r -> 
     addOmegaStr ("# F2:="++showSet(fqsv f2r,f2r)) >>
   subrec recpost f2r >>= \f3 -> simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet(fqsv f3r,f3r)) >>

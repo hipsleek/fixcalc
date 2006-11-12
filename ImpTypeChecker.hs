@@ -47,7 +47,7 @@ typeCheckMethDecl prog m@MethDecl{methPres=pres,methPost=(post:_),methBody=eb} =
   else
     let psi = noChange qsvByVal in
     let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in
-    invFromTyEnv gamma >>= \deltaInit ->
+    initialTransFromTyEnv gamma >>= \deltaInit ->
     let delta1 = fAnd (deltaInit:snd (unzip pres)) in -- all pres are assumed to be true!
     typeCheckExp prog eb fname gamma delta1 >>= \(tp,delta2) ->
     rename tp t >>= \subst ->
@@ -136,7 +136,7 @@ typeCheckExp prog (Seq e1 e2) mn gamma delta =
   return $ (ty2,delta2)
 
 -------If--------------------------
-typeCheckExp prog exp@(If (ExpVar lit) exp1 exp2) mn gamma delta = 
+typeCheckExp prog exp@(If nonDet (ExpVar lit) exp1 exp2) mn gamma delta = 
   let bty = case lookupVar lit gamma of
         Nothing -> error $ "undefined variable " ++ lit ++ "\n "++showImppTabbed exp 1++"\n in function " ++ mn
         Just ty@PrimBool{} -> ty
@@ -144,7 +144,7 @@ typeCheckExp prog exp@(If (ExpVar lit) exp1 exp2) mn gamma delta =
     case bty of
       PrimBool{anno=Just b} ->
         let qb = (SizeVar b,Primed) in
--- Hai improvemed his type checker using this.
+-- Hai improvemed his type checker using a simplification of the delta-context at this point.
 -- For IMP, this generates significant less checking time only for LU (50% - from 195s to 84s)
 -- Point? 
         simplify delta >>= \delta ->
@@ -167,7 +167,7 @@ typeCheckExp prog exp@(If (ExpVar lit) exp1 exp2) mn gamma delta =
                             return (ty,deltap)
       PrimBool{anno=Nothing} ->
         error $ "no annotation for the test value in conditional"++showImppTabbed exp 1
-typeCheckExp prog exp@(If _ exp1 exp2) mn gamma delta = error $ "test in conditional is not a variable\nDesugaring is not done before type checking?"++showImppTabbed exp 1
+typeCheckExp prog exp@(If nonDet _ exp1 exp2) mn gamma delta = error $ "test in conditional is not a variable\nDesugaring is not done before type checking?"++showImppTabbed exp 1
 -------Empty Block-----------------
 typeCheckExp prog (ExpBlock [] exp1) mn gamma delta = 
   typeCheckExp prog exp1 mn gamma delta
@@ -176,7 +176,7 @@ typeCheckExp prog (ExpBlock [] exp1) mn gamma delta =
 typeCheckExp prog exp@(ExpBlock [VarDecl ty lit exp1] exp2) mn gamma delta = 
   typeCheckExp prog exp1 mn gamma delta >>= \(ty1,delta1) ->
   impFromTyEnv gamma >>= \u ->
-  invFromTy ty >>= \psi ->
+  initialTransFromTy ty >>= \psi ->
   equate (ty1,ty) (Unprimed,Primed) >>= \eqF ->
   case eqF of
     Nothing -> error $ "incompatible types\nfound: " ++ showImpp ty1 ++ "\nrequired: " ++ showImpp ty ++ "\n "++ showImppTabbed exp 1

@@ -247,6 +247,13 @@ ctxSimplify v u delta phi toGistWith =
   let rel2 = (fqsv f2,[],f2) in
     impGist rel1 rel2
 
+gistCtxGivenInv:: Formula -> Formula -> FS Formula
+gistCtxGivenInv delta typeInv = 
+  let vars = nub ((fqsv delta) `union` (fqsv typeInv)) in
+  let rel1 = (vars,[],delta) in
+  let rel2 = (vars,[],typeInv) in
+  impGist rel1 rel2
+
 -- Before composition, ctxImplication and ctxSimplify(Rec):
 -- size variables from U (to be linked) are checked not be Primed! Should not happen - and may be disabled later.
 assertAllUnprimed:: [QSizeVar] -> [QSizeVar]
@@ -267,37 +274,6 @@ assertAllUnprimed = map (\qs -> case qs of
 --stripCond (Forall qsvs f) = Forall qsvs (stripCond f)
 --stripCond f@(AppCAbst name _ _) = f
 
-
--------Selectors from Formulae------------
-outfqsv:: Outcomes -> [QSizeVar]
-outfqsv [OK phi1,ERR phi2] = fqsv phi1 ++ fqsv phi2
-
---extract size variables from a formula without keeping DUPLICATES
-fqsv:: Formula -> [QSizeVar]
-fqsv f = nub $ case f of 
-  And formulae -> concatMap (\f -> fqsv f) formulae
-  Or formulae -> concatMap (\f -> fqsv f) formulae
-  Not formula -> fqsv formula
-  Exists otherSVs formula -> 
-    let inside = (fqsv formula) in 
-      inside \\ otherSVs
-  Forall otherSVs formula -> 
-    let inside = (fqsv formula) in
-      inside \\ otherSVs
-  GEq ups -> fqsvU ups 
-  EqK ups -> fqsvU ups 
-  AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
-  AppRecPost lit insouts -> insouts
-  _ -> error ("fqsv: unexpected argument: " ++ show f)
-  
-
-fqsvU:: [Update] -> [QSizeVar]
-fqsvU [] = []
-fqsvU (up:ups) = 
-  let rest=fqsvU ups in 
-    case up of
-      Const int -> rest
-      Coef qsv int -> qsv:rest  -- << Diferent from sizeVarsFromUpdates
 
 -------Selectors from Annotated Types-----
 --generates Unprimed versions of SizeVars found in ty, same as unprimeThisTy

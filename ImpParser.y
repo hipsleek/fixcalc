@@ -21,6 +21,7 @@ import MyPrelude
 	bool	{TkKwBool}
 	float	{TkKwFloat}
 	if		{TkKwIf}
+	ifnd	{TkKwIfND}
 	then	{TkKwThen}
 	else	{TkKwElse}
   while {TkKwWhile}
@@ -258,7 +259,8 @@ LExp1 : Exp				{ [$1] }
 
 Exp: SimpleExp		{$1}
 	| Exp ';' Exp	 {Seq $1 $3}
-	| if SimpleExp then EB else EB  %prec IF {If $2 $4 $6}
+	| if SimpleExp then EB else EB  %prec IF {If False $2 $4 $6}
+	| ifnd SimpleExp then EB else EB  %prec IF {If True $2 $4 $6}
 	| while SimpleExp do  EB %prec IF { While $2 $4 }
 	| for '(' SimpleExp ';' SimpleExp ';' SimpleExp ')' EB %prec IF { For $3 $5 $7 $9}
 	| EB {$1}

@@ -27,9 +27,11 @@ Obj_main=Main.o
 
 SRCS = ImpMain.hs ImpParser.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	FixCalcLexer.hs FixCalcMain.hs FixCalcParser.hs \
-	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs ImpConfig.hs 
+	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
+	ImpConfig.hs ImpOutInfer.hs
 OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
-	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint.o ImpFixpoint2k.o ImpConfig.o 
+	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint.o ImpFixpoint2k.o \
+	ImpConfig.o ImpOutInfer.o
 .SUFFIXES : .o .hs .hi .lhs .hc .s
 
 #Standard suffix rules
@@ -45,7 +47,7 @@ OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 .y.hs:
 	happy -agci $<
   
-all: fixcalc imp
+all: imp
 
 imp : $(OBJS) ImpParser.y
 	rm -f $@
@@ -104,6 +106,7 @@ swaparr:
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega_parser.hi
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega_types.hi
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega.hi
+ImpOutInfer.o : ImpOutInfer.hs
 ImpConfig.o : ImpConfig.hs
 MyPrelude.o : MyPrelude.hs
 Fresh.o : Fresh.hs
@@ -177,6 +180,7 @@ ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi
 ImpTypeInfer.o : ImpTypeChecker.hi
 ImpTypeInfer.o : ImpSugar.hi
+ImpTypeInfer.o : ImpOutInfer.hi
 ImpTypeInfer.o : ImpFixpoint2k.hi
 ImpTypeInfer.o : ImpFixpoint.hi
 ImpTypeInfer.o : ImpFormula.hi

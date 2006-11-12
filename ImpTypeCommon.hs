@@ -89,7 +89,7 @@ sTypeCheckExp prog exp@(Seq e1 e2) mn gamma =
   sTypeCheckExp prog e2 mn gamma >>= \(newMds2,newE2,ty2) ->
   return (newMds1++newMds2,Seq newE1 newE2,ty2)
 
-sTypeCheckExp prog exp@(If e1 e2 e3) mn gamma = 
+sTypeCheckExp prog exp@(If nonDet e1 e2 e3) mn gamma = 
   sTypeCheckExp prog e1 mn gamma >>= \(newMds1,newE1,ty1) ->
   if not (sameBaseTy ty1 (PrimBool{anno=Nothing})) then
     error $ "incompatible types in conditional test\nfound: "++showTy ty1++"\nrequired: Bool\n "++showImppTabbed exp 1
@@ -99,7 +99,7 @@ sTypeCheckExp prog exp@(If e1 e2 e3) mn gamma =
     if not (sameBaseTy ty2 ty3) then
       error $ "incompatible types in branches of conditional\nfound: "++showTy ty2++"\nand: "++showTy ty3++"\n "++showImppTabbed exp 1
     else
-      return (newMds1++newMds2++newMds3,If newE1 newE2 newE3,ty2)
+      return (newMds1++newMds2++newMds3,If nonDet newE1 newE2 newE3,ty2)
 
 sTypeCheckExp prog@(Prog incls prims meths) exp@(LblMethCall lbl fName args) mn gamma =
   mapM (\arg -> sTypeCheckExp prog arg mn gamma) args >>= \triples ->
@@ -139,7 +139,7 @@ sTypeCheckExp prog exp@(While e1 eb) mn gamma =
                                   return (PassByRef,annTy,arg)
            ) whileLits >>= \argsAndTys ->
       let whileCall = LblMethCall Nothing freshMname whileArgs in
-      let newWhileEb = ExpBlock [] (If newE1 (Seq newEb whileCall) KVoid) in
+      let newWhileEb = ExpBlock [] (If False newE1 (Seq newEb whileCall) KVoid) in
       let newMD = MethDecl {methParams=((PassByRef,retTy,freshMname):argsAndTys),
                             methPost=(triple FormulaBogus),
                             methPres=[],
@@ -169,7 +169,7 @@ sTypeCheckExp prog exp@(For e1 e2 e3 eb) mn gamma =
                                 return (PassByRef,annTy,arg)
          ) forLits >>= \argsAndTys ->
     let forCall = LblMethCall Nothing freshMname forArgs in
-    let newForEb = ExpBlock [] (If newE2 (Seq newEb (Seq newE3 forCall)) KVoid) in
+    let newForEb = ExpBlock [] (If False newE2 (Seq newEb (Seq newE3 forCall)) KVoid) in
     let newMD = MethDecl {methParams=((PassByRef,retTy,freshMname):argsAndTys),
                           methPost=(triple FormulaBogus),
                           methPres=[],
@@ -221,7 +221,7 @@ sTypeCheckVarDecl prog vd@(LblArrVarDecl lbl annTy indxs lit e1) mn gamma =
 freeVars:: Exp -> [Lit]
 freeVars (ExpVar lit) = [lit]
 freeVars (AssignVar lit e) = lit:freeVars e
-freeVars (If e1 e2 e3) = concatMap freeVars [e1,e2,e3]
+freeVars (If _ e1 e2 e3) = concatMap freeVars [e1,e2,e3]
 freeVars (LblMethCall lbl id es) = concatMap freeVars es
 freeVars (Seq e1 e2) = freeVars e1 ++ freeVars e2
 freeVars (ExpBlock vds eb) = concatMap freeVarsVarDecl vds++freeVars eb
@@ -333,14 +333,16 @@ unprimeThisTy ty =
   sizeVarsFromAnnTy ty >>= \svs -> 
   return $ map (\s -> (s,Unprimed)) svs
 
-----To do: simplify true
-invFromTyEnv:: TypeEnv -> FS Formula
-invFromTyEnv tenv = 
-  mapM (\(v,ty) -> invFromTy ty) tenv >>= \fs ->
-  return (fAnd fs)
+-- input:: {x::Int, a::[Float]Int, b::Bool}
+-- output:: (x'=x && a>0 && 0<=b<=1)
+initialTransFromTyEnv:: TypeEnv -> FS Formula
+initialTransFromTyEnv tenv = 
+  mapM (\(v,ty) -> initialTransFromTy ty) tenv >>= \fs ->
+  let fsNoTrue = filter (\f -> case f of {EqK [Const 0] -> False;_ -> True}) fs in
+  return (fAnd fsNoTrue)
 
-invFromTy:: AnnoType -> FS Formula
-invFromTy ty = 
+initialTransFromTy:: AnnoType -> FS Formula
+initialTransFromTy ty = 
   isIndirectionArrTy ty >>= \isIndir ->
   impFromTy ty >>= \tys ->
   let noX = noChange tys in
@@ -348,6 +350,8 @@ invFromTy ty =
         PrimBool{anno=Just a} ->
           let qb = (SizeVar a,Unprimed) in
             fOr [EqK [Coef qb (-1),Const 1],EqK [Coef qb 1]]
+-- the conjunct on the next line should be equivalent with (and more efficient than) the disjunct on the previous line
+--            fAnd [GEq [Coef qb (-1),Const 1],GEq [Coef qb 1]] 
         ArrayType{elemType=eTy,indxTypes=iTys} ->
           let sGT0 s = fGT[Coef (SizeVar s,Unprimed) 1] in
           let sGT0s = map (\PrimInt{anno=Just s} -> sGT0 s) iTys in
@@ -363,6 +367,39 @@ invFromTy ty =
             fAnd sGT0s
         _ -> fTrue 
   in return $ (fAnd [noX,initp])
+
+-- input:: {x::Int, a::[Float]Int, b::Bool}
+-- output:: (a>0 && 0<=b<=1)
+invFromTyEnv:: TypeEnv -> FS Formula
+invFromTyEnv tenv = 
+  mapM (\(v,ty) -> invFromTy ty) tenv >>= \fs ->
+  let fsNoTrue = filter (\f -> case f of {EqK [Const 0] -> False;_ -> True}) fs in
+  return (fAnd fsNoTrue)
+
+invFromTy:: AnnoType -> FS Formula
+invFromTy ty = 
+  isIndirectionArrTy ty >>= \isIndir ->
+  let initp = case ty of
+        PrimBool{anno=Just a} ->
+          let qb = (SizeVar a,Unprimed) in
+            fOr [EqK [Coef qb (-1),Const 1],EqK [Coef qb 1]]
+-- the conjunct on the next line should be equivalent with (and more efficient than) the disjunct on the previous line
+--            fAnd [GEq [Coef qb (-1),Const 1],GEq [Coef qb 1]] 
+        ArrayType{elemType=eTy,indxTypes=iTys} ->
+          let sGT0 s = fGT[Coef (SizeVar s,Unprimed) 1] in
+          let sGT0s = map (\PrimInt{anno=Just s} -> sGT0 s) iTys in
+          if isIndir then
+            case anno eTy of
+              Just elemAnno ->
+                let min = ((ArrSizeVar elemAnno Min),Unprimed) in
+                let max = ((ArrSizeVar elemAnno Max),Primed) in
+                let minLTEmax = GEq [Coef max 1,Coef min (-1)] in
+                  fAnd (minLTEmax:sGT0s) 
+              Nothing -> error $ "indirection array without annotation ??" ++ showImpp ty
+          else 
+            fAnd sGT0s
+        _ -> fTrue 
+  in return initp
 
 qsvFromTyEnv:: TypeEnv -> FS [QSizeVar]
 qsvFromTyEnv tenv = 

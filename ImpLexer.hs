@@ -5,7 +5,7 @@ data Tk=
 	TkAlphaNum String
 	| TkTrue | TkFalse | TkIntNum Int | TkFloatNum Float
 	| TkKwInt | TkKwBool | TkKwFloat | TkKwVoid
-	| TkKwIf | TkKwThen | TkKwElse | TkKwWhile | TkKwFor | TkKwDo | TkKwRef
+	| TkKwIf | TkKwIfND | TkKwThen | TkKwElse | TkKwWhile | TkKwFor | TkKwDo | TkKwRef
 	| TkAssign | TkSemiColon | TkLAcc | TkRAcc | TkComma
 	| TkLBr | TkRBr | TkLSqBr | TkRSqBr
 	| TkColon
@@ -76,6 +76,7 @@ lexer' ('F':'l':'o':'a':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwFloa
 lexer' ('f':'l':'o':'a':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwFloat xs
 lexer' ('V':'o':'i':'d':xs) | not $ isAlphaNum (head xs) = returnPI TkKwVoid xs
 lexer' ('v':'o':'i':'d':xs) | not $ isAlphaNum (head xs) = returnPI TkKwVoid xs
+lexer' ('i':'f':'n':'d':xs) | not $ isAlphaNum (head xs) = returnPI TkKwIfND xs
 lexer' ('i':'f':xs) | not $ isAlphaNum (head xs) = returnPI TkKwIf xs
 lexer' ('t':'h':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwThen xs
 lexer' ('e':'l':'s':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkKwElse xs

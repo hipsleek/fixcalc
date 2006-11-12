@@ -44,7 +44,7 @@ makeIf:: [(Exp,Exp)] -> Exp -> [Exp] -> Exp
 makeIf rho exp [] = exp
 makeIf rho exp (cond:conds) = 
   let substFirst = applySubstExpAll cond rho in
-    If substFirst (makeIf rho exp conds) ExpError
+    If False substFirst (makeIf rho exp conds) ExpError
 
 applySubstExpAll:: Exp -> [(Exp,Exp)] -> Exp
 applySubstExpAll cond [] = cond
@@ -60,11 +60,11 @@ applySubstExpOne cond (formal,actual) = case cond of
   AssignVar id exp -> -- <-- not checked if a variable with the same name is introduced. If so do not do newEb
     let newExp = applySubstExpOne exp (formal,actual) in
       AssignVar id newExp
-  If test exp1 exp2 -> 
+  If nonDet test exp1 exp2 -> 
     let newTest = applySubstExpOne test (formal,actual) in
     let newExp1 = applySubstExpOne exp1 (formal,actual) in
     let newExp2 = applySubstExpOne exp2 (formal,actual) in
-      If newTest newExp1 newExp2
+      If nonDet newTest newExp1 newExp2
   Seq exp1 exp2 ->
     let newExp1 = applySubstExpOne exp1 (formal,actual) in
     let newExp2 = applySubstExpOne exp2 (formal,actual) in
@@ -107,11 +107,11 @@ specializeE prog varsigma e = case e of
   AssignVar id exp -> 
     specializeE prog varsigma exp >>= \newExp ->
       return $ AssignVar id newExp 
-  If test exp1 exp2 ->
+  If nonDet test exp1 exp2 ->
     specializeE prog varsigma test >>= \newTest ->
     specializeE prog varsigma exp1 >>= \newExp1 ->
     specializeE prog varsigma exp2 >>= \newExp2 ->
-      return $ If newTest newExp1 newExp2
+      return $ If nonDet newTest newExp1 newExp2
   Seq exp1 exp2 ->
     specializeE prog varsigma exp1 >>= \newExp1 ->
     specializeE prog varsigma exp2 >>= \newExp2 ->
@@ -190,11 +190,11 @@ typeAnnoChkE e = case e of
   AssignVar id exp ->
     typeAnnoChkE exp >>= \newExp ->
     return $ AssignVar id newExp
-  If test exp1 exp2 ->
+  If nonDet test exp1 exp2 ->
     typeAnnoChkE test >>= \newTest ->
     typeAnnoChkE exp1 >>= \newExp1 ->
     typeAnnoChkE exp2 >>= \newExp2 ->
-    return $ If newTest newExp1 newExp2
+    return $ If nonDet newTest newExp1 newExp2
   Seq exp1 exp2 -> 
     typeAnnoChkE exp1 >>= \newExp1 ->
     typeAnnoChkE exp2 >>= \newExp2 ->
@@ -240,11 +240,11 @@ typeAnnoInfE e = case e of
   AssignVar id exp ->
     typeAnnoInfE exp >>= \newExp ->
     return $ AssignVar id newExp
-  If test exp1 exp2 ->
+  If nonDet test exp1 exp2 ->
     typeAnnoInfE test >>= \newTest ->
     typeAnnoInfE exp1 >>= \newExp1 ->
     typeAnnoInfE exp2 >>= \newExp2 ->
-    return $ If newTest newExp1 newExp2
+    return $ If nonDet newTest newExp1 newExp2
   Seq exp1 exp2 -> 
     typeAnnoInfE exp1 >>= \newExp1 ->
     typeAnnoInfE exp2 >>= \newExp2 ->
@@ -280,7 +280,7 @@ sgMultiDeclExp (ExpBlock (varDecl:rest) exp) =
 
 -------Traverse - No change--------
 sgMultiDeclExp e = case e of
-  If ident exp1 exp2 -> If ident (sgMultiDeclExp exp1) (sgMultiDeclExp exp2)
+  If nonDet ident exp1 exp2 -> If nonDet ident (sgMultiDeclExp exp1) (sgMultiDeclExp exp2)
   Seq exp1 exp2 -> Seq (sgMultiDeclExp exp1) (sgMultiDeclExp exp2)
   AssignVar id exp -> AssignVar id (sgMultiDeclExp exp)
 --  LblMethCall _ _ _ -> arguments should not be expression. sgArgIsExp has been done
@@ -302,11 +302,11 @@ sgFwDeclInExp (Seq e1 e2) =
   let (e1',vds1) = sgFwDeclInExp e1 in
   let (e2',vds2) = sgFwDeclInExp e2 in
     (Seq (seqVds vds1 e1') (seqVds vds2 e2'),[])
-sgFwDeclInExp (If v e1 e2) = --assumes v is a simple expression
+sgFwDeclInExp (If nonDet v e1 e2) = --assumes v is a simple expression
   let (e1',vds1) = sgFwDeclInExp e1 in
   let (e2',vds2) = sgFwDeclInExp e2 in
-    (If v (seqVds vds1 e1') (seqVds vds2 e2'),[])
-sgFwDeclInExp (AssignVar v (If vCond eThen eElse)) = 
+    (If nonDet v (seqVds vds1 e1') (seqVds vds2 e2'),[])
+sgFwDeclInExp (AssignVar v (If nonDet vCond eThen eElse)) = 
   error "sgFwDeclInExp: initializer for VarDecl is a conditional. Causes code duplication.\nNot Implemented (yet) because C does not allow this."
 sgFwDeclInExp (AssignVar v e) =
   let (e',vds) = sgFwDeclInExp e in
@@ -314,14 +314,14 @@ sgFwDeclInExp (AssignVar v e) =
 sgFwDeclInExp (ExpBlock [] e) =
   let (e',vds) = sgFwDeclInExp e in
     (e',vds)
-sgFwDeclInExp (eb@(ExpBlock [VarDecl ty v (If vCond eThen eElse)] e2)) =
+sgFwDeclInExp (eb@(ExpBlock [VarDecl ty v (If nonDet vCond eThen eElse)] e2)) =
   error "sgFwDeclInExp: initializer for VarDecl is a conditional. Causes code duplication.\nNot Implemented (yet) because C does not allow this."
 sgFwDeclInExp (eb@(ExpBlock [VarDecl ty v e1] e2)) =
   let (e1',vds1) = sgFwDeclInExp e1 in
   let (e2',vds2) = sgFwDeclInExp e2 in
     (e2',vds1++[(VarDecl ty v e1')]++vds2)
 
-sgFwDeclInExp (eb@(ExpBlock [LblArrVarDecl lbl ty indxs v (If vCond eThen eElse)] e2)) =
+sgFwDeclInExp (eb@(ExpBlock [LblArrVarDecl lbl ty indxs v (If nonDet vCond eThen eElse)] e2)) =
   error "sgFwDeclInExp: initializer for VarDecl is a conditional. Causes code duplication.\nNot Implemented (yet) because C does not allow this."
 sgFwDeclInExp (eb@(ExpBlock [LblArrVarDecl lbl ty indxs v e1] e2)) =
   let (e1',vds1) = sgFwDeclInExp e1 in
@@ -338,19 +338,19 @@ seqVds (vd:vds) e = ExpBlock [vd] (seqVds vds e)
 
 -------TestExp -> TestVar----------
 sgTestIsExp:: Exp -> FS Exp
-sgTestIsExp (If (ExpVar e) exp1 exp2) = 
+sgTestIsExp (If nonDet (ExpVar e) exp1 exp2) = 
   sgTestIsExp exp1 >>= \newExp1 ->
   sgTestIsExp exp2 >>= \newExp2 ->
-  return $ If (ExpVar e) newExp1 newExp2
+  return $ If nonDet (ExpVar e) newExp1 newExp2
 
-sgTestIsExp (If test exp1 exp2) = 
+sgTestIsExp (If nonDet test exp1 exp2) = 
   fresh >>= \fshAnn ->
   freshVar >>= \fshV -> 
     sgTestIsExp exp1 >>= \newExp1 ->
     sgTestIsExp exp2 >>= \newExp2 ->
     let varDecl = VarDecl (PrimBool{anno=Just fshAnn}) fshV test in
     let newTest = ExpVar fshV in
-      return $ ExpBlock [varDecl] (If newTest newExp1 newExp2)
+      return $ ExpBlock [varDecl] (If nonDet newTest newExp1 newExp2)
 
 -------Traverse - No Change--------
 sgTestIsExp e = 
@@ -428,11 +428,11 @@ sgArgIsExp prog e =
       sgArgIsExp prog exp1 >>= \newExp1 ->
       sgArgIsExp prog exp2 >>= \newExp2 ->
         return $ Seq newExp1 newExp2
-    If test exp1 exp2 ->
+    If nonDet test exp1 exp2 ->
       sgArgIsExp prog test >>= \newTest ->
       sgArgIsExp prog exp1 >>= \newExp1 ->
       sgArgIsExp prog exp2 >>= \newExp2 ->
-        return $ If newTest newExp1 newExp2
+        return $ If nonDet newTest newExp1 newExp2
     AssignVar id exp ->
       sgArgIsExp prog exp >>= \newExp ->
           return $ AssignVar id newExp

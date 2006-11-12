@@ -1,6 +1,7 @@
 module ImpAST where
 import Fresh(getFlags,FS(..))
 import ImpConfig(isIndirectionIntArray,outputFile)
+import List(nub,(\\))
 import MyPrelude
 import System.IO.Unsafe(unsafePerformIO)
 ------------------------------------------
@@ -22,12 +23,12 @@ primName p = thd3 (head (primParams p))
 data MethDecl = MethDecl {
 -- Arguments, Postcondition, PreconditionS, Runtime-checkS, Invariant, Body
   methParams:: [(PassBy,AnnoType,Lit)],
-  methPost:: [Formula], -- Outcomes,
+  methPost:: [Formula],
   methPres:: [LabelledFormula],
   methUpsis:: [QLabel],
   methInv:: Formula,
   methOut:: Outcomes, --length methOut == 2, ["OK", "ERR"]
-  methOutPres:: [LabelledFormula], --length methOutPres == 2, ["MUSTOK","MUSTERR"]
+  methOutPres:: [LabelledFormula], --length methOutPres == 3, ["NEVER_BUG","MUST_BUG","MAY_BUG"]
   methBody:: Exp
 }
 methName:: MethDecl -> Lit 
@@ -111,8 +112,7 @@ data Exp = KTrue
   | KIntNum Int
   | KFloatNum Float
   | ExpVar Lit
-  | If Exp Exp Exp
-  | IfNonDet Exp Exp Exp
+  | If Bool Exp Exp Exp -- the Bool flag: is the conditional nonDet
   | LblMethCall (Maybe Label) Lit [Exp]
   | AssignVar Lit Exp
   | Seq Exp Exp
@@ -198,6 +198,32 @@ fForall vs f = if (null vs) then f else (Forall vs f)
 fGT:: [Update] -> Formula
 fGT ups = GEq (Const (-1):ups)
 
+-------Selectors from Formulae------------
+--extract size variables from a formula without keeping DUPLICATES
+fqsv:: Formula -> [QSizeVar]
+fqsv f = nub $ case f of 
+  And formulae -> concatMap (\f -> fqsv f) formulae
+  Or formulae -> concatMap (\f -> fqsv f) formulae
+  Not formula -> fqsv formula
+  Exists otherSVs formula -> 
+    let inside = (fqsv formula) in 
+      inside \\ otherSVs
+  Forall otherSVs formula -> 
+    let inside = (fqsv formula) in
+      inside \\ otherSVs
+  GEq ups -> fqsvU ups 
+  EqK ups -> fqsvU ups 
+  AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
+  AppRecPost lit insouts -> insouts
+  _ -> error ("fqsv: unexpected argument: " ++ show f)
+
+fqsvU:: [Update] -> [QSizeVar]
+fqsvU [] = []
+fqsvU (up:ups) = 
+  let rest=fqsvU ups in 
+    case up of
+      Const int -> rest
+      Coef qsv int -> qsv:rest  -- << Diferent from sizeVarsFromUpdates
 -------Show Prog-------------------
 --Problematic !!
 -- multi-dimensional arrays as function arguments: all sizes (but the last) must be filled - with what??
@@ -264,7 +290,7 @@ instance ShowC Exp where
         let call = id ++ "(" ++ concatSepByComma (map (\arg -> showCTabbedRet arg (False,"") cnt) args) ++ ")" in
         if b then pre++call else call
       ExpBlock _ _ -> showExpAsBlockC e addRet cnt
-      If test exp1 exp2 -> 
+      If _ test exp1 exp2 -> 
         "if (" ++ showCTabbedRet test (False,"") cnt ++ ")" ++ showExpAsBlockC exp1 addRet (cnt+1) ++
         " else" ++ showExpAsBlockC exp2 addRet (cnt+1)
       Seq exp1 exp2 -> showCTabbedRet exp1 (False,"") cnt ++ ";\n" ++ tabs cnt ++ showCTabbedRet exp2 addRet cnt
@@ -287,14 +313,14 @@ instance ShowC VarDecl where
     case vd of
       VarDecl ty lit exp -> 
         case exp of
-          If e1 e2 e3 -> 
+          If _ e1 e2 e3 -> 
             showC ty ++ " " ++ lit ++ "; " ++
             showCTabbedRet exp (True,lit++" = ") (cnt+1) ++ ";\n" ++ tabs cnt          
           _ -> 
             showC ty ++ " " ++ lit ++ " = " ++ showCTabbedRet exp addRet (cnt+1) ++ ";\n" ++ tabs cnt
       LblArrVarDecl (Just lbl) ty@(ArrayType {elemType=eType,indxTypes=iTypes}) indxs lit exp -> 
         case exp of
-          If e1 e2 e3 -> error $ "array initialized with if: the C code will not compile. Better desugar Imp code."
+          If _ e1 e2 e3 -> error $ "array initialized with if: the C code will not compile. Better desugar Imp code."
           _ ->
             let dim1 = showCTabbedRet (indxs!!0) (False,"") (cnt+1) in
             let (call,dims) =  case (eType,length iTypes) of {
@@ -346,13 +372,16 @@ instance ShowImpp MethDecl where
     let ((passby,t,fname):args) = methParams m in
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
+      "{-\nOK:="++showSet (fqsv (getOKOutcome (methOut m)),getOKOutcome (methOut m)) ++ "\n" ++
+      "ERR:="++showSet (fqsv (getERROutcome (methOut m)),getERROutcome (methOut m)) ++ "\n" ++
+      "NEVER_BUG:="++showSet (fqsv (snd((methOutPres m)!!0)),snd((methOutPres m)!!0)) ++ "\n" ++
+      "MUST_BUG:="++showSet (fqsv (snd((methOutPres m)!!1)),snd((methOutPres m)!!1)) ++ "\n" ++
+      "MAY_BUG:="++showSet (fqsv (snd((methOutPres m)!!2)),snd((methOutPres m)!!2)) ++ "\n-}\n" ++
       passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
       showImpp (strong $ methPost m) ++ 
 --      "),\n  (" ++ showImpp (weak $ methPost m) ++ "),\n  (" ++ showImpp (cond $ methPost m) ++ 
       "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showUpsisImpp (methUpsis m) ++ 
-      "},\n  {" ++ "OK: " ++ showImpp (getOKOutcome (methOut m)) ++ ", ERR: " ++ showImpp (getERROutcome (methOut m)) ++ 
-      "},\n  {" ++ showImpp (methOutPres m) ++
-      "},\n  (" ++ show fTrue ++ "),\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
+      "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
   showImppPre m = 
     let pres = methPres m in
       if length pres == 0 then ""
@@ -447,7 +476,7 @@ instance ShowImpp Exp where
         id ++ "(" ++ concatSepByComma (map (\arg -> showImppTabbed arg cnt) args) ++ ")"
       ExpBlock varDecls eb -> "{\n" ++ tabs cnt ++ concatMap (\vd -> showImppTabbed vd cnt) varDecls ++ 
         showImppTabbed eb (cnt+1) ++ "\n" ++ tabs cnt ++ "}"
-      If test exp1 exp2 -> 
+      If _ test exp1 exp2 -> 
         "if " ++ showImppTabbed test cnt ++ "\n" ++ tabs cnt ++ "then { " ++ 
           showImppTabbed exp1 (cnt+1) ++ "\n"++tabs cnt++"} else { " ++ showImppTabbed exp2 (cnt+1) ++ " }"
       Seq exp1 exp2 -> showImppTabbed exp1 cnt ++ ";\n" ++ tabs cnt ++ showImppTabbed exp2 cnt
@@ -462,6 +491,12 @@ instance ShowImpp VarDecl where
       LblArrVarDecl maybeLbl ty indxs lit exp -> 
         let lbl = case maybeLbl of {Nothing -> "";Just lbl -> lbl++":"} in
         lbl ++ showImpp ty ++ "[" ++ concatSepByCommaImpp indxs ++ "] " ++ lit ++ " := " ++ showImppTabbed exp (cnt+1) ++ ";\n" ++ tabs cnt
+
+instance ShowImpp [Outcome] where
+  showImpp [ok,err] = "{" ++ showImpp ok ++ ", " ++ showImpp err ++ "}"
+instance ShowImpp Outcome where
+  showImpp (OK f) = "OK: "++showImpp f
+  showImpp (ERR f) = "ERR: "++showImpp f
 
 instance ShowImpp Formula where
   showImpp (And c) = 
