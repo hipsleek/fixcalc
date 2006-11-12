@@ -28,7 +28,8 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
       getCPUTimeFS >>= \time1 -> 
       bottomUp2k sRecPost fixFlags1 fFalse >>= \(post1,cntPost1) ->
-      addOmegaStr ("# Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet (fqsv post1,post1)) >> addOmegaStr ("#\tend bottomUp2k" ++ "\n") >>
+      addOmegaStr ("# Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet (fqsv post1,post1)) >> 
+      addOmegaStr ("#\tend bottomUp2k" ++ "\n") >>
 --      putStrFS("    Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet(fqsv post1,post1)) >>
       getCPUTimeFS >>= \time2 -> 
       putStrFS ("    BU " ++ show cntPost1 ++ "iter: " ++ showDiffTimes time2 time1)>>
@@ -172,7 +173,8 @@ compose gcrt (ins,recs,gbase) =
 getOneStep:: RecPost -> Formula -> FS Relation
 -- ensures: (length ins) = (length recs)
 getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
-  if not (null ((io \\ i) \\ o)) then error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
+  if not (null ((io \\ i) \\ o)) then 
+    error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
   else 
     let ins = i in
     let recs = (recTheseQSizeVars i) in
@@ -214,18 +216,6 @@ isRec formula = case formula of
   Forall qsvs f -> isRec f
   Exists qsvs f -> isRec f
   _ -> error ("isRec: unexpected argument: "++show formula)
-
-{-
-template formula = case formula of
-  And fs ->
-  Or fs ->
-  Not f ->
-  GEq us ->
-  EqK us ->
-  AppRecPost mn insouts ->
-  Exists qsvs f ->
-  _ -> error ("unexpected argument: "++show formula)
--}
 
 ----------------------------------
 --------Old fixpoint procedure----
@@ -450,3 +440,16 @@ replaceBackAppRecPost replPair formula = case formula of
       1 -> head apps
       2 -> error $ "replaceBackAppRecPost: two fresh variables in the same equality"++show formula
   AppRecPost mn insouts -> error $ "replaceBackAppRecPost: argument should not contain AppRecPost:\n " ++ show formula 
+
+{-
+template formula = case formula of
+  And fs ->
+  Or fs ->
+  Not f ->
+  Exists qsvs f ->
+  GEq us ->
+  EqK us ->
+  AppRecPost mn insouts ->
+  QLabelSubst subst lbl ->
+  _ -> error ("unexpected argument: "++show formula)
+-}

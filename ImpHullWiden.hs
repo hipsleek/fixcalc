@@ -6,7 +6,7 @@ import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
 import ImpFormula(simplify,hull,subset,projectQSV,hausdorffDistance,addHDistances)
 import MyPrelude(numsFrom,updateList)
 ---------------
-import Data.Array
+import Data.Array(Array,(//),(!),array,assocs,bounds)
 import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
@@ -23,8 +23,10 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 widen heur (xs,ys) = 
-  when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"++showSet (fqsv (Or xs),Or xs) ++ "\n" ++ showSet(fqsv (Or ys),Or ys))) >>
-  addOmegaStr ("# Widen1IN:=" ++ showSet(fqsv (Or xs),Or xs)) >> addOmegaStr ("# Widen2IN:=" ++ showSet(fqsv (Or ys),Or ys)) >> 
+  when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
+                                            ++showSet (fqsv (Or xs),Or xs) ++ "\n" ++ showSet(fqsv (Or ys),Or ys))) >>
+  addOmegaStr ("# Widen1IN:=" ++ showSet(fqsv (Or xs),Or xs)) >> 
+  addOmegaStr ("# Widen2IN:=" ++ showSet(fqsv (Or ys),Or ys)) >> 
   let (mxs,mys) = (map (\x -> Just x) xs,map (\y -> Just y) ys) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
@@ -87,7 +89,8 @@ replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) =
 widenOne:: (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
 widenOne (fcrt,fnext) = 
---    addOmegaStr ("# WidenCrt:=" ++ showSet (fqsv fcrt,fcrt)) >> addOmegaStr("# WidenNxt:=" ++ showSet (fqsv fnext,fnext)) >>
+--    addOmegaStr ("# WidenCrt:=" ++ showSet (fqsv fcrt,fcrt)) >> 
+--    addOmegaStr("# WidenNxt:=" ++ showSet (fqsv fnext,fnext)) >>
   closure fcrt >>= \fcrts ->
   mapM (subset fnext) fcrts >>= \suboks ->
   let fcrts' = zip fcrts suboks in
@@ -210,7 +213,8 @@ combSelHull (m,heur) disj fbase =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      when showDebugMSG (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))++ " disjuncts:\n" ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) disjM))) >>
+      when showDebugMSG (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
+                                   ++ " disjuncts:\n" ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
       return (catMaybes relatedDisjM)
@@ -256,7 +260,8 @@ iterateHalfMx (m,heur) disjM affinMx =
   when ((affinMx!(i,j))<100) (putStrFS ("SelHull chooses disjuncts with less than 100%: "++ show (affinMx!(i,j)))) >>
   when showDebugMSG (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
-  when showDebugMSG (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) replDisjM))) >>
+  when showDebugMSG (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
+                               ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
   else 
     computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
@@ -303,7 +308,9 @@ chooseMaxElem mat =
   fst maxe
 
 showAffinMx:: AffinMx -> String
-showAffinMx mat = let ((_,_),(m,n)) = bounds mat in ("- noRows: "++show (m+1) ++ ", noCols: "++show (n+1)++"\n") ++  showMatrix mat (m,n) 0
+showAffinMx mat = 
+  let ((_,_),(m,n)) = bounds mat in 
+    ("- noRows: "++show (m+1) ++ ", noCols: "++show (n+1)++"\n") ++  showMatrix mat (m,n) 0
   where
     showMatrix:: AffinMx -> (Int,Int) -> Int -> String
     showMatrix mat (m,n) i | i==m = showRow mat (m,n) i 0
@@ -323,7 +330,8 @@ affinity (Just f1) (Just f2) HausdorffHeur _ fsv =
   let distances = map hausdorffDistance (zip ranges1 ranges2) in
   let (inc,dist) = addHDistances distances in
   let maxdist = 1000 in
-  let haus = ceiling (fromIntegral (100*inc) / fromIntegral (length fsv+1)) + ceiling (fromIntegral (100*dist) / fromIntegral ((length fsv+1)*maxdist))in
+  let haus = ceiling (fromIntegral (100*inc) / fromIntegral (length fsv+1)) + 
+             ceiling (fromIntegral (100*dist) / fromIntegral ((length fsv+1)*maxdist))in
   putStrFS ("haus: " ++ show (length fsv) ++ ":" ++ show inc ++ ":" ++ show dist ++ ":" ++ show haus ++ ":" ++ show (100-haus)) >>
   return (100-haus)
 affinity (Just f1) (Just f2) heur operation _ = 
@@ -365,8 +373,12 @@ getDisjuncts:: Formula -> [Formula]
 -- requires formula is in DNF-form (result of simplify)
 getDisjuncts formula = 
   case formula of
-    And _ -> if countDisjuncts formula == 1 then [formula] else error ("getDisjuncts: "++show formula)
-    Or fs -> if countDisjuncts formula == length fs then fs else error ("getDisjuncts: "++show formula)
+    And _ -> 
+      if countDisjuncts formula == 1 then [formula] 
+      else error ("getDisjuncts: "++show formula)
+    Or fs -> 
+      if countDisjuncts formula == length fs then fs 
+      else error ("getDisjuncts: "++show formula)
     GEq us -> [formula] 
     EqK us -> [formula]
     AppRecPost mn insouts -> [formula]
@@ -389,7 +401,9 @@ getConjuncts formula = case formula of
   And fs -> concatMap (\f -> getConjuncts f) fs
   GEq us -> [formula]
   EqK us -> [formula]
-  Exists qsvs f -> if countDisjuncts f == 1 then [formula] else error ("getConjuncts: unexpected argument: "++show formula)
+  Exists qsvs f -> 
+    if countDisjuncts f == 1 then [formula] 
+    else error ("getConjuncts: unexpected argument: "++show formula)
   _ -> error ("getConjuncts: unexpected argument: "++show formula)
 
 countConjuncts:: Formula -> Int
@@ -398,7 +412,9 @@ countConjuncts formula = case formula of
   And fs -> sum (map (\f -> countConjuncts f) fs)
   GEq us -> 1
   EqK us -> 1
-  Exists qsvs f -> if countDisjuncts f == 1 then countConjuncts f else error ("countConjuncts: unexpected argument: "++show formula)
+  Exists qsvs f -> 
+    if countDisjuncts f == 1 then countConjuncts f 
+    else error ("countConjuncts: unexpected argument: "++show formula)
   _ -> error ("countConjuncts: unexpected argument: "++show formula)
 
 hullExistentials:: Formula -> FS Formula

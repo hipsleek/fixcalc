@@ -67,7 +67,7 @@ fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(FixCalcOBJS) $(LIBS) $(OMEGA_LIBS) $(RAZVAN_LIBS)	
 #####
 
-depend: ImpParser.hs 
+depend: ImpParser.hs FixCalcParser.hs
 	ghc -M $(HC_OPTS) -i$(RAZVAN_DIR_SRC_HS) $(SRCS)
 
 bsearch:
@@ -153,8 +153,15 @@ ImpFixpoint.o : ImpFormula.hi
 ImpFixpoint.o : ImpConfig.hi
 ImpFixpoint.o : ImpAST.hi
 ImpFixpoint.o : Fresh.hi
+ImpHullWiden.o : ImpHullWiden.hs
+ImpHullWiden.o : MyPrelude.hi
+ImpHullWiden.o : ImpFormula.hi
+ImpHullWiden.o : ImpConfig.hi
+ImpHullWiden.o : ImpAST.hi
+ImpHullWiden.o : Fresh.hi
 ImpFixpoint2k.o : ImpFixpoint2k.hs
 ImpFixpoint2k.o : MyPrelude.hi
+ImpFixpoint2k.o : ImpHullWiden.hi
 ImpFixpoint2k.o : ImpFormula.hi
 ImpFixpoint2k.o : ImpConfig.hi
 ImpFixpoint2k.o : ImpAST.hi
@@ -180,7 +187,6 @@ ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi
 ImpTypeInfer.o : ImpTypeChecker.hi
 ImpTypeInfer.o : ImpSugar.hi
-ImpTypeInfer.o : ImpOutInfer.hi
 ImpTypeInfer.o : ImpFixpoint2k.hi
 ImpTypeInfer.o : ImpFixpoint.hi
 ImpTypeInfer.o : ImpFormula.hi

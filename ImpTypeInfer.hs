@@ -45,16 +45,18 @@ typeInferSccs prog (scc:sccs) =
   typeInferSccs updProg sccs
 
 type RecFlags = (Int,[Lit]) -- (whatPhase,nameOfRecFs)
--- whatPhase: 0 - noRecursion; 1 - firstPhase; 2 - secondPhase
+-- whatPhase: 0 - noRecursion; 1 - collect cAbst; 2 - derive preconditions
+-- whatPhase: 3 - collect cAbst for OK outcome; 4 - collect cAbst for ERR outcome
 
 typeInferScc:: Prog -> SCC Node -> FS Prog
 typeInferScc prog scc =
   case scc of
     AcyclicSCC mDecl ->
       putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
---      typeInferMethDeclNonRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
-      let (updProg,time2) = (prog,0) in
+--      typeInferMethDeclNonRec prog mDecl >>= \updProg -> 
+      let updProg = prog in
       outInferMethDeclNonRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->
+      getCPUTimeFS >>= \time2 ->
       putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
       return updProg2
     CyclicSCC mDecls ->
@@ -62,9 +64,10 @@ typeInferScc prog scc =
       else
         let mDecl = (head mDecls) in
         putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
---        typeInferMethDeclRec prog mDecl >>= \updProg -> getCPUTimeFS >>= \time2 ->
-        let (updProg,time2) = (prog,0) in
+--        typeInferMethDeclRec prog mDecl >>= \updProg -> 
+        let updProg = prog in
         outInferMethDeclRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->  
+        getCPUTimeFS >>= \time2 ->
         putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
         return updProg2
 
@@ -586,6 +589,8 @@ printSCCs (n:ns) = (case n of
 ------------------------
 outAnd::Outcomes -> Formula -> Outcomes
 outAnd [OK f1,ERR f2] f = [OK (And [f1,f]), ERR f2] 
+outoutAnd::Outcomes -> Outcomes -> Outcomes
+outoutAnd [OK f1,ERR f2] [OK fa,ERR fb] = [OK (And [f1,fa]),ERR (Or [f2,And [f1,fb]])]
 outOr:: Outcomes -> Outcomes -> Outcomes
 outOr [OK f1,ERR f2] [OK fa,ERR fb] = [OK (Or [f1,fa]),ERR (Or [f2,fb])]
 outExists:: [QSizeVar] -> Outcomes -> Outcomes
@@ -617,53 +622,67 @@ outNonDet ress [OK f1, ERR f3] [OK f2, ERR f4] =
 
 outInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclRec prog m =
-  getFlags >>= \flags ->  
   let ((passbyM,t,fname):args) = methParams m in
   setsForParamPassing (Meth m) >>= \(inputs,outputs,res,qsvByRef,qsvByVal) ->
   let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
-  outInferExp prog (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (1,[fname]) >>= \(tp,out,_,_) ->
+  outInferExp prog (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (3,[fname]) >>= \(tp,out,_) ->
   rename tp t >>= \(Just rho) -> 
-      outdebugApply rho out >>= \outp -> 
-      let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
+  outdebugApply rho out >>= \outp -> 
+  let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
       let recPostOK = RecPost fname (inputs `union` outputs) (getOKOutcome out1) (inputs,outputs,qsvByVal) in
       putStrFS("Fixpoint for OK outcome:") >>
       fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
       let fixOKM = m{methOut=[OK fixedPostOK,ERR FormulaBogus]} in
       let fixOKProg = updateMethDecl prog fixOKM in
-      outInferExp fixOKProg (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (3,[fname]) >>= \(tp,out,_,_) ->
-        rename tp t >>= \(Just rho) -> 
-        outdebugApply rho out >>= \outp -> 
-        let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-        let recPostERR= RecPost fname (inputs `union` outputs) (getERROutcome out1) (inputs,outputs,qsvByVal) in
-        putStrFS("Fixpoint for ERR outcome:") >>
-        fixpoint2k m recPostERR >>= \(fixedPostERR,fixedInvERR) ->
-        let fixedOut = [OK fixedPostOK,ERR fixedPostERR] in
-        let fixedProg = updateMethDecl prog m{methOut=fixedOut} in
+      outInferExp fixOKProg (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (4,[fname]) >>= \(tp,out,errF) ->
+      rename tp t >>= \(Just rho) -> 
+      outdebugApply rho out >>= \outp -> 
+      let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
         invFromTyEnv gamma >>= \typeInv ->
-        gistCtxGivenInv (getOKOutcome fixedOut) typeInv >>= \gistedOK ->
-        gistCtxGivenInv (getERROutcome fixedOut) typeInv >>= \gistedERR ->
+--        putStrFS("ERR:="++show (getERROutcome out1))>>
+--        putStrFS("\nerrFs:="++ showImpp errF++"\n") >>
+        mapM (\(lbl,f) -> case f of 
+                          EqK [Const 0,Const 1] -> return (lbl,f)
+                          _ ->
+                            replaceLblWithFormula (lbl,f) (getERROutcome out1) >>= \replF ->
+                            replaceAllWithFalse replF >>= \replAllF ->
+                            let recPostERR= RecPost fname (inputs `union` outputs) replAllF (inputs,outputs,qsvByVal) in
+                            putStrFS("Fixpoint for ERR outcome:") >>
+                            fixpoint2k m recPostERR >>= \(fixedPostERR,_) ->
+                            gistCtxGivenInv fixedPostERR typeInv >>= \gf ->
+                            return (lbl,gf)) errF >>= \newMethErrs ->
+--        putStrFS("\nSimplerrFs:="++ show newMethErrs++"\n") >>
+        gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
+        gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
         let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
             simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
             simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
             simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
             let lpre1 = (["NEVER_BUG"],pre1) in
-            let lpre2= (["MUST_BUG"],pre2) in
-            let lpre3= (["MAY_BUG"],pre3) in
-            return (updateMethDecl prog m{methOut=gistedOut,methOutPres=[lpre1,lpre2,lpre3]})
+            let lpre2 = (["MUST_BUG"],pre2) in
+            let lpre3 = (["MAY_BUG"],pre3) in
+            return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
 
 outInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclNonRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
   setsForParamPassing (Meth m) >>= \(v,outputs,_,qsvByRef,qsvByVal) ->
   let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
-  outInferExp prog (methBody m) fname v gamma [OK deltaInit, ERR fFalse] (0,[]) >>= \(tp,out,newPres,newUpsis) ->
+  outInferExp prog (methBody m) fname v gamma [OK deltaInit, ERR fFalse] (0,[]) >>= \(tp,out,errF) ->
   rename tp t >>= \(Just rho) ->
-          outdebugApply rho out >>= \outp ->
-          let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
+  outdebugApply rho out >>= \outp ->
+  let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
           invFromTyEnv gamma >>= \typeInv ->
+--          putStrFS("ERR:="++show (getERROutcome out1))>>
+--          putStrFS("\nerrFs:="++ showImpp errF++"\n") >>
+          mapM (\(lbl,f) -> replaceLblWithFormula (lbl,f) (getERROutcome out1) >>= \replF ->
+                            replaceAllWithFalse replF >>= \replAllF ->
+                            gistCtxGivenInv replAllF typeInv >>= \gf ->
+                            return (lbl,gf)) errF >>= \newMethErrs ->
+--          putStrFS("\nSimplerrFs:="++ show newMethErrs++"\n") >>
           gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
-          gistCtxGivenInv (getERROutcome out1) typeInv >>= \gistedERR ->
+          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
           let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
             simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
@@ -672,34 +691,58 @@ outInferMethDeclNonRec prog m =
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2 = (["MUST_BUG"],pre2) in
             let lpre3 = (["MAY_BUG"],pre3) in
-            return (updateMethDecl prog m{methOut=gistedOut,methOutPres=[lpre1,lpre2,lpre3]})
+            return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
+
+replaceLblWithFormula:: LabelledFormula -> Formula -> FS Formula
+replaceLblWithFormula (thislbl,thisf) formula = case formula of 
+  And fs -> mapM (replaceLblWithFormula (thislbl,thisf)) fs >>= \repls -> return (And repls)
+  Or fs -> mapM (replaceLblWithFormula (thislbl,thisf)) fs >>= \repls -> return (Or repls)
+  Not f -> replaceLblWithFormula (thislbl,thisf) f >>= \repl -> return (Not repl)
+  Exists qsvs f -> replaceLblWithFormula (thislbl,thisf) f >>= \repl -> return (Exists qsvs repl)
+  GEq us -> return formula
+  EqK us -> return formula
+  AppRecPost mn insouts -> return formula
+  QLabelSubst subst lbl -> if (lbl==thislbl) then lblApply subst thisf else return formula
+  _ -> error ("unexpected argument: "++show formula)
+
+replaceAllWithFalse:: Formula -> FS Formula
+replaceAllWithFalse formula = case formula of
+  And fs -> mapM replaceAllWithFalse fs >>= \repls -> return (And repls)
+  Or fs -> mapM replaceAllWithFalse fs >>= \repls -> return (Or repls)
+  Not f -> replaceAllWithFalse f >>= \repl -> return (Not repl)
+  Exists qsvs f -> replaceAllWithFalse f >>= \repl -> return (Exists qsvs repl)
+  GEq us -> return formula
+  EqK us -> return formula
+  AppRecPost mn insouts -> return formula
+  QLabelSubst subst lbl -> return fFalse
+  _ -> error ("unexpected argument: "++show formula)
 
 outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> Outcomes -> RecFlags 
-  -> FS (AnnoType,Outcomes,[LabelledFormula],[QLabel])
+  -> FS (AnnoType,Outcomes,[LabelledFormula])
 -------KTrue-----------------------
 outInferExp prog KTrue mn _ gamma outcomes recFlags = 
   fresh >>= \s ->
   let ty = PrimBool{anno=Just s} in
   let out = outAnd outcomes (EqK[Coef (SizeVar s,Unprimed) (-1),Const 1]) in
-  return (ty,out,[],[])
+  return (ty,out,[])
 -------KFalse----------------------
 outInferExp prog KFalse mn _ gamma outcomes recFlags = fresh >>= \s ->
   let ty = PrimBool{anno=Just s} in
   let out = outAnd outcomes (EqK[Coef (SizeVar s,Unprimed) (-1),Const 0]) in
-  return (ty,out,[],[])
+  return (ty,out,[])
 -------KInt------------------------
 outInferExp prog (KIntNum n) _ _ _ outcomes recFlags = fresh >>= \s ->
   let ty = PrimInt{anno=Just s} in
   let out = outAnd outcomes (EqK[Coef (SizeVar s,Unprimed) (-1),Const n]) in
-  return (ty,out,[],[])
+  return (ty,out,[])
 -------KFloat----------------------
 outInferExp prog (KFloatNum f) _ _ _ outcomes recFlags = 
   let ty = PrimFloat{anno=Nothing} in
-  return (ty,outcomes,[],[])
+  return (ty,outcomes,[])
 -------KVoid-----------------------
 outInferExp prog (KVoid) _ _ _ outcomes recFlags = 
   let ty = PrimVoid{anno=Nothing} in
-  return (ty,outcomes,[],[])
+  return (ty,outcomes,[])
 -------ExpBogus--------------------
 outInferExp prog ExpBogus mn _ _ _ recFlags =
   error $ "ExpBogus: variable declaration without initialization??\n in function: " ++ mn
@@ -710,30 +753,25 @@ outInferExp prog (ExpVar lit) mn v gamma outcomes recFlags=
     Just ty -> freshTy ty >>= \typ ->
       equate (typ,ty) (Unprimed,Primed) >>= \(Just phi) ->
       let out = outAnd outcomes phi in
-      return (typ,out,[],[])
+      return (typ,out,[])
 -------VarAssign-------------------
 outInferExp prog@(Prog _ _ meths) exp@(AssignVar lit e1) mn v gamma outcomes recFlags=
   case lookupVar lit gamma of
     Nothing -> error $ "undefined variable " ++ lit ++ "\n "++showImppTabbed exp 1++"\n in function " ++ mn
     Just ty ->
-      outInferExp prog e1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,phis,upsis) ->
-      equate (ty,ty1) (Primed,Unprimed) >>= \subst ->
-      case subst of
-        Nothing -> error $ "incompatible types\nfound: " ++ showImpp ty1 ++ "\nrequired: " ++ showImpp ty ++ "\n "++ showImppTabbed exp 1
-        Just phi ->
-              fsvTy ty1 >>= \x ->
-              impFromTy ty >>= \u ->
-              outcomposition u outcomes1 phi >>= \outcomesA ->
-		          return (PrimVoid{anno=Nothing},outExists x outcomesA,phis,upsis) 
+      outInferExp prog e1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,errF) ->
+      equate (ty,ty1) (Primed,Unprimed) >>= \(Just phi) ->
+      fsvTy ty1 >>= \x ->
+      impFromTy ty >>= \u ->
+      outcomposition u outcomes1 phi >>= \outcomesA ->
+      return (PrimVoid{anno=Nothing},outExists x outcomesA,errF) 
 
 -------Seq-------------------------
 outInferExp prog (Seq e1 e2) mn v gamma outcomes recFlags = 
-  outInferExp prog e1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
-    fsvTy ty1 >>= \x ->
-      outInferExp prog e2 mn v gamma (outExists x outcomes1) recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
-        let phis = phis1 `union` phis2 in
-        let upsis = upsis1 `union` upsis2 in
-        return $ (ty2,outcomes2,phis,upsis)
+  outInferExp prog e1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,errF1) ->
+  fsvTy ty1 >>= \x ->
+  outInferExp prog e2 mn v gamma (outExists x outcomes1) recFlags >>= \(ty2,outcomes2,errF2) ->
+  return $ (ty2,outcomes2,errF1++errF2)
 
 -------If--------------------------
 outInferExp prog exp@(If False (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
@@ -743,8 +781,8 @@ outInferExp prog exp@(If False (ExpVar lit) exp1 exp2) mn v gamma outcomes recFl
         let qb = (SizeVar b,Primed) in
         let outcomesb1 = outAnd outcomes (EqK [Coef qb (-1),Const 1])  in
         let outcomesb0 = outAnd outcomes (EqK [Coef qb 1]) in 
-        outInferExp prog exp1 mn v gamma outcomesb1 recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
-        outInferExp prog exp2 mn v gamma outcomesb0 recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
+        outInferExp prog exp1 mn v gamma outcomesb1 recFlags >>= \(ty1,outcomes1,errF1) ->
+        outInferExp prog exp2 mn v gamma outcomesb0 recFlags >>= \(ty2,outcomes2,errF2) ->
             (case (ty1,ty2) of
               (_,_) -> freshTy ty1) >>= \ty ->
               rename ty1 ty >>= \(Just rho1) -> --can't fail
@@ -752,16 +790,14 @@ outInferExp prog exp@(If False (ExpVar lit) exp1 exp2) mn v gamma outcomes recFl
                   outdebugApply rho1 outcomes1 >>= \rho1outcomes1 ->
                   outdebugApply rho2 outcomes2 >>= \rho2outcomes2 ->
                   let outcomesp = outOr rho1outcomes1 rho2outcomes2 in
-                  let phis = phis1 `union` phis2 in
-                  let upsis = upsis1 `union` upsis2 in
-                    return (ty,outcomesp,phis,upsis)
+                    return (ty,outcomesp,errF1++errF2)
 
 -------IfNonDet--------------------------
 outInferExp prog exp@(If {-nonDet-} True (ExpVar lit) exp1 exp2) mn v gamma outcomes recFlags = 
   initialTransFromTyEnv gamma >>= \deltaInit ->
   let outcomes0 = [OK deltaInit, ERR fFalse] in 
-  outInferExp prog exp1 mn v gamma outcomes0 recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
-  outInferExp prog exp2 mn v gamma outcomes0 recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
+  outInferExp prog exp1 mn v gamma outcomes0 recFlags >>= \(ty1,outcomes1,errF1) ->
+  outInferExp prog exp2 mn v gamma outcomes0 recFlags >>= \(ty2,outcomes2,errF2) ->
   (case (ty1,ty2) of
     (_,_) -> freshTy ty1) >>= \ty ->
     rename ty1 ty >>= \(Just rho1) -> --can't fail
@@ -772,9 +808,7 @@ outInferExp prog exp@(If {-nonDet-} True (ExpVar lit) exp1 exp2) mn v gamma outc
         let v = primeTheseQSizeVars imp ++ res in
         outNonDet v rho1outcomes1 rho2outcomes2 >>= \outcomesNonDet ->
         outoutcomposition imp outcomes outcomesNonDet >>= \outcomesp ->
-        let phis = phis1 `union` phis2 in
-        let upsis = upsis1 `union` upsis2 in
-          return (ty,outcomesp,phis,upsis)
+          return (ty,outcomesp,errF1++errF2)
         
 -------Empty Block-----------------
 outInferExp prog (ExpBlock [] exp1) mn v gamma outcomes recFlags = 
@@ -782,20 +816,18 @@ outInferExp prog (ExpBlock [] exp1) mn v gamma outcomes recFlags =
 
 -------Block1-DeclVar--------------
 outInferExp prog exp@(ExpBlock [VarDecl ty lit exp1] exp2) mn v gamma outcomes recFlags = 
-  outInferExp prog exp1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,phis1,upsis1) ->
+  outInferExp prog exp1 mn v gamma outcomes recFlags >>= \(ty1,outcomes1,errF1) ->
   impFromTyEnv gamma >>= \u ->
   initialTransFromTy ty >>= \psi ->
   equate (ty1,ty) (Unprimed,Primed) >>= \(Just equ) ->
-          let outcomes1p = outAnd outcomes1 equ in
-          let extGamma = extendTypeEnv gamma (lit,ty) in
-          (fsvTy ty1) >>= \x ->
-          let outcomesP = outAnd (outExists x outcomes1p) psi in
-          outInferExp prog exp2 mn v extGamma outcomesP recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
-          fsvTy ty >>= \svty -> impFromTy ty >>= \isvty ->
-          let y = svty `union` primeTheseQSizeVars isvty in
-          let phis = phis1 `union` phis2 in
-          let upsis = upsis1 `union` upsis2 in
-          return (ty2,outExists y outcomes2,phis,upsis)
+  let outcomes1p = outAnd outcomes1 equ in
+  let extGamma = extendTypeEnv gamma (lit,ty) in
+  (fsvTy ty1) >>= \x ->
+  let outcomesP = outAnd (outExists x outcomes1p) psi in
+  outInferExp prog exp2 mn v extGamma outcomesP recFlags >>= \(ty2,outcomes2,errF2) ->
+  fsvTy ty >>= \svty -> impFromTy ty >>= \isvty ->
+  let y = svty `union` primeTheseQSizeVars isvty in
+  return (ty2,outExists y outcomes2,errF1++errF2)
 
 -------Block2-DeclArr--------------
 outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v gamma outcomes recFlags = 
@@ -825,13 +857,15 @@ outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v 
                                   Just equ -> return equ}
                       ) (zip iTys tyvs) >>= \nEqs -> -- no need for zipOrFail
       let checks = map (\(sGT0,cnt) -> (genLabelArr lbl cnt,sGT0)) (zip sGT0sUnprimed (enumFrom 1)) in -- no need for zipOrFail
-      outInferExp prog exp1 mn v gamma outcomes recFlags >>= \(tp,outcomes1,phis1,upsis1) ->
+      let errF0 = map (\(lbl,f) -> (lbl,fNot f)) checks in
+      outInferExp prog exp1 mn v gamma outcomes recFlags >>= \(tp,outcomes1,errF1) ->
       -- check init value is of the same type as elemTy
       initArrFormula tp ty >>= \arrFormula ->
       case arrFormula of
         Nothing -> error $ "incompatible types in array declaration\nfound: " ++ showImpp tp ++ "\ndeclared array: " ++ showImpp ty ++ "\n " ++showImppTabbed exp 1
         Just indirPsi ->
-          let fstComp = outAnd outcomes1 indirPsi in --map (\context -> fAnd [indirPsi,context]) delta1 in
+          let outWithChecks = outoutAnd outcomes1 [OK fTrue,ERR (fOr (map (\(lbl,_) -> QLabelSubst [] lbl) checks))] in
+          let fstComp = outAnd outWithChecks indirPsi in --map (\context -> fAnd [indirPsi,context]) delta1 in
           let sndComp = fAnd (sGT0sPrimed++nEqs) in
           let gammap = extendTypeEnv gamma (lit,ty) in
           impFromTyEnv gammap >>= \u ->
@@ -843,13 +877,11 @@ outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v 
               fsvTy ty >>= \svty -> 
               impFromTy ty >>= \isvty ->
               let y = svty `union` primeTheseQSizeVars isvty in
-                outInferExp prog exp2 mn v gammap (outExists x outcomes1p) recFlags >>= \(ty2,outcomes2,phis2,upsis2) ->
-                let phis = phis1 `union` phisp `union` phis2 in
-                let upsis = upsis1 `union` upsis2 `union` errs in
-                  return $ (ty2,outExists y outcomes2,phis,upsis)
+                outInferExp prog exp2 mn v gammap (outExists x outcomes1p) recFlags >>= \(ty2,outcomes2,errF2) ->
+                  return $ (ty2,outExists y outcomes2,errF0++errF1++errF2)
     _ -> error $ "incompatible types\n found: " ++ showImpp ty ++ "\nrequired: array type in declaration of " ++ lit ++ "\n "++showImppTabbed exp 1
 
-outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent) 
+outInferExp (Prog _ prims meths) exp@(LblMethCall (Just crtlbl) fName argsIdent) 
   mn v gamma out (wPhase,sccFs) =
   let getArgsTypes = \argIdent -> case argIdent of ExpVar lit -> case lookupVar lit gamma of{Just ty -> ty} in
     let argsTyps = map getArgsTypes argsIdent in 
@@ -861,30 +893,35 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
     (case calleeDef of
           Just (Meth m) -> 
             setsForParamPassing (fromJust calleeDef) >>= \(_,_,_,_,qsvByVal) ->
-            let out = outAnd (methOut m) (noChange qsvByVal) in
-            return (fst3(unzip3(methParams m)),snd3(unzip3(methParams m)),out,methOutPres m)
+            let outOK = getOKOutcome $ outAnd (methOut m) (noChange qsvByVal) in
+            let outERR = fOr $ map (\(lbl,_) -> QLabelSubst [] (crtlbl:lbl)) (methErrs m) in 
+            let errFormulae = map (\(lbl,f) -> (crtlbl:lbl,f)) (methErrs m) in --retrieve methErrs
+            return (fst3(unzip3(methParams m)),snd3(unzip3(methParams m)),[OK outOK, ERR outERR],methOutBugs m,errFormulae)
           Just (Prim p) -> 
             let strongPost = And ((primPost p):(map (\(lbl,f) -> f) (primPres p))) in
-            let errPost = Or (map (\ (lbl,f) -> fNot f) (primPres p)) in
+--            let errPost = Or (map (\ (lbl,f) -> fNot f) (primPres p)) in
+            let outERR = Or (map (\ (lbl,f) -> QLabelSubst [] (crtlbl:lbl)) (primPres p)) in
+            let errFormulae = map (\ (lbl,f) -> (crtlbl:lbl,fNot f)) (primPres p) in
             let lpre1 = (["NEVER_BUG"],And (map (\(lbl,f) -> f) (primPres p))) in
-            let lpre2= (["MUST_BUG"],errPost) in
-            return (fst3(unzip3(primParams p)),snd3(unzip3(primParams p)),[OK strongPost, ERR errPost],[lpre1,lpre2])
-    ) >>= \(formalPassBy,formalTyps,outm,phim) ->
+            let lpre2 = (["MUST_BUG"],outERR) in
+            let lpre3 = (["MAYBE_BUG"],fFalse) in
+            return (fst3(unzip3(primParams p)),snd3(unzip3(primParams p)),[OK strongPost, ERR outERR],[lpre1,lpre2,lpre3],errFormulae)
+    ) >>= \(formalPassBy,formalTyps,outm,phim,errF) ->
     freshTy (head formalTyps) >>= \typ ->
     let actualTyps = typ:argsTyps in
     let zipped = zip formalTyps actualTyps in
     concatMapM(\(t,tp) -> rename t tp >>= \(Just rho) -> return rho) zipped >>= \rho ->
-    mapM (\(lbls,f) -> debugApply rho f >>= \rhoF -> return (lbl:lbls,rhoF)) phim >>= \rhoPhim ->
+    mapM (\(lbls,f) -> debugApply rho f >>= \rhoF -> return (crtlbl:lbls,rhoF)) phim >>= \rhoPhim ->
     let isRecCall = fName `elem` sccFs in 
     case wPhase of
       0 -> -- caller (current funtion) is a non-recursive function
-          outsimplify out >>= \out ->
-          initialTransFromTyEnv gamma >>= \invFromGamma ->
-          mkChks v u (triple (getOKOutcome out)) invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) ->
+--          outsimplify out >>= \out ->
+--          initialTransFromTyEnv gamma >>= \invFromGamma ->
+--          mkChks v u (triple (getOKOutcome out)) invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) ->
           outdebugApply rho outm >>= \rhooutm ->
           outoutcomposition w out rhooutm >>= \out2 ->
-          return (typ,out2,phis,upsis)
-      1 -> -- caller is recursive: gather recursive CAbst for OK-outcome
+          return (typ,out2,errF)
+      3 -> -- caller is recursive: gather recursive CAbst for OK-outcome
           if isRecCall then 
             let zp = zip3 formalPassBy actualTyps (replicate (length actualTyps) undefined) in
             let methForSets = (case (fromJust calleeDef) of {Meth m -> m;_->error ""}){methParams=zp} in
@@ -892,12 +929,12 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
             let insouts = inputs `union` outputs in
             let delta1 = (And [noChange qsvByVal,AppRecPost fName insouts]) in
             outcomposition w out delta1 >>= \out2 ->
-            return $ (typ,out2,[],[]) -- when wPhase is 1, pres and upsis are not collected
+            return $ (typ,out2,errF) 
           else
             outdebugApply rho outm >>= \rhooutm ->
             outoutcomposition w out rhooutm >>= \out2 ->
-            return $ (typ,out2,[],[]) -- when wPhase is 1, pres and upsis are not collected
-      3 -> -- caller is recursive: gather recursive CAbst for ERR-outcome (after fixpoint for OK-outcome)
+            return $ (typ,out2,errF)
+      4 -> -- caller is recursive: gather recursive CAbst for ERR-outcome (after fixpoint for OK-outcome)
           if isRecCall then 
             let zp = zip3 formalPassBy actualTyps (replicate (length actualTyps) undefined) in
             let methForSets = (case (fromJust calleeDef) of {Meth m -> m;_->error ""}){methParams=zp} in
@@ -907,35 +944,11 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
             outdebugApply rho outm >>= \rhooutm ->
             let out1 = [OK (getOKOutcome rhooutm), ERR delta1] in -- retrieve result of fixpoint for OK
             outoutcomposition w out out1 >>= \out2 ->
-            return $ (typ,out2,[],[]) -- when wPhase is 1, pres and upsis are not collected
+            return $ (typ,out2,errF) 
           else
             outdebugApply rho outm >>= \rhooutm ->
             outoutcomposition w out rhooutm >>= \out2 ->
-            return $ (typ,out2,[],[]) -- when wPhase is 1, pres and upsis are not collected
-      2 -> -- caller is recursive: after fixpoint
-          let crtName = (head sccFs) in -- assumes sccFs is singleton: no mutual recursion!!
-          let crtDef = findCallable crtName callables in
-          let (crtArgs,crtInv) = case crtDef of
-                Just (Meth m) -> (methParams m,methInv m)
-                Nothing -> error $ "assertion failed: function not-found at recursive call\n " ++ showImppTabbed exp 1 in
-          let realTys = map (\(_,tyi,vi) -> tyi) crtArgs in
-          if isRecCall then 
-               getFlags >>= \flags -> 
-              (if (prederivation flags == PostPD) then --if self-Recursive call and PostPD - enable checking!!
-                initialTransFromTyEnv gamma >>= \invFromGamma ->
-                mkChksRec v u uRec realTys (triple $ getOKOutcome out) crtInv invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) -> return upsis
-              else --if self-Recursive call - disable checking!!
-                return []) >>= \newUpsis ->
-              outdebugApply rho outm >>= \rhooutm ->
-              outoutcomposition w out rhooutm >>= \out2 ->
-              return $ (typ,out2,[],newUpsis) 
-          else --derive preFst and preRec
-              outsimplify out >>= \out ->
-              initialTransFromTyEnv gamma >>= \invFromGamma ->
-              mkChksRec v u uRec realTys (triple $ getOKOutcome out) crtInv invFromGamma (getNeverBug rhoPhim) >>= \(phis,upsis) ->
-              outdebugApply rho outm >>= \rhooutm ->
-              outoutcomposition w out rhooutm >>= \outp ->
-              return $ (typ,outp,phis,upsis)
+            return $ (typ,out2,errF) 
 
 
 getNeverBug:: [LabelledFormula] -> [LabelledFormula]

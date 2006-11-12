@@ -28,7 +28,8 @@ data MethDecl = MethDecl {
   methUpsis:: [QLabel],
   methInv:: Formula,
   methOut:: Outcomes, --length methOut == 2, ["OK", "ERR"]
-  methOutPres:: [LabelledFormula], --length methOutPres == 3, ["NEVER_BUG","MUST_BUG","MAY_BUG"]
+  methErrs:: [LabelledFormula],
+  methOutBugs:: [LabelledFormula], --length methOutBugs == 3, ["NEVER_BUG","MUST_BUG","MAY_BUG"]
   methBody:: Exp
 }
 methName:: MethDecl -> Lit 
@@ -146,6 +147,7 @@ data Formula = And [Formula]
   | GEq [Update]
   | EqK [Update] --EqK instead of Eq: be careful to check some Updates to be positive, others to be negative
   | AppRecPost Lit [QSizeVar]
+  | QLabelSubst [(QSizeVar,QSizeVar)] QLabel
 -- deprecated Constructors: do not use them anymore
   | Forall [QSizeVar] Formula
   | AppCAbst Lit [QSizeVar] [QSizeVar]
@@ -183,7 +185,7 @@ fAnd fs =
 
 fOr:: [Formula] -> Formula
 fOr fs = 
-  if (null fs) then error $ "Or formula without any clauses - should I return False?"
+  if (null fs) then fFalse -- error $ "Or formula without any clauses - should I return False?"
   else if (singleton fs) then head fs else Or fs
 
 fNot:: Formula -> Formula
@@ -216,6 +218,7 @@ fqsv f = nub $ case f of
   EqK ups -> fqsvU ups 
   AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
   AppRecPost lit insouts -> insouts
+  QLabelSubst subst lbls -> snd (unzip subst)
   _ -> error ("fqsv: unexpected argument: " ++ show f)
 
 fqsvU:: [Update] -> [QSizeVar]
@@ -374,10 +377,11 @@ instance ShowImpp MethDecl where
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
       "{-\nOK:="++showSet (fqsv (getOKOutcome (methOut m)),getOKOutcome (methOut m)) ++ "\n" ++
+      "individualERRs:={"++showImpp (methErrs m)++"}\n"++
       "ERR:="++showSet (fqsv (getERROutcome (methOut m)),getERROutcome (methOut m)) ++ "\n" ++
-      "NEVER_BUG:="++showSet (fqsv (snd((methOutPres m)!!0)),snd((methOutPres m)!!0)) ++ "\n" ++
-      "MUST_BUG:="++showSet (fqsv (snd((methOutPres m)!!1)),snd((methOutPres m)!!1)) ++ "\n" ++
-      "MAY_BUG:="++showSet (fqsv (snd((methOutPres m)!!2)),snd((methOutPres m)!!2)) ++ "\n-}\n" ++
+      "NEVER_BUG:="++showSet (fqsv (snd((methOutBugs m)!!0)),snd((methOutBugs m)!!0)) ++ "\n" ++
+      "MUST_BUG:="++showSet (fqsv (snd((methOutBugs m)!!1)),snd((methOutBugs m)!!1)) ++ "\n" ++
+      "MAY_BUG:="++showSet (fqsv (snd((methOutBugs m)!!2)),snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
       passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
       showImpp (strong $ methPost m) ++ 
 --      "),\n  (" ++ showImpp (weak $ methPost m) ++ "),\n  (" ++ showImpp (cond $ methPost m) ++ 
@@ -594,6 +598,8 @@ instance Show Formula where
     show (AppCAbst lit vars resVars) = lit ++ "(" ++ concatSepByComma (map show (vars `union` resVars)) ++ ")"
     show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepByComma (map show insouts) ++ ")"
     show (FormulaBogus) = "--bogus--"
+    show (QLabelSubst subst lbls) = "[" ++ concatSepByComma (map show (fst (unzip subst))) ++ "] -> ["
+                                   ++ concatSepByComma (map show (snd (unzip subst))) ++ "]" ++  concatLabels lbls
 
 instance Show Update where
     show (Const i) = show i

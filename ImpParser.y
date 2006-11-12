@@ -144,7 +144,7 @@ MethDecl:
              methPres=(reverse $11),
              methUpsis=(reverse $15),
              methInv=$18,
-             methOut=[],methOutPres=[],
+             methOut=[],methErrs=[],methOutBugs=[],
              methBody=$20}
   }
 -- MethDecl with StrongPost,WeakPost,CondPost and others
@@ -156,7 +156,7 @@ MethDecl:
               methPres=(reverse $15),
               methUpsis=(reverse $19),
               methInv=$22,
-	      methOut=[],methOutPres=[],
+              methOut=[],methErrs=[],methOutBugs=[],
               methBody=$24}
   }
 -- MethDecl without Post and without others
@@ -166,7 +166,7 @@ MethDecl:
               methPres=[],
               methUpsis=[],
               methInv=FormulaBogus,
-	      methOut=[],methOutPres=[],
+              methOut=[],methErrs=[],methOutBugs=[],
               methBody=$7}
   }
 

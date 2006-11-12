@@ -147,6 +147,17 @@ debugApply subst f =
   in  safeSubstFS >>= \safeSubst ->
   return (apply safeSubst f)
   
+lblApply:: Subst -> Formula -> FS Formula
+lblApply subst f = 
+  let from = fst (unzip subst) in
+  let to = snd (unzip subst) in
+  let safeSubstFS = 
+            if null (from `intersect` to) then
+              return subst 
+            else prepareSubst subst []
+  in  safeSubstFS >>= \safeSubst ->
+  return (apply safeSubst f)
+  
 -- Problem: if the input subst is [c->d,d->e], its application depends on the order of its pairs
 -- Solution (Florin): transform [c->d,d->e] to [c->f0,d->e,f0->d]
 prepareSubst:: Subst -> Subst -> FS Subst
@@ -184,6 +195,7 @@ applyOne (fromSV,toSV) f = case f of
     else error $ "applyOne: malformed AppCAbst: same QSVs for arguments and results\n"++show f
   AppRecPost lit insouts -> 
       AppRecPost lit (map (\insout -> if insout==fromSV then toSV else insout) insouts)
+  QLabelSubst subst lbls -> QLabelSubst (subst++[(fromSV,toSV)]) lbls
   _ -> error ("applyOne: unexpected argument:" ++ showSet(fqsv f,f))
   
 applyOneToUpdate:: (QSizeVar,QSizeVar) -> Update -> Update

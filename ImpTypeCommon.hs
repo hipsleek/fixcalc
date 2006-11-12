@@ -145,8 +145,9 @@ sTypeCheckExp prog exp@(While e1 eb) mn gamma =
                             methPres=[],
                             methUpsis=[],
                             methInv=FormulaBogus,
-			    methOut=[],
-                            methOutPres=[],
+                            methOut=[],
+                            methErrs=[],
+                            methOutBugs=[],
                             methBody=newWhileEb} in
       return (newMD:newMd1++newMdEb,whileCall,PrimVoid{anno=Nothing})
 
@@ -175,7 +176,7 @@ sTypeCheckExp prog exp@(For e1 e2 e3 eb) mn gamma =
                           methPres=[],
                           methUpsis=[],
                           methInv=FormulaBogus,
-			  methOut=[],methOutPres=[],
+                          methOut=[],methErrs=[],methOutBugs=[],
                           methBody=newForEb} in
     return (newMD:newMd1++newMd2++newMd3++newMdEb,forCall,PrimVoid{anno=Nothing})
 
