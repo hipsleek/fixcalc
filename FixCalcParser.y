@@ -2,8 +2,8 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags)
-import ImpFixpoint2k(bottomUp2k,Heur(..),subrec,combSelHull,getDisjuncts,undefinedF,widen,widenPPL,fixTestBU)
-import ImpFormula(fqsv,simplify,subset)
+import ImpFixpoint2k(bottomUp2k,Heur(..),subrec,combSelHull,getDisjuncts,undefinedF,widen,fixTestBU)
+import ImpFormula(simplify,subset)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
@@ -45,7 +45,6 @@ import Monad(foldM)
 	rec   {TkRec}
   fixtest {TkKwFixtest}
   widen   {TkKwWiden}
-  widenppl   {TkKwWidenppl}
   subset  {TkKwSubset}
   bottomup{TkKwBottomup}
   selhull {TkKwSelhull}
@@ -144,15 +143,6 @@ Lhs:
                       return (F (Or disj))
                    (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
                    (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
-                   (_,_) -> error ("Variable not declared - "++$3++"\n")
-        }
-  | widenppl '(' lit ',' lit ')' 
-        {\env -> putStrFS ("widenppl(" ++ $3 ++ "," ++ $5 ++ ");") >>
-                 case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (F f1),Just (F f2)) -> widenPPL (getDisjuncts f1++getDisjuncts f2) (getDisjuncts f1++getDisjuncts f2) >>= \disj ->
-                      return (F (Or disj))
-                   (Just (R recpost),_) -> error ("Argument of widenppl is not a formula\n")
-                   (_,Just (R recpost)) -> error ("Argument of widenppl is not a formula\n")
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
 

@@ -28,10 +28,10 @@ Obj_main=Main.o
 SRCS = ImpMain.hs ImpParser.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	FixCalcLexer.hs FixCalcMain.hs FixCalcParser.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
-	ImpConfig.hs ImpOutInfer.hs
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs
 OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint.o ImpFixpoint2k.o \
-	ImpConfig.o ImpOutInfer.o
+	ImpConfig.o ImpOutInfer.o ImpHullWiden.o
 .SUFFIXES : .o .hs .hi .lhs .hc .s
 
 #Standard suffix rules
@@ -60,7 +60,7 @@ install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
 
 #####FixCalc
-FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpConfig.o ImpFixpoint2k.o ImpFormula.o InSolver.o
+FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpConfig.o ImpFixpoint2k.o ImpFormula.o InSolver.o ImpHullWiden.o
 
 fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	rm -f fixcalc

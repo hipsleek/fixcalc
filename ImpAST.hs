@@ -143,11 +143,12 @@ data Formula = And [Formula]
   | Or [Formula]
   | Not Formula
   | Exists [QSizeVar] Formula
-  | Forall [QSizeVar] Formula
   | GEq [Update]
   | EqK [Update] --EqK instead of Eq: be careful to check some Updates to be positive, others to be negative
-  | AppCAbst Lit [QSizeVar] [QSizeVar]
   | AppRecPost Lit [QSizeVar]
+-- deprecated Constructors: do not use them anymore
+  | Forall [QSizeVar] Formula
+  | AppCAbst Lit [QSizeVar] [QSizeVar]
   | Union [Formula]
   | FormulaBogus
   deriving Eq
