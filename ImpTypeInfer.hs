@@ -57,13 +57,13 @@ typeInferScc prog scc =
       let updProg = prog in
       outInferMethDeclNonRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->
       getCPUTimeFS >>= \time2 ->
-      putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
+      putStrFS ("###Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1++"###") >> 
       return updProg2
     CyclicSCC mDecls ->
       if (length mDecls /= 1) then error "Mutual recursion is not implemented"
       else
         let mDecl = (head mDecls) in
-        putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
+        putStrFS ("###Inferring " ++ methName mDecl ++ "...###") >> getCPUTimeFS >>= \time1 ->
 --        typeInferMethDeclRec prog mDecl >>= \updProg -> 
         let updProg = prog in
         outInferMethDeclRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->  
@@ -629,16 +629,18 @@ outInferMethDeclRec prog m =
   rename tp t >>= \(Just rho) -> 
   outdebugApply rho out >>= \outp -> 
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
+      invFromTyEnv gamma >>= \typeInv ->
       let recPostOK = RecPost fname (inputs `union` outputs) (getOKOutcome out1) (inputs,outputs,qsvByVal) in
-      putStrFS("Fixpoint for OK outcome:") >>
+      putStrFS("###Fixpoint for OK outcome:###") >>
       fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
-      let fixOKM = m{methOut=[OK fixedPostOK,ERR FormulaBogus]} in
+      gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
+      putStrFS("OK:="++showSet(fqsv gistedOK,gistedOK)) >>
+      let fixOKM = m{methOut=[OK gistedOK,ERR FormulaBogus]} in
       let fixOKProg = updateMethDecl prog fixOKM in
       outInferExp fixOKProg (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (4,[fname]) >>= \(tp,out,errF) ->
       rename tp t >>= \(Just rho) -> 
       outdebugApply rho out >>= \outp -> 
       let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-        invFromTyEnv gamma >>= \typeInv ->
 --        putStrFS("ERR:="++show (getERROutcome out1))>>
 --        putStrFS("\nerrFs:="++ showImpp errF++"\n") >>
         mapM (\(lbl,f) -> case f of 
@@ -647,13 +649,13 @@ outInferMethDeclRec prog m =
                             replaceLblWithFormula (lbl,f) (getERROutcome out1) >>= \replF ->
                             replaceAllWithFalse replF >>= \replAllF ->
                             let recPostERR= RecPost fname (inputs `union` outputs) replAllF (inputs,outputs,qsvByVal) in
-                            putStrFS("Fixpoint for ERR outcome:") >>
+                            putStrFS("###Fixpoint for ERR outcome:###") >>
                             fixpoint2k m recPostERR >>= \(fixedPostERR,_) ->
                             gistCtxGivenInv fixedPostERR typeInv >>= \gf ->
+                            putStrFS("ERR"++concat lbl++":="++showSet(fqsv gf,gf)) >>
                             return (lbl,gf)) errF >>= \newMethErrs ->
 --        putStrFS("\nSimplerrFs:="++ show newMethErrs++"\n") >>
         gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
-        gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
         let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
             simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
@@ -691,6 +693,9 @@ outInferMethDeclNonRec prog m =
             let lpre1 = (["NEVER_BUG"],pre1) in
             let lpre2 = (["MUST_BUG"],pre2) in
             let lpre3 = (["MAY_BUG"],pre3) in
+            when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
+            let notFalse = (filter (\(lbl,f) -> case f of {EqK [Const 0,Const 1] -> False;_ -> True}) newMethErrs) in
+            when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
             return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
 
 replaceLblWithFormula:: LabelledFormula -> Formula -> FS Formula

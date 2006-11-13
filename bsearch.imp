@@ -1,5 +1,5 @@
 #include "Primitives.imp"
-
+{-
 Void main()
 {
   Int dim:=10;
@@ -25,24 +25,24 @@ Void init_arrF(Float[Int] a, Int i, Int j)
 Int Bsearch(Float [Int] a,Float k) 
 { 
   Int l:= lenF(a,1);
-  all_lookup(a,k,0,l-1)
+  lookup(a,k,0,l-1)
 }
-{-
+-}
 Int lookup(Float[Int] a,Float k,Int i,Int j)
 {	
   if i>j then { -1 }
   else {
   	Int m:=getmid(i,j); 
     Float v:=subF(a,m);
-    if (eqFF(v,k)) then { m }
+    ifnd (eqFF(v,k)) then { m }
     else {
-      if gtFF(v,k)
+      ifnd gtFF(v,k)
         then { lookup (a,k,i,m-1) }
         else { lookup (a,k,m+1,j) }
     }
   }
 }
--}
+{-
 int all_lookup(Float[Int] a,Float k,Int i,Int j)
 {	
   if i>j then { -1 }
@@ -53,7 +53,7 @@ int all_lookup(Float[Int] a,Float k,Int i,Int j)
     all_lookup (a,k,m+1,j)
   }
 }
-
+-}
 Int getmid(Int i,Int j) { 
 -- postcondition of div2 is tricky: fixpoint infers a useless post for lookup
   div2(i+j) 

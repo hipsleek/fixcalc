@@ -1,0 +1,20 @@
+#include "Primitives.imp"
+
+void foo(int x, int y) {
+  if (notEq(x,y)) then {
+    if ((x+x)=(x+10)) then { verror() }
+    else { void }
+  } else { void }
+}
+
+{-
+main(int argc, char **argv)
+{
+	int x, y;
+	x = atoi(argv[1]);
+	y = atoi(argv[2]);
+	if (x!= y)
+		if ( (x+x) == (x + 10))
+			error();
+}
+-}

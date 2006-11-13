@@ -1,5 +1,5 @@
 #include "Primitives.imp"
-
+{-
 void main()
 {
   int dim := 10;
@@ -39,7 +39,7 @@ void merge (float[int] a, int i, int iu, int ju)
   mergeF2 (a,t,i,iu,j,ju,0);
   copyseq (t,a,0,m-1,i)
 }
-
+-}
 void mergeF2 (float[int<a>] a, float[int<t>] t, int<i> i, int<iu> iu, int<j> j, int<ju> ju, int<k> k)
 {
   if (i>iu) then { copyseq (a,t,j,ju,k) }

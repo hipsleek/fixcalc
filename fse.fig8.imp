@@ -1,0 +1,14 @@
+#include "Primitives.imp"
+
+void foo() {
+  int x0 := randInt();
+  int x1 := randInt();
+  int xn := randInt();
+  int lock := 0; --1 means U
+  if (randBool()) then { x0 := x0+1 } else { x0 := x0-1 };
+  if (randBool()) then { x1 := x1+1 } else { x1 := x1-1 };
+  if (randBool()) then { xn := xn+1 } else { xn := xn-1 };
+  if (notEq(lock,0)) then { verror() }
+  else { void }
+}
+

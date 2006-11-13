@@ -25,13 +25,15 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 widen heur (xs,ys) = 
   when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
                                             ++showSet (fqsv (Or xs),Or xs) ++ "\n" ++ showSet(fqsv (Or ys),Or ys))) >>
-  addOmegaStr ("# Widen1IN:=" ++ showSet(fqsv (Or xs),Or xs)) >> 
-  addOmegaStr ("# Widen2IN:=" ++ showSet(fqsv (Or ys),Or ys)) >> 
-  let (mxs,mys) = (map (\x -> Just x) xs,map (\y -> Just y) ys) in
+  mapM hullExistentials xs >>= \xsNoEx ->
+  mapM hullExistentials ys >>= \ysNoEx ->
+  addOmegaStr ("# Widen1IN:=" ++ showSet(fqsv (Or xsNoEx),Or xsNoEx)) >> 
+  addOmegaStr ("# Widen2IN:=" ++ showSet(fqsv (Or ysNoEx),Or ysNoEx)) >> 
+  let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
   when (showDebugMSG) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
-  mapM (\(i,j) -> widenOne (xs!!i,ys!!j)) ijs >>= \res ->
+  mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   addOmegaStr ("# WidenOUT:=" ++ showSet(fqsv (Or res),Or res)) >> 
   return res
   
