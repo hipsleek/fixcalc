@@ -412,6 +412,11 @@ impFromTyEnv tenv =
   mapM (\(v,ty) -> impFromTy ty) tenv >>= \imps ->
   return (concat imps)
 
+nonimpFromTyEnv:: TypeEnv -> FS [QSizeVar]
+nonimpFromTyEnv tenv = 
+  mapM (\(v,ty) -> nonImpFromTy ty) tenv >>= \nonimps ->
+  return (concat nonimps)
+
 -- result: list containing imperative size variables (all but size of array)
 impFromTy:: AnnoType -> FS [QSizeVar]
 impFromTy ty | isPrimitiveType ty = 

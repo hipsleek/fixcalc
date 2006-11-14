@@ -379,9 +379,9 @@ instance ShowImpp MethDecl where
       "{-\nOK:="++showSet (fqsv (getOKOutcome (methOut m)),getOKOutcome (methOut m)) ++ "\n" ++
       "individualERRs:={"++showImpp (methErrs m)++"}\n"++
       "ERR:="++showSet (fqsv (getERROutcome (methOut m)),getERROutcome (methOut m)) ++ "\n" ++
-      "NEVER_BUG:="++showSet (fqsv (snd((methOutBugs m)!!0)),snd((methOutBugs m)!!0)) ++ "\n" ++
-      "MUST_BUG:="++showSet (fqsv (snd((methOutBugs m)!!1)),snd((methOutBugs m)!!1)) ++ "\n" ++
-      "MAY_BUG:="++showSet (fqsv (snd((methOutBugs m)!!2)),snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
+--      "NEVER_BUG:="++showSet (fqsv (snd((methOutBugs m)!!0)),snd((methOutBugs m)!!0)) ++ "\n" ++
+--      "MUST_BUG:="++showSet (fqsv (snd((methOutBugs m)!!1)),snd((methOutBugs m)!!1)) ++ "\n" ++
+--      "MAY_BUG:="++showSet (fqsv (snd((methOutBugs m)!!2)),snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
       passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
       showImpp (strong $ methPost m) ++ 
 --      "),\n  (" ++ showImpp (weak $ methPost m) ++ "),\n  (" ++ showImpp (cond $ methPost m) ++ 
@@ -507,14 +507,14 @@ instance ShowImpp Formula where
   showImpp (And c) = 
         let show_vec = (\fs -> 
               case fs of
-                [] -> show "--void--"
+                [] -> show "And--void--"
                 [c] -> showImpp c
                 (c:cs) -> showImpp c ++ " && " ++ show_vec cs)
         in "(" ++ show_vec c ++ ")"
   showImpp (Or c) =
         let show_vec = (\fs -> 
               case fs of
-                [] -> show "--void--"
+                [] -> show "Or--void--"
                 [c] -> showImpp c
                 (c:cs) -> showImpp c ++ " || " ++ show_vec cs)
         in "(" ++ show_vec c ++ ")"
@@ -524,14 +524,14 @@ instance ShowImpp Formula where
   showImpp (GEq u) = 
         let show_vec = (\fs -> 
               case fs of
-     		        [] -> "--void--"
+     		        [] -> "GEq--void--"
     		        [u] -> showImpp u
     		        (u:us) -> showImpp u ++ " + " ++ show_vec us)
   		   in show_vec u ++ " >= 0"
   showImpp (EqK u) = 
         let show_vec = (\fs -> 
               case fs of
-  		          [] -> "--void--"
+  		          [] -> "EqK--void--"
   		          [u] -> showImpp u
   		          (u:us) -> showImpp u ++ " + " ++ show_vec us)
   		  in show_vec u ++ " = 0" 
@@ -567,14 +567,14 @@ instance Show Formula where
     show (And c) = 
       let show_vec = (\fs -> 
             case fs of
-              [] -> show "--void--"
+              [] -> show "And--void--"
               [c] -> show c
               (c:cs) -> show c ++ " && " ++ show_vec cs)
       in "(" ++ show_vec c ++ ")"
     show (Or c) =
       let show_vec = (\fs -> 
             case fs of
-              [] -> show "--void--"
+              [] -> show "Or--void--"
               [c] -> show c
               (c:cs) -> show c ++ " || " ++ show_vec cs)
       in "(" ++ show_vec c ++ ")"
@@ -584,14 +584,14 @@ instance Show Formula where
     show (GEq u) = 
       let show_vec = (\fs -> 
             case fs of
-   		        [] -> "--void--"
+   		        [] -> "GEq--void--"
   		        [u] -> show u
   		        (u:us) -> show u ++ " + " ++ show_vec us)
 		   in show_vec u ++ " >= 0"
     show (EqK u) = 
       let show_vec = (\fs -> 
             case fs of
-		          [] -> "--void--"
+		          [] -> "EqK--void--"
 		          [u] -> show u
 		          (u:us) -> show u ++ " + " ++ show_vec us)
 		  in show_vec u ++ " = 0" 

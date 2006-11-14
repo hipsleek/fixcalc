@@ -4,7 +4,7 @@ import ImpAST
 import ImpConfig(useSelectiveHull,widenEarly,Heur(..),FixFlags,fixFlags)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
-import MyPrelude(showDiffTimes,noElemFromFstIsInSnd,zipOrFail)
+import MyPrelude(showDiffTimes,noElemFromFstIsInSnd,zipOrFail,thd3)
 ---------------
 import List((\\))
 import Maybe(catMaybes)
@@ -27,20 +27,20 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
 ---- BU2k fixpoint for simplified RecPost
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
       getCPUTimeFS >>= \time1 -> 
-      bottomUp2k sRecPost fixFlags1 fFalse >>= \(post1,cntPost1) ->
-      addOmegaStr ("# Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet (fqsv post1,post1)) >> 
+      bottomUp2k sRecPost fixFlags1 fFalse >>= \(post,cntPost) ->
+      addOmegaStr ("# Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet (fqsv post,post)) >> 
       addOmegaStr ("#\tend bottomUp2k" ++ "\n") >>
---      putStrFS("    Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet(fqsv post1,post1)) >>
+      putStrFS("OK:=" ++ showSet(fqsv post,post)) >>
       getCPUTimeFS >>= \time2 -> 
-      putStrFS ("    BU " ++ show cntPost1 ++ "iter: " ++ showDiffTimes time2 time1)>>
+      putStrFS ("    BU " ++ show cntPost ++ "iter: " ++ showDiffTimes time2 time1)>>
 ---- TD fixpoint for simplified RecPost
---      topDown2k sRecPost (1,SimilarityHeur) fTrue >>= \(inv,cntInv) ->
---      getCPUTimeFS >>= \time3 -> 
---      addOmegaStr ("# Inv:=" ++ showRelation (i,recTheseQSizeVars i,inv) ++ "\n") >>
---      putStrFS("    Inv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
---      putStrFS("    TD " ++ show cntInv ++ "iter: " ++ showDiffTimes time3 time2) >>
-      let (inv,cntInv) = (fTrue,-1) in
-      return (post1,inv)
+      topDown2k sRecPost (1,SimilarityHeur) fTrue >>= \(inv,cntInv) ->
+      getCPUTimeFS >>= \time3 -> 
+      addOmegaStr ("# Inv:=" ++ showRelation (i,recTheseQSizeVars i,inv) ++ "\n") >>
+      putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
+      putStrFS("    TD " ++ show cntInv ++ "iter: " ++ showDiffTimes time3 time2) >>
+--      let (inv,cntInv) = (fTrue,-1) in
+      return (post,inv)
      
 ----Bottom-Up fixpoint
 -- 3rd widening strategy + general selHull
@@ -139,6 +139,12 @@ topDown2k recpost (m,heur) postFromBU =
 --      putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts pwG1)) >>
       addOmegaStr ("#\tG2 hulled to G2r") >>
       combSelHull (mdisj,heur) (getDisjuncts g1 ++ getDisjuncts gcomp) undefinedF >>= \g2 ->
+
+--      combSelHull (mdisj,heur) (getDisjuncts g1 ++ getDisjuncts gcomp) undefinedF >>= \g1' ->
+--      compose (Or g1') oneStep >>= \gcomp' ->
+--      addOmegaStr ("#\tG3 hulled to G3r") >>
+--      combSelHull (mdisj,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp') undefinedF >>= \g2 ->
+
       iterTD2k recpost (mdisj,heur) g2 oneStep 3
 
 iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
@@ -147,7 +153,9 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
   else
     compose (Or gcrt) oneStep >>= \gcomp ->
     addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
-    combSelHull (m,heur) (gcrt++getDisjuncts gcomp) undefinedF >>= \gnext ->
+--    combSelHull (m,heur) (gcrt++getDisjuncts gcomp) undefinedF >>= \gnext ->
+-- using g1=thd3 oneStep insted of gcrt gives simpler formulae!
+    combSelHull (m,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp) undefinedF >>= \gnext ->
     widen heur (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)
