@@ -1,11 +1,10 @@
 module ImpAST where
 import Fresh(getFlags,FS(..))
 import ImpConfig(isIndirectionIntArray,outputFile)
-import List(nub,(\\))
 import MyPrelude
-import System.IO.Unsafe(unsafePerformIO)
 ------------------------------------------
-import List(union)
+import List(nub,(\\),union)
+import System.IO.Unsafe(unsafePerformIO)
 
 -------AST-------------------------
 data Prog = Prog [String] [PrimDecl] [MethDecl]
@@ -48,7 +47,9 @@ data PassBy = PassByRef | PassByVal deriving (Show,Eq)
 type Outcomes = [Outcome]
 data Outcome = OK Formula | ERR Formula
 getOKOutcome [OK f1, ERR f2] = f1
+getOKOutcome _ = FormulaBogus
 getERROutcome [OK f1, ERR f2] = f2
+getERROutcome _ = FormulaBogus
 
 -- Types for 3Contexts version
 type Formulae = [Formula]
@@ -122,16 +123,28 @@ data Exp = KTrue
   | ExpBogus  --used for variable declaration without initialization
   | While Exp Exp
   | For Exp Exp Exp Exp
---  | Plus Exp Exp | Minus Exp Exp | Mul Exp Exp | Div Exp Exp
---  | ExpGT Exp Exp | ExpGTE Exp Exp | ExpLT Exp Exp | ExpLTE Exp Exp | ExpEq Exp Exp
---  | AssignArr Lit [Exp] Exp | SubArr Lit [Exp]
 
 data VarDecl = VarDecl AnnoType Lit Exp
---  | PrimVarDecl AnnoType Lit Exp
---  | ArrVarDecl AnnoType Lit Exp -- To be implemented later!!
   | LblArrVarDecl (Maybe Label) AnnoType [Exp] Lit Exp
 
 type Lit=String
+
+-- remove duplicates before using this: nub
+freeVars:: Exp -> [Lit]
+freeVars (ExpVar lit) = [lit]
+freeVars (AssignVar lit e) = lit:freeVars e
+freeVars (If _ e1 e2 e3) = concatMap freeVars [e1,e2,e3]
+freeVars (LblMethCall lbl id es) = concatMap freeVars es
+freeVars (Seq e1 e2) = freeVars e1 ++ freeVars e2
+freeVars (ExpBlock vds eb) = concatMap freeVarsVarDecl vds++freeVars eb
+freeVars (While e1 eb) = freeVars e1 ++ freeVars eb
+freeVars (For e1 e2 e3 eb) = concatMap freeVars [e1,e2,e3,eb]
+freeVars _ = []
+
+freeVarsVarDecl:: VarDecl -> [Lit]
+freeVarsVarDecl (VarDecl primTy lit e1) = lit:freeVars e1
+freeVarsVarDecl (LblArrVarDecl lbl arrTy indxs lit e1) = lit:concatMap freeVars (e1:indxs)
+
 -------Formula---------------------
 data CAbst = CAbst Lit [QSizeVar] Formula
 data RecPost = RecPost Lit [QSizeVar] Formula ([QSizeVar],[QSizeVar],[QSizeVar])
@@ -219,6 +232,7 @@ fqsv f = nub $ case f of
   AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
   AppRecPost lit insouts -> insouts
   QLabelSubst subst lbls -> snd (unzip subst)
+  FormulaBogus -> []
   _ -> error ("fqsv: unexpected argument: " ++ show f)
 
 fqsvU:: [Update] -> [QSizeVar]
@@ -246,20 +260,20 @@ class ShowC a where
 
 instance ShowC Prog where
   showC (Prog inclFilenames prims meths) = showPreludeC inclFilenames ++ concatMap showC meths
-
-showPreludeC:: [String] -> String
-showPreludeC _ = "#include \"Primitives.h\"\n\n"
+    where
+    showPreludeC:: [String] -> String
+    showPreludeC _ = "#include \"Primitives.h\"\n\n"
 
 instance ShowC MethDecl where
   showC m =
     let ((_,t,fname):args) = methParams m in
     let strArgs = concatArgsC args in
       showC t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ showExpAsBlockC (methBody m) (True,"return ") 1 ++ "\n\n"
-
-concatArgsC:: [(PassBy,AnnoType,Lit)] -> String
-concatArgsC [] = ""
-concatArgsC [(_,ty,arg)] = showC ty ++ " " ++ arg
-concatArgsC ((_,ty,arg):strs) = showC ty ++ " " ++ arg ++ "," ++ concatArgsC strs
+    where
+    concatArgsC:: [(PassBy,AnnoType,Lit)] -> String
+    concatArgsC [] = ""
+    concatArgsC [(_,ty,arg)] = showC ty ++ " " ++ arg
+    concatArgsC ((_,ty,arg):strs) = showC ty ++ " " ++ arg ++ "," ++ concatArgsC strs
 
 instance ShowC AnnoType where
   showC ty = 
@@ -291,7 +305,7 @@ instance ShowC Exp where
       ExpVar id -> if b then pre ++ id else id
       AssignVar id exp -> id ++ "=" ++ showCTabbedRet exp addRet cnt
       LblMethCall lbl id args -> 
-        let call = id ++ "(" ++ concatSepByComma (map (\arg -> showCTabbedRet arg (False,"") cnt) args) ++ ")" in
+        let call = id ++ "(" ++ concatSepBy "," (map (\arg -> showCTabbedRet arg (False,"") cnt) args) ++ ")" in
         if b then pre++call else call
       ExpBlock _ _ -> showExpAsBlockC e addRet cnt
       If _ test exp1 exp2 -> 
@@ -340,64 +354,44 @@ instance ShowC VarDecl where
               dims ++ ");\n" ++ tabs cnt --only one or two dimensions!!
 
 
---showImpp - with type annotations, labels, post and pres - should be Imp+
---invariant is not shown
+--showImpp - with type annotations, labels, post and pres (Imp+ language)
 class ShowImpp a where
   showImpp:: a -> String
   showImpp a = showImppTabbed a 0
-  showImppPre:: a -> String
-  showImppPre a = ""
-  showImppUpsis:: a -> (String,Int)
-  showImppUpsis a = ("",0)
   showImppTabbed:: a -> Int -> String
   showImppTabbed a cnt = showImpp a
-  concatSepByCommaImpp:: [a] -> String
-  concatSepByCommaImpp []  = ""
-  concatSepByCommaImpp [p] = showImpp p
-  concatSepByCommaImpp (p:prims) = showImpp p++","++concatSepByCommaImpp prims
 
---'f' is added in front of size variables in types and in formaule: f_0 -> ff_0
-prefixVar = 'f'
+-- (showImpp Formula) is related to (show Formula)
+-- (show Formula) is used in log and in error-messages.
+-- (showImpp Formula) is used for pretty-printing to *.imp files. 
+-- Otherwise *.imp files are not type-checkable, since type-checking assumes f_0 is a fresh variable.
+suffixVar = 'f' --'f' is added at the end of size variables in types and in formaule: (f_0 -> f_0f) (f_1f -> f_1ff)
 
 instance ShowImpp Prog where
-  showImpp (Prog inclFilenames prims meths) = showPreludeImpp inclFilenames ++ concatMap showImpp meths
-  showImppPre (Prog inclFilenames prims meths) = concatMap showImppPre meths
-  showImppUpsis (Prog inclFilenames prims meths) = 
-    let (upsis,nos) = unzip (map showImppUpsis meths) in
-      (concat upsis,sum nos)
-
-showPreludeImpp:: [String] -> String
-showPreludeImpp [] = ""
-showPreludeImpp [inclFilename] = "#include \"" ++ inclFilename ++ "\"\n\n"
-showPreludeImpp (i:inclFilenames) = showPreludeImpp [i] ++ showPreludeImpp inclFilenames
+  showImpp (Prog inclFilenames prims meths) = 
+    showPreludeImpp inclFilenames ++ concatMap showImpp meths
+    where
+    showPreludeImpp:: [String] -> String
+    showPreludeImpp [] = ""
+    showPreludeImpp [inclFilename] = "#include \"" ++ inclFilename ++ "\"\n\n"
+    showPreludeImpp (i:inclFilenames) = showPreludeImpp [i] ++ showPreludeImpp inclFilenames
 
 instance ShowImpp MethDecl where
   showImpp m = 
     let ((passby,t,fname):args) = methParams m in
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
-      "{-\nOK:="++showSet (fqsv (getOKOutcome (methOut m)),getOKOutcome (methOut m)) ++ "\n" ++
-      "individualERRs:={"++showImpp (methErrs m)++"}\n"++
-      "ERR:="++showSet (fqsv (getERROutcome (methOut m)),getERROutcome (methOut m)) ++ "\n" ++
---      "NEVER_BUG:="++showSet (fqsv (snd((methOutBugs m)!!0)),snd((methOutBugs m)!!0)) ++ "\n" ++
---      "MUST_BUG:="++showSet (fqsv (snd((methOutBugs m)!!1)),snd((methOutBugs m)!!1)) ++ "\n" ++
---      "MAY_BUG:="++showSet (fqsv (snd((methOutBugs m)!!2)),snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
-      passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
-      showImpp (strong $ methPost m) ++ 
+    "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
+    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
+    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n" ++
+--      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
+--      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
+--      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
+    passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
+    showImpp (strong $ methPost m) ++ 
 --      "),\n  (" ++ showImpp (weak $ methPost m) ++ "),\n  (" ++ showImpp (cond $ methPost m) ++ 
-      "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showUpsisImpp (methUpsis m) ++ 
-      "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
-  showImppPre m = 
-    let pres = methPres m in
-      if length pres == 0 then ""
-      else "{" ++ showImpp(methPres m) ++ "}"
-  showImppUpsis m = 
-    let upsis = methUpsis m in
-      if length upsis == 0 then ("",0)
-      else 
-        let upsis = methUpsis m in
-        let no = length upsis in
-          ("{" ++ (methName m ++ ": " ++ concatSepByComma (map concatLabels upsis)) ++ "}",no)
+    "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showImpp (methUpsis m) ++ 
+    "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 instance ShowImpp PrimDecl where
   showImpp p = 
@@ -407,6 +401,11 @@ instance ShowImpp PrimDecl where
       showImpp (primPost p) ++ "),\n  {" ++ 
       showImpp (primPres p) ++ "},\n  {" ++ showTestsImpp (primTests p) ++ 
       "},\n  (" ++ show fTrue ++ "),\n\n"
+    where
+    showTestsImpp:: [LabelledExp] -> String
+    showTestsImpp [] = ""
+    showTestsImpp ((lbl,exp):rest) = 
+      lbl ++ ":" ++ showImppTabbed exp 1 ++ "," ++ showTestsImpp rest
 
 concatArgs:: [(PassBy,AnnoType,Lit)] -> String
 concatArgs [] = ""
@@ -420,18 +419,19 @@ concatArgs ((passby,ty,arg):strs) =
 instance ShowImpp AnnoType where
   showImpp ty = 
     case ty of
-      PrimBool{anno=Just a} -> "Bool" ++ "<" ++ a++[prefixVar] ++ ">"
+      PrimBool{anno=Just a} -> "Bool" ++ "<" ++ a++[suffixVar] ++ ">"
       PrimBool{anno=Nothing} -> "Bool"
-      PrimFloat{anno=Just a} -> "Float" ++ "<" ++ a++[prefixVar] ++ ">"
+      PrimFloat{anno=Just a} -> "Float" ++ "<" ++ a++[suffixVar] ++ ">"
       PrimFloat{anno=Nothing} -> "Float"
-      PrimInt{anno=Just a} -> "Int" ++ "<" ++ a++[prefixVar] ++ ">"
+      PrimInt{anno=Just a} -> "Int" ++ "<" ++ a++[suffixVar] ++ ">"
       PrimInt{anno=Nothing} -> "Int"
-      PrimVoid{anno=Just a} -> "Void" ++ "<" ++ a++[prefixVar] ++ ">"
+      PrimVoid{anno=Just a} -> "Void" ++ "<" ++ a++[suffixVar] ++ ">"
       PrimVoid{anno=Nothing} -> "Void"
       ArrayType{} -> 
         showImpp (elemType ty) ++ 
-        "[" ++ concatSepByCommaImpp (indxTypes ty) ++ "]"
+        "[" ++ concatSepBy "," (map showImpp (indxTypes ty)) ++ "]"
     
+-- shows AnnoType without annotations: used in simple-type-checking
 showTy:: AnnoType -> String
 showTy ty =
   case ty of
@@ -440,29 +440,22 @@ showTy ty =
     PrimInt{} -> "Int"
     PrimVoid{} -> "Void"
     ArrayType{elemType=eTy,indxTypes=iTys} -> 
---      showTy eTy ++ "[" ++ (concatMap showTy iTys) ++ "]"
-      showTy eTy ++ "[" ++ (concatSepByComma (map showTy iTys)) ++ "]"
+      showTy eTy ++ "[" ++ (concatSepBy "," (map showTy iTys)) ++ "]"
 
 instance ShowImpp [LabelledFormula] where
   showImpp [] = ""
-  showImpp [(lbl,pre)] = concatLabels lbl ++ ":(" ++ showImpp pre ++ ")"
+  showImpp [(lbl,pre)] = showImpp lbl ++ ":(" ++ showImpp pre ++ ")"
   showImpp (pre:pres) = showImpp [pre] ++ "," ++ showImpp pres
 
-concatLabels:: [Label] -> String
-concatLabels [] = ""
-concatLabels [l] = l
-concatLabels (l:ls) = l ++ "." ++ concatLabels ls
+instance ShowImpp [QLabel] where
+  showImpp [] = ""
+  showImpp [u] = showImpp u
+  showImpp (u:upsis) = showImpp [u] ++ "," ++ showImpp upsis
 
-showUpsisImpp:: [QLabel] -> String
-showUpsisImpp [] = ""
-showUpsisImpp [u] = concatLabels u
-showUpsisImpp (u:upsis) = showUpsisImpp [u] ++ "," ++ showUpsisImpp upsis
---showUpsisImpp upsis = error "Upsis should be empty after specialization (before type checking) !!" ++ show upsis
-
-showTestsImpp:: [LabelledExp] -> String
-showTestsImpp [] = ""
-showTestsImpp ((lbl,exp):rest) = 
-  lbl ++ ":" ++ showImppTabbed exp 1 ++ "," ++ showTestsImpp rest
+instance ShowImpp QLabel where
+  showImpp [] = ""
+  showImpp [l] = l
+  showImpp (l:ls) = l ++ "." ++ showImpp ls
 
 instance ShowImpp Exp where
   showImppTabbed e cnt =
@@ -478,7 +471,7 @@ instance ShowImpp Exp where
       AssignVar id exp -> id ++ ":=" ++ showImppTabbed exp cnt
       LblMethCall maybeLbl id args -> let lbl = case maybeLbl of {Just lbl->lbl;Nothing->"NO_LBL"} in
         lbl ++ ":" ++
-        id ++ "(" ++ concatSepByComma (map (\arg -> showImppTabbed arg cnt) args) ++ ")"
+        id ++ "(" ++ concatSepBy "," (map (\arg -> showImppTabbed arg cnt) args) ++ ")"
       ExpBlock varDecls eb -> "{\n" ++ tabs cnt ++ concatMap (\vd -> showImppTabbed vd cnt) varDecls ++ 
         showImppTabbed eb (cnt+1) ++ "\n" ++ tabs cnt ++ "}"
       If _ test exp1 exp2 -> 
@@ -495,7 +488,7 @@ instance ShowImpp VarDecl where
       VarDecl ty lit e -> showImpp ty ++ " " ++ lit ++ " := " ++ showImppTabbed e (cnt+1) ++ ";\n" ++ tabs cnt
       LblArrVarDecl maybeLbl ty indxs lit exp -> 
         let lbl = case maybeLbl of {Nothing -> "";Just lbl -> lbl++":"} in
-        lbl ++ showImpp ty ++ "[" ++ concatSepByCommaImpp indxs ++ "] " ++ lit ++ " := " ++ showImppTabbed exp (cnt+1) ++ ";\n" ++ tabs cnt
+        lbl ++ showImpp ty ++ "[" ++ concatSepBy "," (map showImpp indxs) ++ "] " ++ lit ++ " := " ++ showImppTabbed exp (cnt+1) ++ ";\n" ++ tabs cnt
 
 instance ShowImpp [Outcome] where
   showImpp [ok,err] = "{" ++ showImpp ok ++ ", " ++ showImpp err ++ "}"
@@ -519,22 +512,26 @@ instance ShowImpp Formula where
                 (c:cs) -> showImpp c ++ " || " ++ show_vec cs)
         in "(" ++ show_vec c ++ ")"
   showImpp (Not c) = "(! " ++ showImpp c ++ ")"
-  showImpp (Exists qsvs f) = "exists (" ++ concatSepByComma (map showImpp qsvs) ++ " : " ++ showImpp f ++ ")"
+  showImpp (Exists qsvs f) = "exists (" ++ concatSepBy "," (map showImpp qsvs) ++ " : " ++ showImpp f ++ ")"
   showImpp (Forall qsvs f) = error $ "forall should not appear in Impp form" ++ show f
-  showImpp (GEq u) = 
-        let show_vec = (\fs -> 
-              case fs of
-     		        [] -> "GEq--void--"
-    		        [u] -> showImpp u
-    		        (u:us) -> showImpp u ++ " + " ++ show_vec us)
-  		   in show_vec u ++ " >= 0"
-  showImpp (EqK u) = 
-        let show_vec = (\fs -> 
-              case fs of
-  		          [] -> "EqK--void--"
-  		          [u] -> showImpp u
-  		          (u:us) -> showImpp u ++ " + " ++ show_vec us)
-  		  in show_vec u ++ " = 0" 
+  showImpp (GEq us) = 
+    if (length us == 0) then "GEq--void--"
+    else
+      let lhs_terms = filter (\u -> case u of {Const i -> i>0; Coef qsv i -> i>=0}) us in
+      let rhs_terms = filter (\u -> case u of {Const i -> i<0; Coef qsv i -> i<0}) us in
+      let rhs_terms_pos = map (\u -> case u of {Const i -> Const (-i); Coef qsv i -> Coef qsv (-i)}) rhs_terms in
+      let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map showImpp lhs_terms) in
+      let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map showImpp rhs_terms_pos) in
+      lhs ++ " >= " ++ rhs
+  showImpp (EqK us) = 
+    if (length us == 0) then "EqK--void--"
+    else
+      let lhs_terms = filter (\u -> case u of {Const i -> i>0; Coef qsv i -> i>=0}) us in
+      let rhs_terms = filter (\u -> case u of {Const i -> i<0; Coef qsv i -> i<0}) us in
+      let rhs_terms_pos = map (\u -> case u of {Const i -> Const (-i); Coef qsv i -> Coef qsv (-i)}) rhs_terms in
+      let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map showImpp lhs_terms) in
+      let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map showImpp rhs_terms_pos) in
+      lhs ++ " = " ++ rhs
   showImpp f@(AppCAbst lit vars resVars) = error $ "AppCAbst should not appear in Impp form" ++ show f
   showImpp f@(AppRecPost lit insouts) = error $ "RecPost should not appear in Impp form" ++ show f
   showImpp (FormulaBogus) = "--bogus--"
@@ -552,16 +549,37 @@ instance ShowImpp QSizeVar where
 			SizeVar ann -> ann
 			ArrSizeVar ann Min -> "DTm" ++ ann
 			ArrSizeVar ann Max -> "DTM" ++ ann
-	in (pu ++ str ++ [prefixVar])
+	in (pu ++ str ++ [suffixVar])
+
+getUpsisFromProg (Prog _ _ meths) = 
+    let (upsis,nos) = unzip (map getUpsisFromMeth meths) in
+      (concat upsis,sum nos)
+    where
+    getUpsisFromMeth:: MethDecl -> (String,Int)
+    getUpsisFromMeth m = 
+      let upsis = methUpsis m in
+        if length upsis == 0 then ("",0)
+        else 
+          let upsis = methUpsis m in
+          let no = length upsis in
+            ("{" ++ (methName m ++ ": " ++ concatSepBy "," (map showImpp upsis)) ++ "}",no)
+
+showImppMethForChecking:: MethDecl -> String
+showImppMethForChecking m = 
+  let ((passby,t,fname):args) = methParams m in
+  let passbyStr = if passby==PassByRef then "ref " else "" in
+  let strArgs = concatArgs args in
+        passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
+        "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 -------Show Formula----------------
 instance Show CAbst where
   show (CAbst fname ins formula) = 
-    fname ++ "<" ++ concatSepByComma (map show ins) ++ "> = (" ++ show formula ++ ")"
+    fname ++ "<" ++ concatSepBy "," (map show ins) ++ "> = (" ++ show formula ++ ")"
 
 instance Show RecPost where
   show (RecPost fname args formula (ins,outs,byVal)) = 
-    fname ++ ":={[" ++ concatSepByComma (map show ins) ++ "] -> [" ++ concatSepByComma (map show outs) ++ "] -> [" ++ concatSepByComma (map show byVal) ++ "]: (" ++ show formula ++ ")};\n"
+    fname ++ ":={[" ++ concatSepBy "," (map show ins) ++ "] -> [" ++ concatSepBy "," (map show outs) ++ "] -> [" ++ concatSepBy "," (map show byVal) ++ "]: (" ++ show formula ++ ")};\n"
     
 instance Show Formula where
     show (And c) = 
@@ -579,27 +597,31 @@ instance Show Formula where
               (c:cs) -> show c ++ " || " ++ show_vec cs)
       in "(" ++ show_vec c ++ ")"
     show (Not c) = "(! " ++ show c ++ ")"
-    show (Exists qsvs f) = "exists (" ++ concatSepByComma (map show qsvs) ++ " : " ++ show f ++ ")"
-    show (Forall qsvs f) = "forall (" ++ concatSepByComma (map show qsvs) ++ " : " ++ show f ++ ")"
-    show (GEq u) = 
-      let show_vec = (\fs -> 
-            case fs of
-   		        [] -> "GEq--void--"
-  		        [u] -> show u
-  		        (u:us) -> show u ++ " + " ++ show_vec us)
-		   in show_vec u ++ " >= 0"
-    show (EqK u) = 
-      let show_vec = (\fs -> 
-            case fs of
-		          [] -> "EqK--void--"
-		          [u] -> show u
-		          (u:us) -> show u ++ " + " ++ show_vec us)
-		  in show_vec u ++ " = 0" 
-    show (AppCAbst lit vars resVars) = lit ++ "(" ++ concatSepByComma (map show (vars `union` resVars)) ++ ")"
-    show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepByComma (map show insouts) ++ ")"
+    show (Exists qsvs f) = "exists (" ++ concatSepBy "," (map show qsvs) ++ " : " ++ show f ++ ")"
+    show (Forall qsvs f) = "forall (" ++ concatSepBy "," (map show qsvs) ++ " : " ++ show f ++ ")"
+    show (GEq us) = 
+      if (length us == 0) then "GEq--void--"
+      else
+        let lhs_terms = filter (\u -> case u of {Const i -> i>0; Coef qsv i -> i>=0}) us in
+        let rhs_terms = filter (\u -> case u of {Const i -> i<0; Coef qsv i -> i<0}) us in
+        let rhs_terms_pos = map (\u -> case u of {Const i -> Const (-i); Coef qsv i -> Coef qsv (-i)}) rhs_terms in
+        let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map show lhs_terms) in
+        let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map show rhs_terms_pos) in
+        lhs ++ " >= " ++ rhs
+    show (EqK us) = 
+      if (length us == 0) then "EqK--void--"
+      else
+        let lhs_terms = filter (\u -> case u of {Const i -> i>0; Coef qsv i -> i>=0}) us in
+        let rhs_terms = filter (\u -> case u of {Const i -> i<0; Coef qsv i -> i<0}) us in
+        let rhs_terms_pos = map (\u -> case u of {Const i -> Const (-i); Coef qsv i -> Coef qsv (-i)}) rhs_terms in
+        let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map show lhs_terms) in
+        let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map show rhs_terms_pos) in
+        lhs ++ " = " ++ rhs
+    show (AppCAbst lit vars resVars) = lit ++ "(" ++ concatSepBy "," (map show (vars `union` resVars)) ++ ")"
+    show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map show insouts) ++ ")"
     show (FormulaBogus) = "--bogus--"
-    show (QLabelSubst subst lbls) = "[" ++ concatSepByComma (map show (fst (unzip subst))) ++ "] -> ["
-                                   ++ concatSepByComma (map show (snd (unzip subst))) ++ "]" ++  concatLabels lbls
+    show (QLabelSubst subst lbls) = "[" ++ concatSepBy "," (map show (fst (unzip subst))) ++ "] -> ["
+                                   ++ concatSepBy "," (map show (snd (unzip subst))) ++ "]" ++  showImpp lbls
 
 instance Show Update where
     show (Const i) = show i
@@ -637,35 +659,17 @@ stringToQsv s =
 
 -- showSet and showRelation are used in the log (a.omega)
 -- mimic the input that Omega accepts
-showSet:: ([QSizeVar],Formula) -> String
-showSet (qsv,f) = show (map show qsv,f)
+showSet:: Formula -> String
+showSet f = let qsv = fqsv f in show (map show qsv,f)
 
 showRelation:: Relation -> String
 showRelation (from,to,f) = show (map show from,map show to,f)
 
 instance Show ([String],Formula) where
-  show (vars,f) = "{[" ++ concatSepByComma vars ++ "]:" ++ show f ++ "};"
+  show (vars,f) = "{[" ++ concatSepBy "," vars ++ "]:" ++ show f ++ "};"
 
 instance Show ([String],[String],Formula) where
-  show (vars,vars',f) =  "{[" ++ concatSepByComma vars ++ "] -> [" ++ concatSepByComma vars' ++ "]:" ++ show f ++ "};"
-
-concatSepByComma:: [String] -> String
-concatSepByComma xs = _concatSepByComma xs ""
-  where
-  _concatSepByComma:: [String] -> ShowS
-  _concatSepByComma [] = showString ""
-  _concatSepByComma (x:xs) = showString x . showl xs
-  showl [] = showString ""
-  showl (x:xs) = showChar ',' . showString x . showl xs
-
-concatSepByLn:: [String] -> String
-concatSepByLn xs = _concatSepByComma xs ""
-  where
-  _concatSepByComma:: [String] -> ShowS
-  _concatSepByComma [] = showString ""
-  _concatSepByComma (x:xs) = showString x . showl xs
-  showl [] = showString ""
-  showl (x:xs) = showChar '\n' . showString x . showl xs
+  show (vars,vars',f) =  "{[" ++ concatSepBy "," vars ++ "] -> [" ++ concatSepBy "," vars' ++ "]:" ++ show f ++ "};"
 
 printProgImpt:: Prog -> FS ()
 printProgImpt prog = 
@@ -680,9 +684,8 @@ printProgImpi prog =
   let outFile = outputFile flags ++ ".impi" in
 	let io = 
 	      writeFile outFile (showImpp prog) >>
-	      let upsis = showImppUpsis prog in
+	      let upsis = getUpsisFromProg prog in
 	        putStrLn ("## " ++ show (snd upsis) ++ " runtime tests. " ++ (fst upsis))
---	      writeFile "a.pre" (showImppPre prog) 
 	  in
 	  unsafePerformIO io `seq` return ()
 

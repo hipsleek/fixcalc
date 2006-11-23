@@ -99,7 +99,7 @@ writeOmegaStrs =
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".omega" in
   getOmegaStrs >>= \strs ->
-  let str = concatSepByLn strs in
+  let str = concatSepBy "\n" strs in
     FS (\st -> writeFile outFile str >> return (st,()))
 
 runFS:: St -> FS a -> IO a
@@ -107,13 +107,10 @@ runFS state (FS a) =
   a state >>= \(finalState,result) ->
   let strs = reverse (omegaStrs finalState) in
   let outFile = outputFile (flags finalState) ++ ".omega" in
-  let str = concatSepByLn strs in
+  let str = concatSepBy "\n" strs in
   writeFile outFile str >>
   return result
 
-concatSepByLn:: [String] -> String
-concatSepByLn [] = "\n"
-concatSepByLn (str:strs) = str++"\n"++concatSepByLn strs
 ---------For Debugging-------------------
 ---- empty state of the monad contains counter 0 and empty program
 --emptyST:: St

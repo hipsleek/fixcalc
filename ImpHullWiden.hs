@@ -3,8 +3,8 @@ module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjun
 import Fresh(FS,addOmegaStr,putStrFS)
 import ImpAST
 import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
-import ImpFormula(simplify,hull,subset,projectQSV,hausdorffDistance,addHDistances)
-import MyPrelude(numsFrom,updateList)
+import ImpFormula(simplify,hull,subset)
+import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
 import List(nub,union,(\\))
@@ -24,17 +24,17 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- ensures (length res)=(length xs)
 widen heur (xs,ys) = 
   when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
-                                            ++showSet (fqsv (Or xs),Or xs) ++ "\n" ++ showSet(fqsv (Or ys),Or ys))) >>
+                                            ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
-  addOmegaStr ("# Widen1IN:=" ++ showSet(fqsv (Or xsNoEx),Or xsNoEx)) >> 
-  addOmegaStr ("# Widen2IN:=" ++ showSet(fqsv (Or ysNoEx),Or ysNoEx)) >> 
+  addOmegaStr ("# Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
+  addOmegaStr ("# Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
   when (showDebugMSG) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
-  addOmegaStr ("# WidenOUT:=" ++ showSet(fqsv (Or res),Or res)) >> 
+  addOmegaStr ("# WidenOUT:=" ++ showSet(Or res)) >> 
   return res
   
 computeMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
@@ -91,14 +91,14 @@ replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) =
 widenOne:: (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
 widenOne (fcrt,fnext) = 
---    addOmegaStr ("# WidenCrt:=" ++ showSet (fqsv fcrt,fcrt)) >> 
---    addOmegaStr("# WidenNxt:=" ++ showSet (fqsv fnext,fnext)) >>
+--    addOmegaStr ("# WidenCrt:=" ++ showSet fcrt) >> 
+--    addOmegaStr("# WidenNxt:=" ++ showSet fnext) >>
   closure fcrt >>= \fcrts ->
   mapM (subset fnext) fcrts >>= \suboks ->
   let fcrts' = zip fcrts suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let fwid = fAnd (map fst fcrt') in
---    addOmegaStr ("# WidenRes:=" ++ showSet (fqsv fwid,fwid)) >>
+--    addOmegaStr ("# WidenRes:=" ++ showSet fwid) >>
   return fwid
 
 closure:: Disjunct -> FS [Disjunct]
@@ -108,10 +108,10 @@ closure f =
   let updSubst = [] in
   let conjs = buildClauses updSubst f in
 --    addOmegaStr ("Subst:"++show updSubst) >> 
---    addOmegaStr ("FPlusClosure:=" ++ showSet (fqsv (And conjs),And conjs)) >>
+--    addOmegaStr ("FPlusClosure:=" ++ showSet (And conjs)) >>
   let noconst = discoverIneqWithoutNegConstant conjs in
   discover2Ineq conjs >>= \discov ->
---  putStrFS ("###"++showSet(fqsv (fAnd conjs),fAnd conjs)++"\n>>>"++showSet(fqsv (fAnd discov),fAnd discov)++"\n|||"++showSet(fqsv (fAnd noconst),fAnd noconst)) >>
+--  putStrFS ("###"++showSet(fAnd conjs)++"\n>>>"++showSet(fAnd discov)++"\n|||"++showSet(fAnd noconst)) >>
   return (conjs++discov++noconst)
   where
     -- input: (i+13<=j)
@@ -208,7 +208,7 @@ combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
 -- requires: m>=1
 -- ensures: length(res)=m
 combSelHull (m,heur) disj fbase = 
-  addOmegaStr ("# SelhullIN:=" ++ showSet(fqsv (Or disj),Or disj)) >> 
+  addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m then return disj
   else case m of
     1 -> combHull disj >>= \h -> return [h]
@@ -216,11 +216,11 @@ combSelHull (m,heur) disj fbase =
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
       when showDebugMSG (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
-                                   ++ " disjuncts:\n" ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) disjM))) >>
+                                   ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
       return (catMaybes relatedDisjM)
-    ) >>= \res -> addOmegaStr("# SelhullOUT:=" ++ showSet(fqsv (Or res),Or res)) >> return res
+    ) >>= \res -> addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> return res
 
 combHull:: DisjFormula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
@@ -263,7 +263,7 @@ iterateHalfMx (m,heur) disjM affinMx =
   when showDebugMSG (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
   when showDebugMSG (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
-                               ++ concatSepByLn (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet(fqsv f,f)}) replDisjM))) >>
+                               ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
   else 
     computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
@@ -293,8 +293,8 @@ comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
 --------Affinity Matrix-----------
 ----------------------------------
 type AffinMx = Array (Int,Int) Int
-identityA = 0 
--- identityA should not confuse "chooseMaxElem" which computes maximum element from AffinMx matrix
+identityA = -1 
+-- identityA should be smaller than all elements from AffinMx (so that "chooseMaxElem" computes maximum element from AffinMx matrix)
 
 initAffinMx:: Int -> AffinMx
 initAffinMx n =
@@ -346,13 +346,13 @@ affinity (Just f1) (Just f2) heur operation _ =
       if operationIsTrue then return 0 else 
       case heur of
         SimilarityHeur -> 
---          putStrFS("F1:="++showSet(fqsv f1,f1)) >> putStrFS("F2:="++showSet(fqsv f2,f2)) >>
+--          putStrFS("F1:="++showSet f1) >> putStrFS("F2:="++showSet f2) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
           mset f1 f2 foperation >>= \mSet ->
           let cmset = length mSet in
           let frac = (((fromIntegral cmset / (fromIntegral (cf1+cf2)))*98)+1) in
---          putStrFS("Foper:="++showSet(fqsv foperation,foperation)) >>
---          putStrFS("mSet::="++concatMap (\f -> showSet(fqsv f,f)) mSet) >>
+--          putStrFS("Foper:="++showSet foperation) >>
+--          putStrFS("mSet::="++concatMap (\f -> showSet f) mSet) >>
 --          putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac)) >>
           return (ceiling frac)
         DifferenceHeur -> 
@@ -370,6 +370,68 @@ affinity (Just f1) (Just f2) heur operation _ =
       mset f1 f2 foperation =
         let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
         filterM (\f -> subset foperation f) (conjf1 `union` conjf2)
+
+type Range = (Maybe Int,Maybe Int) 
+-- ^A 'Range' value represents an interval: 'Nothing' means Infinity, 'Just' i means the integer i.
+-- For example, (Nothing,Just 3) = (-inf,3]
+projectQSV:: Formula -> QSizeVar -> FS Range
+-- ^'projectQSV' computes from a formula, the range for some qsv.
+-- For example, from (x+7>=0 && y>=0 && -x>=0) the range for x is [-7,0]. 
+-- requires: f1 is in conjunctive form, without quantifiers.
+-- requires: f1 contains at most 2 conjuncts (one upper bound and one lower bound).
+projectQSV f1 qsv = 
+  let f2 = fExists (fqsv f1 \\ [qsv]) f1 in
+  hull f2 >>= \f3 -> 
+  putStrFS ("simpl:= " ++ show f3 ++ "\trange: " ++ show (extractRange f3)) >>
+  return (extractRange f3)
+
+extractRange:: Formula -> Range
+extractRange formula = case formula of 
+  And fs -> intersectRanges (map extractRange fs)
+  GEq us -> 
+    let coefVars = catMaybes $ map (\u -> case u of {Const _ -> Nothing;Coef _ i -> Just i}) us in
+    let sumConsts = sum $ map (\u -> case u of {Const i -> i;Coef _ _ -> 0}) us in
+    if (singleton coefVars) then
+      let coef = head coefVars in
+      case coef of 
+        1 -> (Just (-sumConsts), Nothing)
+        -1 -> (Nothing,Just sumConsts)
+        _ -> error ("extractRange: unexepcted coefficient: "++show formula)
+    else error ("extractRange: unexepcted coefficient: "++show formula)
+  EqK us -> 
+    let coefVars = catMaybes $ map (\u -> case u of {Const _ -> Nothing;Coef _ i -> Just i}) us in
+    let sumConsts = sum $ map (\u -> case u of {Const i -> i;Coef _ _ -> 0}) us in
+    case length coefVars of
+      0 -> (Nothing,Nothing)
+      1 -> case (head coefVars) of 
+        1 -> (Just (-sumConsts),Just (-sumConsts))
+        -1 -> (Just sumConsts,Just sumConsts)
+        _ -> error ("extractRange: unexepcted coefficient: "++show formula)
+      _ -> error ("extractRange: unexepcted coefficient: "++show formula)
+  _ -> error ("extractRange: unexpected argument: "++show formula)
+  where
+  intersectRanges:: [Range] -> Range
+  intersectRanges l | (length l == 2) = case (l!!0,l!!1) of
+    ((Nothing,Just i),(Just j,Nothing)) -> if (i>=j) then (Just j,Just i) else error ("intersectRanges: unexpected argument: "++show l)
+    ((Just i,Nothing),(Nothing,Just j)) -> if (j>=i) then (Just i,Just j) else error ("intersectRanges: unexpected argument: "++show l)
+    ((Nothing,Nothing),r) -> r
+    (r,(Nothing,Nothing)) -> r
+    _ -> error ("intersectRanges: unexpected argument: "++show l)
+  intersectRanges l | (length l /= 2) = error ("intersectRanges: unexpected argument: "++show l)
+    
+hausdorffDistance:: (Range,Range) -> Maybe Int
+-- ^computes the Hausdorff distance between two intervals. The result Nothing represents Infinity.
+hausdorffDistance ((Nothing,Just a), (Nothing,Just b)) = Just (abs (b-a))
+hausdorffDistance ((Just a1,Just a2), (Just b1,Just b2)) = Just (abs (b1-a1))
+hausdorffDistance ((Just a,Nothing), (Just b,Nothing)) = Just (abs (b-a))
+hausdorffDistance (_,_) = Nothing
+
+addHDistances:: [Maybe Int] -> (Int,Int)
+-- ^given a list of Hausdorff distances, returns a tuple (m,s), 
+-- where m is the number of incompatible dimensions and s is the sum of the distances along the compatible dimensions
+addHDistances [] = (0,0)
+addHDistances  (Nothing:rest) = let (inc,s) = addHDistances rest in (inc+1,s)
+addHDistances ((Just a):rest) = let (inc,s) = addHDistances rest in (inc,s+a)
 
 getDisjuncts:: Formula -> [Formula]
 -- requires formula is in DNF-form (result of simplify)

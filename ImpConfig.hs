@@ -42,8 +42,7 @@ defaultFlags = Flags {
 enableLog = True
 
 ---- ImpTypeInfer.hs
----- propagate False with no effort as recursive checks
-noRecPreDerivation = False
+noRecPreDerivation = False -- propagate False with no effort as recursive checks
 whatHull = Hull
 
 ---- ImpFixpoint.hs
@@ -52,7 +51,6 @@ pairwiseDuringFix = False
 
 
 useFixpoint2k = True
---testSafetyChecks = True
 noExistentialsInDisjuncts = True
 
 

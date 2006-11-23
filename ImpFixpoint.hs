@@ -31,7 +31,7 @@ fixpoint m cabst =
   else bottomUp preparedCAbstBU) >>= \infPost ->
   debugApply rhoBackToPrimesBU infPost >>= \infPost ->
     getCPUTimeFS >>= \time2 -> 
-    addOmegaStr ("Post:=" ++ showSet (fqsv infPost,infPost) ++ "\n") >>
+    addOmegaStr ("Post:=" ++ showSet infPost ++ "\n") >>
   prepareCAbstTD infPost cabst qsvByRef >>= \(preparedCAbstTD,rhoBackToPrimesTD) ->
     addOmegaStr ("PreparedRecCAbstTopDown: " ++ show preparedCAbstTD) >>
   (if widenEarly flags then
@@ -45,13 +45,13 @@ fixpoint m cabst =
     then
       postSubst tyFromArgs annTys >>= \subst ->
       debugApply subst annPost >>= \renamedAnnPost ->
-      addOmegaStr("annPost:="++showSet (fqsv renamedAnnPost,renamedAnnPost)) >> return renamedAnnPost
+      addOmegaStr("annPost:="++showSet renamedAnnPost) >> return renamedAnnPost
     else return infPost) >>= \resultPost ->
   (if useAnnotatedFixpoint flags && (annInv /= FormulaBogus) 
     then
       invSubstFromInv tyFromArgs annTys >>= \subst ->
       debugApply subst annInv >>= \renamedAnnInv ->
-      addOmegaStr("annInv:="++showSet (fqsv renamedAnnInv,renamedAnnInv)) >> return renamedAnnInv
+      addOmegaStr("annInv:="++showSet renamedAnnInv) >> return renamedAnnInv
     else return infInv) >>= \resultInv ->
   return (resultPost,resultInv)
 
@@ -87,18 +87,18 @@ bottomUp cabst@(CAbst name qsvs formula) =
   if useSelectiveHull flags then -- selective hulling
       addOmegaStr ("\tSelective hull for F3r") >>
     selectiveHull f3r f1r >>= \(f3NonRec,f3HRec) ->
-      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet (fqsv f3NonRec,f3NonRec)) >> 
-      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet (fqsv f3HRec,f3HRec)) >>
+      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet f3NonRec) >> 
+      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet f3HRec) >>
       addOmegaStr ("\tSelective hull for F4r") >>
     selectiveHull f4r f1 >>= \(f4NonRec,f4HRec) ->
-      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet (fqsv f4NonRec,f4NonRec)) >> 
-      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet (fqsv f4HRec,f4HRec)) >>
+      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet f4NonRec) >> 
+      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet f4HRec) >>
       addOmegaStr ("\tWiden Rec cases from F3 with respect to Rec cases from F4:") >>
     widen f3HRec f4HRec >>= \f3WRec ->
-      addOmegaStr ("Widened Rec cases from F3: " ++ showSet (fqsv f3WRec,f3WRec)) >>
+      addOmegaStr ("Widened Rec cases from F3: " ++ showSet f3WRec) >>
       addOmegaStr ("\tWiden NonRec cases from F3 with respect to NonRec cases from F4:") >>
     widen f3NonRec f4NonRec >>= \f3WNonRec ->
-      addOmegaStr ("Widened NonRec cases from F3: " ++ showSet (fqsv f3WNonRec,f3WNonRec)) >>
+      addOmegaStr ("Widened NonRec cases from F3: " ++ showSet f3WNonRec) >>
 --    let f3WNonRec = f3NonRec in
     let f3W = Or [f3WNonRec,f3WRec] in
     subrec cabst f3W >>= \f4' ->
@@ -136,18 +136,18 @@ bottomUp3 cabst@(CAbst name qsvs formula) =
   if useSelectiveHull flags then -- selective hulling
       addOmegaStr ("\tSelective hull for F2r") >>
     selectiveHull f2r f1r >>= \(f2NonRec,f2HRec) ->
-      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet (fqsv f2NonRec,f2NonRec)) >> 
-      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet (fqsv f2HRec,f2HRec)) >>
+      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet f2NonRec) >> 
+      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet f2HRec) >>
       addOmegaStr ("\tSelective hull for F3r") >>
     selectiveHull f3r f1 >>= \(f3NonRec,f3HRec) ->
-      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet (fqsv f3NonRec,f3NonRec)) >> 
-      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet (fqsv f3HRec,f3HRec)) >>
+      addOmegaStr ("Disjunction of nonRec cases from selHull:\n" ++ showSet f3NonRec) >> 
+      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet f3HRec) >>
       addOmegaStr ("\tWiden Rec cases from F2 with respect to Rec cases from F3:") >>
     widen f2HRec f3HRec >>= \f2WRec ->
-      addOmegaStr ("Widened Rec cases from F2: " ++ showSet (fqsv f2WRec,f2WRec)) >>
+      addOmegaStr ("Widened Rec cases from F2: " ++ showSet f2WRec) >>
       addOmegaStr ("\tWiden NonRec cases from F2 with respect to NonRec cases from F3:") >>
     widen f2NonRec f3NonRec >>= \f2WNonRec ->
-      addOmegaStr ("Widened NonRec cases from F2: " ++ showSet (fqsv f2WNonRec,f2WNonRec)) >>
+      addOmegaStr ("Widened NonRec cases from F2: " ++ showSet f2WNonRec) >>
     let f2W = Or [f2WNonRec,f2WRec] in
     subrec cabst f2W >>= \f3' ->
       addOmegaStr ("\tObtained postcondition?") >>
@@ -176,11 +176,11 @@ iterBU cabst f1r f4NonRec f4r f4HRec n =
       addOmegaStr ("\tFn simplifies to Fn") >>
     simplify f5 >>= \f5r ->
     selectiveHull f5r f1r >>= \(f5NonRec,f5HRec) ->
-      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet (fqsv f5HRec,f5HRec)) >>
+      addOmegaStr ("Disjunction of Rec cases from selHull:\n" ++ showSet f5HRec) >>
     widen f4HRec f5HRec >>= \f4WRec ->
-      addOmegaStr ("Widened Rec cases: " ++ showSet (fqsv f4WRec,f4WRec)) >>
+      addOmegaStr ("Widened Rec cases: " ++ showSet f4WRec) >>
     widen f4NonRec f5NonRec >>= \f4WNonRec ->
-      addOmegaStr ("Widened NonRec cases: " ++ showSet (fqsv f4WNonRec,f4WNonRec)) >>
+      addOmegaStr ("Widened NonRec cases: " ++ showSet f4WNonRec) >>
 --    let f4WNonRec = f4NonRec in
     let f4W = Or [f4WNonRec,f4WRec] in
     subrec cabst f4W >>= \f5' ->
@@ -333,7 +333,7 @@ checkCAbst cabst@(CAbst name qsvs formula) =
   let from = qsvs in
   let to = primeTheseQSizeVars from in  
   if length ((fQsvs \\ from) \\ to) /= 0 then 
-    Just $ "free size variables not allowed: " ++ show ((fQsvs \\ from) \\ to) ++ "\n" ++ showSet (fqsv formula,formula)
+    Just $ "free size variables not allowed: " ++ show ((fQsvs \\ from) \\ to) ++ "\n" ++ showSet formula
   else 
     Nothing
       
@@ -365,7 +365,7 @@ topDown (CAbst name qsvs f) rho =
 
     addOmegaStr ("\tWiden G3 with respect to G4:") >>
   widen g3 g4 >>= \g3W ->
-    addOmegaStr ("Widened G3: " ++ showSet (fqsv g3W,g3W)) >>
+    addOmegaStr ("Widened G3: " ++ showSet g3W) >>
 
   impCompose (from,to,g3W) (from,to,g) >>= \g3WComp ->
   impUnion (from,to,g3W) (from,to,g3WComp) >>= \g3WUnion ->
@@ -404,7 +404,7 @@ topDown3 (CAbst name qsvs f) rho =
 
     addOmegaStr ("\tWiden G2 with respect to G3:") >>
   widen g2 g3 >>= \g2W ->
-    addOmegaStr ("Widened G2: " ++ showSet (fqsv g2W,g2W)) >>
+    addOmegaStr ("Widened G2: " ++ showSet g2W) >>
 
   impCompose (from,to,g2W) (from,to,g) >>= \g2WComp ->
   impUnion (from,to,g2W) (from,to,g2WComp) >>= \g2WUnion ->

@@ -52,3 +52,7 @@ updateList:: [a] -> Int -> a -> [a]
 -- requires: 0<=i<length xs
 updateList xs i val = take i xs ++ [val] ++ drop (i+1) xs
 
+concatSepBy:: [a] -> [[a]] -> [a]
+concatSepBy sep [] = []
+concatSepBy sep [p] = p
+concatSepBy sep (p:ps) = p ++ sep ++ (concatSepBy sep ps)

@@ -46,7 +46,7 @@ int changeM(float [int] a,int m,int i,int h,float v)
 -- v is the value of the pivot
 {
   if (i <= h) then {
-    ifnd (ltFF(subF(a,i),v)) then {
+    if (ltFF(subF(a,i),v)) then {
       swap(a,m+1,i);
       changeM(a,m+1,i+1,h,v)
     }

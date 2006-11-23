@@ -1,7 +1,10 @@
 module Main(main) where
-import Fresh(initialState,runFS)
+import Fresh(initialState,runFS,putStrFS,getFlags,FS(..),addOmegaStr,getCPUTimeFS)
+import ImpAST(Prog(..),printProgImpi,printProgC,printProgImpt)
 import ImpConfig(defaultFlags,Flags(..),Postcondition(..),Prederivation(..),Heur(..))
 import ImpParser(parse)
+import ImpSugar(specialize,desugarInfer,desugarChecker)
+import ImpSTypeChecker(sTypeCheck)
 import ImpTypeChecker(typeCheckProg)
 import ImpTypeInfer(typeInferProg)
 import MyPrelude
@@ -23,15 +26,41 @@ main =
       readFile file >>= \meth ->
       let methIncl = if isIndirectionIntArray flags then "#include \"PrimitivesIndir.imp\"\n\n"++meth else meth in
       getCPUTime >>= \tStartCPU ->
-      parse methIncl >>= \prog ->
+      parse methIncl >>= \prog -> 
       putStrLn ("Parsing...done!") >>
-      (if noInference flags then 
-        runFS (initialState flags) (typeCheckProg prog)
-      else 
-        runFS (initialState flags) (typeInferProg prog)
-      ) >>= \safeProg -> 
-      getCPUTime >>= \tEndCPU ->
+      compile flags prog >>= \_ ->
+      getCPUTime >>= \tEndCPU -> 
       putStrLn ("Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)
+
+compile:: Flags -> Prog -> IO Prog
+compile flags prog = 
+  if noInference flags then 
+        runFS (initialState flags) (
+            	desugarChecker prog >>= \dsgProg ->
+              typeCheckProg dsgProg
+        )
+  else 
+        runFS (initialState flags) (
+              getFlags >>= \flags ->  
+              sTypeCheck prog >>= \noWhileProg ->
+              putStrFS "Simple type-checking...done!" >>
+              desugarInfer noWhileProg >>= \dsgProg@(Prog _ dsgPrims dsgMeths) -> 
+              -- Print C code without any bound-checks.
+              --  printProgCAll dsgProg >>
+              typeInferProg dsgProg >>= \infProg ->
+              printProgImpi infProg >>
+              getCPUTimeFS >>= \time1 -> specialize infProg >>= \specializedProg -> getCPUTimeFS >>= \time2 ->
+              putStrFS ("Specialization...done in " ++ showDiffTimes time2 time1) >> 
+              printProgC specializedProg >>
+              printProgImpt specializedProg >>
+              if (checkingAfterInference flags) then 
+                  	desugarChecker specializedProg >>= \dsgProg ->
+                    typeCheckProg dsgProg
+              else 
+                    return specializedProg
+        )
+
+
 
 processCmdLine:: [String] -> IO (Maybe (String,Flags))
 processCmdLine cmdLine = 

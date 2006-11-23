@@ -311,3 +311,6 @@ int<r> ierror()
 
 bool<r> berror()
   where (0=1),{L: (0=1)},{}
+
+--int<res> partition(float [int<a>] a, int<l> l, int<h> h) 
+--  where (0<=l<=res<a && l=l' && h=h'),{},{}

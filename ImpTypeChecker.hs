@@ -4,22 +4,17 @@ import Fresh(runFS,FS(),initialState,fresh,addOmegaStr,writeOmegaStrs,getFlags,p
 import ImpAST 
 import ImpConfig(Flags,useFixpoint2k,Postcondition(..),postcondition)
 import ImpFormula
-import ImpSugar(desugarChecker)
-import ImpTypeCommon
+import ImpTypeCommon(setsForParamPassing,equate,freshTy,genLabelArr,initArrFormula,
+   TypeEnv,extendTypeEnv,lookupVar,impFromTyEnv,impFromTy,initialTransFromTyEnv,initialTransFromTy)
 import MyPrelude
 -----------------
 import List(union,(\\),nub)
 import Maybe(fromJust)
 
-logError str = 
-  writeOmegaStrs >>= \no ->
-  error $ "Type-checking error - " ++ str
-  
 -------TypeChecking----------------
 typeCheckProg:: Prog -> FS Prog
-typeCheckProg prog = 
+typeCheckProg dsgProg@(Prog _ dsgPrims dsgMeths) = 
   getCPUTimeFS >>= \time1 ->
-	desugarChecker prog >>= \dsgProg@(Prog _ dsgPrims dsgMeths) ->
   addOmegaStr "Starting checking..." >>
   mapM (typeCheckMethDecl dsgProg) dsgMeths >>
   mapM (typeCheckPrimDecl dsgProg) dsgPrims >>
@@ -63,7 +58,6 @@ typeCheckMethDecl prog m@MethDecl{methPres=pres,methPost=(post:_),methBody=eb} =
             safeChk [] infPost (False,"","","") (["POST",fname],post) >>= \satisfied ->
             if not satisfied then 
               putStrFS ("ERROR: inferred postcondition does not imply the given one for function " ++ fname)
-              --logError $ "for function " ++ fname ++ " inferred postcondition does not imply the given one:\n given:    " ++showSet (fqsv post,post) ++ " \n inferred: " ++ showSet (fqsv infPost,infPost)
             else return ()
 ----check resulting postcondition
 
@@ -83,6 +77,7 @@ typeCheckPrimDecl prog p@PrimDecl{primPres=pres,primPost=post} =
 
 -----Expressions-----------------
 typeCheckExp:: Prog -> Exp -> Lit -> TypeEnv -> Formula -> FS (AnnoType,Formula)
+-- ^The computation 'typeCheckExp' prog exp mn gamma delta = FS (tau,delta1) resembles the judgement: prog,gamma,delta,mn |- exp::tau,delta1
 -------KTrue-----------------------
 typeCheckExp prog KTrue mn gamma delta = 
   fresh >>= \s ->
@@ -210,7 +205,7 @@ typeCheckExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn g
       let (sisU,sisP) = unzip sisPair in
       -- check same no of dimensions
       if not (length iTys == length tyvs) then 
-        error $ "incompatible no. of dimension is array declaration: " ++ concatSepByCommaImpp iTys ++ " and " ++ concatSepByCommaImpp tyvs ++ "\n "++showImppTabbed exp 1
+        error $ "incompatible no. of dimension is array declaration: " ++ concatSepBy "," (map showImpp iTys) ++ " and " ++ concatSepBy "," (map showImpp tyvs) ++ "\n "++showImppTabbed exp 1
       else
       -- check same type for each dimension: should be TyInt
       let sGT0sUnprimed = map (\si -> fGT[Coef si 1]) sisU in
@@ -300,7 +295,7 @@ safeChk:: [QSizeVar] -> Formula -> (Bool,String,String,String) -> LabelledFormul
 safeChk u delta (showError,str1,str2,str3) lblChk = 
 	let (qlbl,chk) = (fst lblChk,snd lblChk) in
   let lbl = last qlbl in
-  let lblstr = concatLabels qlbl in
+  let lblstr = showImpp qlbl in
 	addOmegaStr lblstr >> addOmegaStr ("CTX subset PHI?") >>
   ctxImplication u delta chk >>= \isok ->
   case (not isok,showError) of 

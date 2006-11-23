@@ -6,7 +6,7 @@ import qualified Omega_parser as Omega
 import qualified Omega_stub as Omega_stub
 -----------------------------
 import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),SizeVar(..),PorU(..),MorM(..),
-    fAnd,fOr,fExists,fForall,fFalse,showSet,stringToQsv)
+    fAnd,fOr,fExists,fForall,fFalse,stringToQsv)
 import Fresh(FS(..),fresh,addOmegaStr)
 import MyPrelude
 -----------------------------
@@ -30,13 +30,13 @@ impSubset (qsv1,[],f1) (qsv2,[],f2) =
   let vf1Uf2 = map show (qsv1 `union` qsv2) in
   let impF1 = canonicalF f1 in
   let impF2 = canonicalF f2 in
-    addOmegaStr ("# Subset? ") >> 
-    addOmegaStr (show (vf1Uf2,impF1)) >> addOmegaStr (show (vf1Uf2,impF2)) >>
+--    addOmegaStr ("# Subset? ") >> 
+--    addOmegaStr (show (vf1Uf2,impF1)) >> addOmegaStr (show (vf1Uf2,impF2)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1Uf2 (Omega.Formula (impToOmF impF1)) in
   let rf2 = Omega.replace_vars_in_rformula vf1Uf2 (Omega.Formula (impToOmF impF2)) in
   let back_bool = unsafePerformIO (Omega.subset (vf1Uf2,[],rf1) (vf1Uf2,[],rf2)) in
   let answer = if back_bool then "YES" else "NO" in
-    addOmegaStr ("# Subset? " ++ answer) >> 
+--    addOmegaStr ("# Subset? " ++ answer) >> 
   return back_bool
 
 impGist:: Relation -> Relation -> FS Formula
@@ -52,7 +52,7 @@ impGist (qsv1,[],f1) (qsv2,[],f2) =
   let back_rf = unsafePerformIO (Omega.gist (vf1Uf2,[],rf1) (vf1Uf2,[],rf2)) in
   replace_vars_from_rformula vf1Uf2 back_rf >>= \repl_back_rf ->
   let res = removeUnions repl_back_rf in
-    addOmegaStr ("Gisted:=" ++ show (vf1Uf2,res)) >> 
+--    addOmegaStr ("Gisted:=" ++ show (vf1Uf2,res)) >> 
   return res
 
 impHull:: Relation -> FS Formula
@@ -71,12 +71,12 @@ impConvexHull:: Relation -> FS Formula
 impConvexHull (qsv1,[],f1) =
   let vf1 = map show qsv1 in
   let impF1 = canonicalF f1 in
-    addOmegaStr ("BefConvexHull:=" ++ show (vf1,impF1)) >>
+--    addOmegaStr ("BefConvexHull:=" ++ show (vf1,impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1 (Omega.Formula (impToOmF impF1)) in
   let back_rf = unsafePerformIO (Omega.convex_hull (vf1,[],rf1)) in
   replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->
   let res = removeUnions repl_back_rf in
-    addOmegaStr ("AftConvexHull:=" ++ show (vf1,res)) >> 
+--    addOmegaStr ("AftConvexHull:=" ++ show (vf1,res)) >> 
   return res
 
 impUnion:: Relation -> Relation -> FS Formula
@@ -114,7 +114,7 @@ impCompose (qsv1,qsv1',f1) (qsv2,qsv2',f2) =
   let res_vars = vf2 `union` vf1' in
   replace_vars_from_rformula res_vars back_rf >>= \repl_back_rf ->
   let res = removeUnions repl_back_rf in
-    addOmegaStr ("Composed:=" ++ show (vf2,vf1',res)) >> 
+--    addOmegaStr ("Composed:=" ++ show (vf2,vf1',res)) >> 
   return res
 
 impPairwiseCheck:: Relation -> FS Formula
@@ -127,7 +127,7 @@ impPairwiseCheck (qsv1,qsv1',f1) =
   let back_rf = unsafePerformIO (Omega.pairwiseCheck (vf1,vf1',rf1)) in
   replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->
   let res = removeUnions (repl_back_rf) in
-    addOmegaStr ("PairwiseChk:=" ++ show (vf1,vf1',res)) >> 
+--    addOmegaStr ("PairwiseChk:=" ++ show (vf1,vf1',res)) >> 
   return res
 
 
@@ -233,5 +233,3 @@ qsvX = (SizeVar "x",Unprimed)
 qsvY = (SizeVar "y",Unprimed)
 qsvA = (SizeVar "a",Unprimed)
 qsvB = (SizeVar "b",Unprimed)
-
-

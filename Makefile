@@ -28,10 +28,10 @@ Obj_main=Main.o
 SRCS = ImpMain.hs ImpParser.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	FixCalcLexer.hs FixCalcMain.hs FixCalcParser.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
-	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs
 OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint.o ImpFixpoint2k.o \
-	ImpConfig.o ImpOutInfer.o ImpHullWiden.o
+	ImpConfig.o ImpOutInfer.o ImpHullWiden.o ImpSTypeChecker.o
 .SUFFIXES : .o .hs .hi .lhs .hc .s
 
 #Standard suffix rules
@@ -58,6 +58,12 @@ clean:
 	
 install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
+
+doc: $(SRCS)
+	haddock -h -o doc --ignore-all-exports --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
+	ImpMain.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
+	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs
 
 #####FixCalc
 FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpConfig.o ImpFixpoint2k.o ImpFormula.o InSolver.o ImpHullWiden.o
@@ -174,25 +180,29 @@ FixCalcParser.o : ImpFormula.hi
 FixCalcParser.o : ImpFixpoint2k.hi
 FixCalcParser.o : ImpConfig.hi
 FixCalcParser.o : ImpAST.hi
-ImpTypeChecker.o : ImpTypeChecker.hs
-ImpTypeChecker.o : MyPrelude.hi
-ImpTypeChecker.o : ImpTypeCommon.hi
-ImpTypeChecker.o : ImpSugar.hi
-ImpTypeChecker.o : ImpFormula.hi
-ImpTypeChecker.o : ImpConfig.hi
-ImpTypeChecker.o : ImpAST.hi
-ImpTypeChecker.o : Fresh.hi
 ImpTypeInfer.o : ImpTypeInfer.hs
 ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi
-ImpTypeInfer.o : ImpTypeChecker.hi
-ImpTypeInfer.o : ImpSugar.hi
 ImpTypeInfer.o : ImpFixpoint2k.hi
 ImpTypeInfer.o : ImpFixpoint.hi
 ImpTypeInfer.o : ImpFormula.hi
 ImpTypeInfer.o : ImpConfig.hi
 ImpTypeInfer.o : ImpAST.hi
 ImpTypeInfer.o : Fresh.hi
+ImpTypeChecker.o : ImpTypeChecker.hs
+ImpTypeChecker.o : MyPrelude.hi
+ImpTypeChecker.o : ImpTypeCommon.hi
+ImpTypeChecker.o : ImpFormula.hi
+ImpTypeChecker.o : ImpConfig.hi
+ImpTypeChecker.o : ImpAST.hi
+ImpTypeChecker.o : Fresh.hi
+ImpSTypeChecker.o : ImpSTypeChecker.hs
+ImpSTypeChecker.o : MyPrelude.hi
+ImpSTypeChecker.o : ImpTypeChecker.hi
+ImpSTypeChecker.o : ImpFormula.hi
+ImpSTypeChecker.o : Fresh.hi
+ImpSTypeChecker.o : ImpConfig.hi
+ImpSTypeChecker.o : ImpAST.hi
 FixCalcMain.o : FixCalcMain.hs
 FixCalcMain.o : MyPrelude.hi
 FixCalcMain.o : FixCalcParser.hi
@@ -203,8 +213,12 @@ ImpParser.o : ImpAST.hi
 ImpMain.o : ImpMain.hs
 ImpMain.o : MyPrelude.hi
 ImpMain.o : ImpTypeInfer.hi
+ImpMain.o : ImpTypeCommon.hi
 ImpMain.o : ImpTypeChecker.hi
+ImpMain.o : ImpSTypeChecker.hi
+ImpMain.o : ImpSugar.hi
 ImpMain.o : ImpParser.hi
 ImpMain.o : ImpConfig.hi
+ImpMain.o : ImpAST.hi
 ImpMain.o : Fresh.hi
 # DO NOT DELETE: End of Haskell dependencies

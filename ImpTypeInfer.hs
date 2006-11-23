@@ -5,8 +5,6 @@ import ImpConfig(Flags,checkingAfterInference,noRecPreDerivation,separateFstFrom
 import ImpFormula
 import ImpFixpoint(fixpoint)
 import ImpFixpoint2k(fixpoint2k)
-import ImpSugar(specialize,desugarInfer)
-import ImpTypeChecker(typeCheckProg)
 import ImpTypeCommon
 import MyPrelude
 -----------------
@@ -16,27 +14,16 @@ import Maybe(catMaybes,fromJust)
 import Monad(when)
 
 typeInferProg:: Prog -> FS Prog
-typeInferProg prog = 
-  getFlags >>= \flags ->  
-  sTypeCheck prog >>= \noWhileProg ->
-    putStrFS "Simple type-checking...done!" >>
-  desugarInfer noWhileProg >>= \dsgProg@(Prog _ dsgPrims dsgMeths) -> 
--- Print C code without any bound-checks.
---  printProgCAll dsgProg >>
-  let sccs = stronglyConnComp (methAdjacencies dsgMeths) in
+typeInferProg prog@(Prog _ prims meths) = 
+  let sccs = stronglyConnComp (methAdjacencies meths) in
     addOmegaStr "Starting inference..." >>
-  getCPUTimeFS >>= \time1 -> typeInferSccs dsgProg sccs >>= \infProg -> getCPUTimeFS >>= \time2 ->
+    getCPUTimeFS >>= \time1 -> 
+  outInferSccs prog sccs >>= \infProg -> 
+--  typeInferSccs prog sccs >>= \infProg -> 
+    getCPUTimeFS >>= \time2 ->
     putStrFS ("Array-bounds inference...done in " ++ showDiffTimes time2 time1) >> 
     addOmegaStr "Inference is finished..." >>
-  printProgImpi infProg >>
-  getCPUTimeFS >>= \time1 -> specialize infProg >>= \specializedProg -> getCPUTimeFS >>= \time2 ->
-    putStrFS ("Specialization...done in " ++ showDiffTimes time2 time1) >> 
-  printProgC specializedProg >>
-  printProgImpt specializedProg >>
-  if (checkingAfterInference flags) then 
-    typeCheckProg specializedProg
-  else return specializedProg
-
+  return infProg
 
 typeInferSccs:: Prog -> [SCC Node] -> FS Prog
 typeInferSccs prog [] = return prog
@@ -53,23 +40,28 @@ typeInferScc prog scc =
   case scc of
     AcyclicSCC mDecl ->
       putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
---      typeInferMethDeclNonRec prog mDecl >>= \updProg -> 
-      let updProg = prog in
-      outInferMethDeclNonRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->
+      typeInferMethDeclNonRec prog mDecl >>= \updProg -> 
       getCPUTimeFS >>= \time2 ->
       putStrFS ("###Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1++"###") >> 
-      return updProg2
+      return updProg
     CyclicSCC mDecls ->
       if (length mDecls /= 1) then error "Mutual recursion is not implemented"
       else
         let mDecl = (head mDecls) in
         putStrFS ("###Inferring " ++ methName mDecl ++ "...###") >> getCPUTimeFS >>= \time1 ->
---        typeInferMethDeclRec prog mDecl >>= \updProg -> 
-        let updProg = prog in
-        outInferMethDeclRec updProg (findMethod (methName mDecl) updProg) >>= \updProg2 ->  
+        typeInferMethDeclRec prog mDecl >>= \updProg -> 
         getCPUTimeFS >>= \time2 ->
         putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
-        return updProg2
+        return updProg
+
+updateMethDecl (Prog incls prims oldMeths) newm = 
+  let newMeths = map (
+                        \oldm -> 
+                          if methName oldm == methName newm then 
+                            newm 
+                          else oldm
+                      ) oldMeths in
+    (Prog incls prims newMeths)
 
 typeInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 typeInferMethDeclRec prog m =
@@ -85,17 +77,16 @@ typeInferMethDeclRec prog m =
     Nothing -> error $ "incompatible types\nfound "++showImpp tp++ "\nrequired: "++showImpp t++"\n "++showImpp m
     Just rho ->
       mapM (debugApply rho) delta >>= \deltap ->
-      let delta1 = map (\ctx -> fExists (primeTheseQSizeVars qsvByVal) ctx) deltap in
---        putStrFS("##1"++ showSet(fqsv (strong delta1),(strong delta1))) >>
+      let delta1 = map (\ctx -> Exists (primeTheseQSizeVars qsvByVal) ctx) deltap in
       let delta2 = case postcondition flags of { WeakPost -> weak delta1; StrongPost -> strong delta1} in
       let recCAbst = CAbst fname (inputs `union` res) delta2 in
       let recPost = RecPost fname (inputs `union` outputs) delta2 (inputs,outputs,qsvByVal) in
         (if useFixpoint2k then fixpoint2k m recPost else fixpoint m recCAbst) >>= \(fixedPost,fixedInv) ->
         (if useFixpoint2k then applyRecToPrimOnInvariant fixedInv else return fixedInv) >>= \inv ->
 -- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed
-        let noXPost = if useFixpoint2k 
-                      then fixedPost
-                      else fAnd [fExists (primeTheseQSizeVars qsvByVal) fixedPost,noChange qsvByVal] in
+        let noXPost = if useFixpoint2k then fixedPost
+                      else fAnd [fExists (primeTheseQSizeVars qsvByVal) fixedPost,noChange qsvByVal] 
+                      in
         let preFromPost = if prederivation flags == PostPD 
                           then [(["lPost"],fExists outputs fixedPost)]
                           else [] in
@@ -119,7 +110,8 @@ typeInferMethDeclNonRec prog m =
           mapM (debugApply rho) delta >>= \deltap ->
           let delta1 = if useFixpoint2k 
                        then map (\ctx -> fExists (primeTheseQSizeVars qsvByVal) ctx) deltap
-                       else map (\ctx -> fAnd [fExists (primeTheseQSizeVars qsvByVal) ctx,noChange qsvByVal]) deltap in
+                       else map (\ctx -> fAnd [fExists (primeTheseQSizeVars qsvByVal) ctx,noChange qsvByVal]) deltap 
+                       in
           mapM simplify delta1 >>= \delta2 -> 
           getFlags >>= \flags -> 
           if prederivation flags == PostPD then 
@@ -194,6 +186,7 @@ typeInferExp prog@(Prog _ _ meths) exp@(AssignVar lit e1) mn v gamma delta recFl
               fsvTy ty1 >>= \x ->
               impFromTy ty >>= \u ->
               mapM (\context -> composition u context phi) delta1 >>= \deltaA ->
+              when (fst recFlags == 1) (putStrFS("AssignVar:="++show x)) >> 
               return (PrimVoid{anno=Nothing},map (fExists x) deltaA,phis,upsis) 
 
 -------Seq-------------------------
@@ -226,8 +219,8 @@ typeInferExp prog exp@(If nonDet (ExpVar lit) exp1 exp2) mn v gamma delta recFla
         typeInferExp prog exp1 mn v gamma tripleDeltab1 recFlags >>= \(ty1,delta1,phis1,upsis1) ->
         typeInferExp prog exp2 mn v gamma tripleDeltab0 recFlags >>= \(ty2,delta2,phis2,upsis2) ->
             (case (ty1,ty2) of
-              (_,TopType{}) -> error $ "assertion failed: TyTop during typeInference. error?\n "++showImppTabbed exp 1;
-              (TopType{},_) -> error $ "assertion failed: TyTop during typeInference. error?\n "++showImppTabbed exp 1;
+              (_,TopType{}) -> error ("assertion failed: TyTop during typeInference. error?\n "++showImppTabbed exp 1)
+              (TopType{},_) -> error ("assertion failed: TyTop during typeInference. error?\n "++showImppTabbed exp 1)
               (_,_) -> freshTy ty1) >>= \ty ->
               rename ty1 ty >>= \(Just rho1) -> --can't fail
               rename ty2 ty >>= \maybeRho ->
@@ -288,7 +281,7 @@ typeInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v
       let (sisU,sisP) = unzip sisPair in
       -- check same no of dimensions
       if not (length iTys == length tyvs) then 
-        error $ "incompatible no. of dimensions in array declaration: " ++ concatSepByCommaImpp iTys ++ " and " ++ concatSepByCommaImpp tyvs ++ "\n "++showImppTabbed exp 1
+        error $ "incompatible no. of dimensions in array declaration: " ++ concatSepBy "," (map showImpp iTys) ++ " and " ++ concatSepBy "," (map showImpp tyvs) ++ "\n "++showImppTabbed exp 1
       else
       -- check same type for each dimension: should be TyInt
       let sGT0sUnprimed = map (\si -> fGT[Coef si 1]) sisU in
@@ -319,7 +312,7 @@ typeInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v
                 typeInferExp prog exp2 mn v gammap (map (fExists x) delta1p) recFlags >>= \(ty2,delta2,phis2,upsis2) ->
                 let phis = phis1 `union` phisp `union` phis2 in
                 let upsis = upsis1 `union` upsis2 `union` errs in
-                  return $ (ty2,map (fExists y) delta2,phis,upsis)
+                  return (ty2,map (fExists y) delta2,phis,upsis)
     _ -> error $ "incompatible types\n found: " ++ showImpp ty ++ "\nrequired: array type in declaration of " ++ lit ++ "\n "++showImppTabbed exp 1
 
 typeInferExp prog exp@(ExpBlock varDecls e1) mn v gamma delta recFlags = 
@@ -346,7 +339,8 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
             setsForParamPassing (fromJust calleeDef) >>= \(_,_,_,_,qsvByVal) ->
             let delta = if useFixpoint2k  --for fixpoint2k: add noX(qsvByVal) to method postcondition
                         then map (\ctx -> fAnd [ctx,noChange qsvByVal]) (methPost m)
-                        else (methPost m) in
+                        else (methPost m) 
+            in
             return (fst3(unzip3(methParams m)),snd3(unzip3(methParams m)),delta,methPres m)
           Just (Prim p) -> 
             let strongPost = And ((primPost p):(map (\(lbl,f) -> f) (primPres p))) in
@@ -431,7 +425,7 @@ applyRecToPrimOnInvariant inv =
 extract :: [LabelledFormula] -> String
 extract rhoPhim =
   if length rhoPhim == 0 then ""
-  else concatLabels (fst (head rhoPhim))
+  else showImpp (fst (head rhoPhim))
 
 -------MkChk-----------------------
 mkChks:: [QSizeVar] -> [QSizeVar] -> Formulae -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
@@ -444,13 +438,13 @@ mkChk:: [QSizeVar] -> [QSizeVar] -> Formulae -> Formula -> LabelledFormula -> FS
 mkChk v u [deltaS,deltaW,deltaC] typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then 
-          addOmegaStr (concatLabels lbl) >>
+          addOmegaStr (showImpp lbl) >>
           addOmegaStr ("Total redundant check?") >> ctxImplication u deltaS phi >>= \impliesT ->
           if impliesT then 
             return (Nothing,Nothing)
           else return (Nothing,Just lbl)
       else
-  addOmegaStr (concatLabels lbl) >>
+  addOmegaStr (showImpp lbl) >>
   addOmegaStr ("Total redundant check?") >> ctxImplication u deltaS phi >>= \impliesT ->
   if impliesT then return (Nothing,Nothing)
   else 
@@ -473,16 +467,16 @@ mkChkRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> Formulae -> F
 mkChkRec v u uRec typs [deltaS,deltaW,deltaC] inv typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then -- prederivation using necessary preconditions
-          addOmegaStr (concatLabels lbl) >>
-          nonImpLinkedToPrim typs >>= \nonImpToPrim ->
+          addOmegaStr (showImpp lbl) >>
+          equateNonImpToPrim typs >>= \nonImpToPrim ->
           let ctxRec = fExists v (fAnd [deltaS,nonImpToPrim]) in
           addOmegaStr ("Total redundant check?") >> ctxImplication uRec ctxRec phi >>= \impliesT ->
           if impliesT then 
             return (Nothing,Nothing)
           else return (Nothing,Just lbl)
       else
-  addOmegaStr (concatLabels lbl) >>
-  nonImpLinkedToPrim typs >>= \nonImpToPrim ->
+  addOmegaStr (showImpp lbl) >>
+  equateNonImpToPrim typs >>= \nonImpToPrim ->
   let ctxRec = fExists v (fAnd [deltaS,nonImpToPrim]) in
   addOmegaStr ("Total redundant check?") >> ctxImplication uRec ctxRec phi >>= \impliesT ->
   if impliesT then return (Nothing,Nothing)
@@ -620,6 +614,31 @@ outNonDet ress [OK f1, ERR f3] [OK f2, ERR f4] =
   let outERR = fOr [f3,f4] in
   return [OK outOK, ERR outERR]
 
+outInferSccs:: Prog -> [SCC Node] -> FS Prog
+outInferSccs prog [] = return prog
+outInferSccs prog (scc:sccs) = 
+  outInferScc prog scc >>= \updProg ->
+  outInferSccs updProg sccs
+
+outInferScc:: Prog -> SCC Node -> FS Prog
+outInferScc prog scc =
+  case scc of
+    AcyclicSCC mDecl ->
+      putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
+      outInferMethDeclNonRec prog (findMethod (methName mDecl) prog) >>= \updProg2 ->
+      getCPUTimeFS >>= \time2 ->
+      putStrFS ("###Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1++"###") >> 
+      return updProg2
+    CyclicSCC mDecls ->
+      if (length mDecls /= 1) then error "Mutual recursion is not implemented"
+      else
+        let mDecl = (head mDecls) in
+        putStrFS ("###Inferring " ++ methName mDecl ++ "...###") >> getCPUTimeFS >>= \time1 ->
+        outInferMethDeclRec prog (findMethod (methName mDecl) prog) >>= \updProg2 ->  
+        getCPUTimeFS >>= \time2 ->
+        putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
+        return updProg2
+
 outInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
@@ -648,7 +667,7 @@ outInferMethDeclRec prog m =
 --                            putStrFS("###Fixpoint for ERR outcome:###") >>
 --                            fixpoint2k m recPostERR >>= \(fixedPostERR,_) ->
 --                            gistCtxGivenInv fixedPostERR typeInv >>= \gf ->
---                            putStrFS("ERR"++concat lbl++":="++showSet(fqsv gf,gf)) >>
+--                            putStrFS("ERR"++concat lbl++":="++showSet gf) >>
 --                            return (lbl,gf)) errF >>= \newMethErrs ->
 --        gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
 --        let gistedOut = [OK gistedOK,ERR gistedERR] in
@@ -670,20 +689,20 @@ outInferMethDeclRec prog m =
                               replaceAllWithFalse replF >>= \fstf ->
                               --gistCtxGivenInv fstf typeInv >>= \gfstf ->
                               simplify fstf >>= \gfstf ->
-                              putStrFS("fstERR"++concat lbl++":="++showSet(fqsv gfstf,gfstf)) >>
+                              putStrFS("fstERR"++concat lbl++":="++showSet gfstf) >>
                               composition u deltaTransInv gfstf >>= \recf ->                              
                               --gistCtxGivenInv recf typeInv >>= \grecf ->
                               simplify recf >>= \grecf ->
-                              putStrFS("recERR"++concat lbl++":="++showSet(fqsv grecf,grecf)) >>
+                              putStrFS("recERR"++concat lbl++":="++showSet grecf) >>
                               return (lbl,Or [gfstf,grecf])) errs >>= \newMethErrs ->
           gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
 ---- all ERRs at once
 --          replaceAllWithFormula errs (getERROutcome out1) >>= \replF ->
 --          simplify replF >>= \fstf ->
---          putStrFS("fstERR:="++showSet(fqsv fstf,fstf)) >>
+--          putStrFS("fstERR:="++showSet fstf) >>
 --          composition u deltaTransInv fstf >>= \recf ->
 --          simplify recf >>= \grecf ->
---          putStrFS("recERR:="++showSet(fqsv grecf,grecf)) >>
+--          putStrFS("recERR:="++showSet grecf) >>
 --          let newMethErrs = [(["ERR"],Or [fstf,grecf])] in
 --          let gistedERR = Or [fstf,grecf] in
 ---COMMON: each or all ERRs
@@ -717,13 +736,13 @@ outInferMethDeclNonRec prog m =
                               replaceAllWithFalse replF >>= \replAllF ->
                               gistCtxGivenInv replAllF typeInv >>= \f ->
                               --simplify replAllF >>= \f ->
-                              putStrFS("ERR"++concat lbl++":="++showSet(fqsv f,f)) >>
+                              putStrFS("ERR"++concat lbl++":="++showSet f) >>
                               return (lbl,f)) errF >>= \newMethErrs ->
           gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
 ---- all ERRs at once
 --          replaceAllWithFormula errF (getERROutcome out1) >>= \replF ->
 --          simplify replF >>= \f ->
---          putStrFS("ERR:="++showSet(fqsv f,f)) >>
+--          putStrFS("ERR:="++showSet f) >>
 --          let newMethErrs = [(["ERR"],f)] in
 --          let gistedERR = f in
 ---COMMON: each or all ERRs
@@ -903,7 +922,7 @@ outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v 
       let (sisU,sisP) = unzip sisPair in
       -- check same no of dimensions
       if not (length iTys == length tyvs) then 
-        error $ "incompatible no. of dimensions in array declaration: " ++ concatSepByCommaImpp iTys ++ " and " ++ concatSepByCommaImpp tyvs ++ "\n "++showImppTabbed exp 1
+        error $ "incompatible no. of dimensions in array declaration: " ++ concatSepBy "," (map showImpp iTys) ++ " and " ++ concatSepBy "," (map showImpp tyvs) ++ "\n "++showImppTabbed exp 1
       else
       -- check same type for each dimension: should be TyInt
       let sGT0sUnprimed = map (\si -> fGT[Coef si 1]) sisU in
