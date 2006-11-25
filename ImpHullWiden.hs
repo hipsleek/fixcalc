@@ -484,6 +484,7 @@ countConjuncts formula = case formula of
 hullExistentials:: Formula -> FS Formula
 hullExistentials disj = 
   if (noExistentialsInDisjuncts==True) && (countExis disj > 0) then 
+    putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj) >>
     hull disj
   else return disj
 

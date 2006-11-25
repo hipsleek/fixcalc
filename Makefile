@@ -63,7 +63,7 @@ doc: $(SRCS)
 	haddock -h -o doc --ignore-all-exports --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
 	ImpMain.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
-	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs ImpTypeInfer.hs
 
 #####FixCalc
 FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpConfig.o ImpFixpoint2k.o ImpFormula.o InSolver.o ImpHullWiden.o
@@ -183,12 +183,20 @@ FixCalcParser.o : ImpAST.hi
 ImpTypeInfer.o : ImpTypeInfer.hs
 ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi
+ImpTypeInfer.o : ImpOutInfer.hi
 ImpTypeInfer.o : ImpFixpoint2k.hi
 ImpTypeInfer.o : ImpFixpoint.hi
 ImpTypeInfer.o : ImpFormula.hi
 ImpTypeInfer.o : ImpConfig.hi
 ImpTypeInfer.o : ImpAST.hi
 ImpTypeInfer.o : Fresh.hi
+ImpSTypeChecker.o : ImpSTypeChecker.hs
+ImpSTypeChecker.o : MyPrelude.hi
+ImpSTypeChecker.o : ImpTypeCommon.hi
+ImpSTypeChecker.o : ImpFormula.hi
+ImpSTypeChecker.o : Fresh.hi
+ImpSTypeChecker.o : ImpConfig.hi
+ImpSTypeChecker.o : ImpAST.hi
 ImpTypeChecker.o : ImpTypeChecker.hs
 ImpTypeChecker.o : MyPrelude.hi
 ImpTypeChecker.o : ImpTypeCommon.hi
@@ -196,13 +204,6 @@ ImpTypeChecker.o : ImpFormula.hi
 ImpTypeChecker.o : ImpConfig.hi
 ImpTypeChecker.o : ImpAST.hi
 ImpTypeChecker.o : Fresh.hi
-ImpSTypeChecker.o : ImpSTypeChecker.hs
-ImpSTypeChecker.o : MyPrelude.hi
-ImpSTypeChecker.o : ImpTypeChecker.hi
-ImpSTypeChecker.o : ImpFormula.hi
-ImpSTypeChecker.o : Fresh.hi
-ImpSTypeChecker.o : ImpConfig.hi
-ImpSTypeChecker.o : ImpAST.hi
 FixCalcMain.o : FixCalcMain.hs
 FixCalcMain.o : MyPrelude.hi
 FixCalcMain.o : FixCalcParser.hi
@@ -213,7 +214,6 @@ ImpParser.o : ImpAST.hi
 ImpMain.o : ImpMain.hs
 ImpMain.o : MyPrelude.hi
 ImpMain.o : ImpTypeInfer.hi
-ImpMain.o : ImpTypeCommon.hi
 ImpMain.o : ImpTypeChecker.hi
 ImpMain.o : ImpSTypeChecker.hi
 ImpMain.o : ImpSugar.hi

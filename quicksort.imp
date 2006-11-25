@@ -61,4 +61,3 @@ void swap(float [int] a,int i, int j)
   assignF(a,i,l_:subF(a,j));
   assignF(a,j,t)
 }
-

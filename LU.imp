@@ -35,6 +35,75 @@ Void init_arrF2(Float[Int,Int] a, Int i, Int j, Int m, Int n)
   }
 }
 
+Void forloop2 (Int i, Int j, Int n, Float [Int,Int] lu, Float [Int,Int] A)
+ {
+  if (j<n) then {
+	     Float t1 := subF2(A,i,j);
+	     assignF2(lu,i,j,t1); 
+	     forloop2 (i,j+1,n,lu,A)
+  } else { Void }
+ }
+
+Void forloop1 (Int i, Int j, Int m, Int n, Float [Int,Int] lu, Float [Int,Int] A)
+ {
+  if (i<m)
+	then { forloop2 (i,0,n,lu,A);
+	       forloop1 (i+1,0,m,n,lu,A)
+		}
+	else { Void }
+ }
+
+void LU_copy_matrix(Int M, Int N, Float [Int,Int] lu, Float [Int,Int] A)
+  {
+    forloop1 (0,0,M,N,lu,A)
+  }
+
+Int LU_factor(Int M, Int N, Float [Int,Int] A,  Int [Int] pivot)
+{ 
+    Int minMN :=  minIMP(M,N);    
+    loop (0,minMN, M, N, A, pivot);
+    0
+}
+
+Void loop (Int j, Int minMN, Int M, Int N, Float [Int,Int] A, Int [Int] pivot)
+{
+   if(j<minMN) then
+    {
+-- find pivot in column j and  test for singularity.
+        Int jp := j;
+
+        Float t := fabs(subF2(A,j,j));
+        Float t1 := 0.0;
+	      jp := loopi_jp(j+1,j,M,A,t,j);
+        pivot[j] := jp;
+        -- jp now has the index of maximum element
+        -- of column j, below the diagonal         
+     if (and(j<=jp,jp<M)) then {
+  
+      	t1 := subF2(A,jp,j);
+        if (eqFF(t1,0.0)) then { Void } -- factorization failed because of zero pivot
+        else {
+          {
+            if (jp = j) then { Void }
+            else { array2D_swaprow(jp,j,M,A) } -- swap rows j and jp
+          };
+          { 
+            if (j<M-1) then            -- compute elements j+1:M of jth column
+            {
+              Float recp := divFF(1.0, subF2(A,j,j));	
+      	      loopk(j+1,M,j,recp,A)            
+            } else { Void }
+           };
+          {
+            if (j < minMN-1) then { loopii(j+1,j,M,N,A) }
+            else { Void }
+          };
+          loop (j+1,minMN, M, N, A, pivot)
+        }
+	} else { Void }
+    }
+  else { Void }
+}
 
 Int loopi_jp(Int i, Int j, Int M, Float [Int,Int] A, Float t, 
 	          Int r)
@@ -112,53 +181,6 @@ Void array2D_swaprow (Int jp, Int j, Int M, Float [Int,Int] A)
    loopswap(0,jp,j,M,A,B)
 }
 
-Void loop (Int j, Int minMN, Int M, Int N, Float [Int,Int] A, Int [Int] pivot)
-{
-   if(j<minMN) then
-    {
--- find pivot in column j and  test for singularity.
-        Int jp := j;
-
-        Float t := fabs(subF2(A,j,j));
-        Float t1 := 0.0;
-	      jp := loopi_jp(j+1,j,M,A,t,j);
-        pivot[j] := jp;
-        -- jp now has the index of maximum element
-        -- of column j, below the diagonal         
-     if (and(j<=jp,jp<M)) then {
-  
-      	t1 := subF2(A,jp,j);
-        if (eqFF(t1,0.0)) then { Void } -- factorization failed because of zero pivot
-        else {
-          {
-            if (jp = j) then { Void }
-            else { array2D_swaprow(jp,j,M,A) } -- swap rows j and jp
-          };
-          { 
-            if (j<M-1) then            -- compute elements j+1:M of jth column
-            {
-              Float recp := divFF(1.0, subF2(A,j,j));	
-      	      loopk(j+1,M,j,recp,A)            
-            } else { Void }
-           };
-          {
-            if (j < minMN-1) then { loopii(j+1,j,M,N,A) }
-            else { Void }
-          };
-          loop (j+1,minMN, M, N, A, pivot)
-        }
-	} else { Void }
-    }
-  else { Void }
-}
-
-Int LU_factor(Int M, Int N, Float [Int,Int] A,  Int [Int] pivot)
-{ 
-    Int minMN :=  minIMP(M,N);    
-    loop (0,minMN, M, N, A, pivot);
-    0
-}
-
 --Float LU_num_flops(Int N)
 -- {
 ---- rougly 2/3*N^3
@@ -166,28 +188,5 @@ Int LU_factor(Int M, Int N, Float [Int,Int] A,  Int [Int] pivot)
 --  Float t2 := mulFI(2.0,t1);
 --  divFF(t2,3.0)
 -- }
-
-Void forloop2 (Int i, Int j, Int n, Float [Int,Int] lu, Float [Int,Int] A)
- {
-  if (j<n) then {
-	     Float t1 := subF2(A,i,j);
-	     assignF2(lu,i,j,t1); 
-	     forloop2 (i,j+1,n,lu,A)
-  } else { Void }
- }
-
-Void forloop1 (Int i, Int j, Int m, Int n, Float [Int,Int] lu, Float [Int,Int] A)
- {
-  if (i<m)
-	then { forloop2 (i,0,n,lu,A);
-	       forloop1 (i+1,0,m,n,lu,A)
-		}
-	else { Void }
- }
-
-void LU_copy_matrix(Int M, Int N, Float [Int,Int] lu, Float [Int,Int] A)
-  {
-    forloop1 (0,0,M,N,lu,A)
-  }
 
 

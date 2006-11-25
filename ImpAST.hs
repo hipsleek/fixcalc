@@ -34,6 +34,12 @@ data MethDecl = MethDecl {
 methName:: MethDecl -> Lit 
 methName m = thd3 (head (methParams m))
 
+updateMethDecl (Prog incls prims oldMeths) newm = 
+  let newMeths = map (\oldm -> 
+                          if methName oldm == methName newm then newm 
+                          else oldm
+                      ) oldMeths in (Prog incls prims newMeths)
+
 type LabelledFormula = (QLabel,Formula) --precondition
 type LabelledExp = (Label,Exp) --runtime test
 type Label = String
@@ -151,6 +157,7 @@ data RecPost = RecPost Lit [QSizeVar] Formula ([QSizeVar],[QSizeVar],[QSizeVar])
 -- RecPost represents a Const-Abstraction with: name arguments formula (inputs,outputs,imperByValue)
 -- typeInv: (arguments = inputs+outputs)
 -- meaning: (fExists (primeTheseSizeVars imperByValue) formula) && noChange(imperByValue)
+data FormulaDecl = FormulaDecl Lit [QSizeVar] Formula
 
 type Relation = ([QSizeVar],[QSizeVar],Formula)
 data Formula = And [Formula]
@@ -160,7 +167,6 @@ data Formula = And [Formula]
   | GEq [Update]
   | EqK [Update] --EqK instead of Eq: be careful to check some Updates to be positive, others to be negative
   | AppRecPost Lit [QSizeVar]
-  | QLabelSubst [(QSizeVar,QSizeVar)] QLabel
 -- deprecated Constructors: do not use them anymore
   | Forall [QSizeVar] Formula
   | AppCAbst Lit [QSizeVar] [QSizeVar]
@@ -214,6 +220,17 @@ fForall vs f = if (null vs) then f else (Forall vs f)
 fGT:: [Update] -> Formula
 fGT ups = GEq (Const (-1):ups)
 
+countAppRecPost:: Formula -> Int
+countAppRecPost formula = case formula of
+  And fs -> sum (map (\f -> countAppRecPost f) fs)
+  Or fs -> sum (map (\f -> countAppRecPost f) fs)
+  GEq us -> 0
+  EqK us -> 0
+  Exists qsvs f -> countAppRecPost f
+  Not f -> countAppRecPost f
+  AppRecPost _ _ -> 1
+  _ -> error ("countAppRecPost: unexpected argument: "++show formula)
+    
 -------Selectors from Formulae------------
 --extract size variables from a formula without keeping DUPLICATES
 fqsv:: Formula -> [QSizeVar]
@@ -231,7 +248,6 @@ fqsv f = nub $ case f of
   EqK ups -> fqsvU ups 
   AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
   AppRecPost lit insouts -> insouts
-  QLabelSubst subst lbls -> snd (unzip subst)
   FormulaBogus -> []
   _ -> error ("fqsv: unexpected argument: " ++ show f)
 
@@ -620,8 +636,6 @@ instance Show Formula where
     show (AppCAbst lit vars resVars) = lit ++ "(" ++ concatSepBy "," (map show (vars `union` resVars)) ++ ")"
     show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map show insouts) ++ ")"
     show (FormulaBogus) = "--bogus--"
-    show (QLabelSubst subst lbls) = "[" ++ concatSepBy "," (map show (fst (unzip subst))) ++ "] -> ["
-                                   ++ concatSepBy "," (map show (snd (unzip subst))) ++ "]" ++  showImpp lbls
 
 instance Show Update where
     show (Const i) = show i

@@ -4,11 +4,11 @@ import ImpAST
 import ImpConfig(useSelectiveHull,widenEarly,Heur(..),FixFlags,fixFlags)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
-import MyPrelude(showDiffTimes,noElemFromFstIsInSnd,zipOrFail,thd3)
+import MyPrelude(showDiffTimes,noElemFromFstIsInSnd,zipOrFail,thd3,numsFrom)
 ---------------
 import List((\\),nub)
 import Maybe(catMaybes)
-import Monad(when)
+import Monad(when,mapAndUnzipM)
 
 maxIter::Int
 maxIter = 10
@@ -25,11 +25,12 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
   if not (fst (testRecPost recPost)) then error ("assertion failed in fixpoint2k") 
   else
       getFlags >>= \flags -> let fixFlags1 = fixFlags flags in
---            putStrFS("CAbst:="++showSet f) >>
+--            addOmegaStr("CAbst:="++showSet f) >>
 --            bottomUp2k recPost fixFlags1 fFalse >>= \(postNoSimpl,_) ->
 --            putStrFS("OK:="++showSet postNoSimpl) >>
-      newSimplifyRecPost recPost >>= \sRecPost@(RecPost _ _ sf _) ->
---      putStrFS("SimplCAbst:="++showSet sf) >>
+--      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ _ sf _) ->
+      let sRecPost@(RecPost _ _ sf _) = recPost in
+--            addOmegaStr("SimplCAbst:="++showSet sf) >>
 ---- BU2k fixpoint for simplified RecPost
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
       getCPUTimeFS >>= \time1 -> 
@@ -42,7 +43,7 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
       getCPUTimeFS >>= \time2 -> 
       putStrFS ("    BU " ++ show cntPost ++ "iter: " ++ showDiffTimes time2 time1)>>
 ---- TD fixpoint for simplified RecPost
-      topDown2k sRecPost (1,SimilarityHeur) fTrue >>= \(inv,cntInv) ->
+      topDown2k sRecPost fixFlags1 fTrue >>= \(inv,cntInv) ->
       getCPUTimeFS >>= \time3 -> 
       addOmegaStr ("# Inv:=" ++ showRelation (i,recTheseQSizeVars i,inv) ++ "\n") >>
       putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
@@ -103,22 +104,21 @@ fixTestBU recpost candidate =
     subset fnext candidate
 
 subrec :: RecPost -> Formula -> FS Formula
+-- ^similar function to ImpTypeInfer.replaceLblWithFormula.
+-- For example: subrec (RecPost foo [i,s] (...foo(f0,f1)...) (_,_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
 subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
   subrec1 f1 f2
  where 
  subrec1:: Formula -> Formula -> FS Formula
  subrec1 f g = case f of 
-    (And fs) -> 
-      mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
-    (Or fs) -> 
-      mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
-    (Not ff) -> 
-      subrec1 ff g >>= \res -> return (Not res)
-    (Exists vars ff) -> 
-      subrec1 ff g >>= \res -> return (Exists vars res)
-    (Forall vars ff) -> 
-      subrec1 ff g >>= \res -> return (Forall vars res)
-    (AppRecPost actualMN actualIO) ->
+    And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
+    Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
+--    Not ff -> subrec1 ff g >>= \res -> return (Not res)
+    Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
+--    Forall vars ff -> subrec1 ff g >>= \res -> return (Forall vars res)
+    GEq us -> return f
+    EqK us -> return f
+    AppRecPost actualMN actualIO ->
       if not (formalMN==actualMN) then
         error "subrec: mutual recursion detected" 
       else if not (length formalIO == length actualIO) then
@@ -129,11 +129,45 @@ subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
 -- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed
 --        return rhoG
         return $ fAnd [rhoG,noChange qsvByVal]
-    (AppCAbst actualName actualArgs actualRes) -> 
-        error "subrec: encountered AppCAbst" 
-    _ -> return f
+    _ -> error ("unexpected argument: "++show f)
 
 -----Top Down fixpoint
+-- 2nd widening strategy + general selHull
+topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
+topDown2k recpost (m,heur) postFromBU = 
+  getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
+  addOmegaStr ("#\tG1:="++showRelation oneStep) >>
+  compose g1 oneStep >>= \gcomp ->
+--      simplify (fOr [g1,gcomp]) >>= \g11 ->
+--      compose g11 oneStep >>= \gcompOneMore ->
+--      pairwiseCheck (fOr [g1,gcompOneMore]) >>= \g2 -> 
+  pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
+  addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
+  let mdisj = 1 in -- min m (countDisjuncts g2) in
+  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
+  combSelHull (mdisj,heur) (getDisjuncts g2) undefinedF >>= \disjG2 ->
+  iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
+
+iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
+iterTD2k recpost (m,heur) gcrt oneStep cnt = 
+  if (cnt>maxIter) then return (fTrue,-1)
+  else
+    compose (Or gcrt) oneStep >>= \gcomp ->
+    simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
+    addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
+    combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefinedF >>= \gnext ->
+    widen heur (gcrt,gnext) >>= \gcrtW ->
+    fixTestTD oneStep (Or gcrtW) >>= \fixok ->
+    if fixok then return (Or gcrtW,cnt)
+    else iterTD2k recpost (m,heur) gcrtW oneStep (cnt+1)
+
+fixTestTD:: Relation -> Formula -> FS Bool
+fixTestTD oneStep candidate = 
+  compose candidate oneStep >>= \gcomp ->
+  addOmegaStr ("#\tObtained invariant?") >> 
+  subset (Or [gcomp,thd3 oneStep]) candidate 
+
+{-
 -- 2nd widening strategy + general selHull
 topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 topDown2k recpost (m,heur) postFromBU = 
@@ -146,12 +180,6 @@ topDown2k recpost (m,heur) postFromBU =
 --      putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts pwG1)) >>
       addOmegaStr ("#\tG2 hulled to G2r") >>
       combSelHull (mdisj,heur) (getDisjuncts g1 ++ getDisjuncts gcomp) undefinedF >>= \g2 ->
-
---      combSelHull (mdisj,heur) (getDisjuncts g1 ++ getDisjuncts gcomp) undefinedF >>= \g1' ->
---      compose (Or g1') oneStep >>= \gcomp' ->
---      addOmegaStr ("#\tG3 hulled to G3r") >>
---      combSelHull (mdisj,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp') undefinedF >>= \g2 ->
-
       iterTD2k recpost (mdisj,heur) g2 oneStep 3
 
 iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
@@ -160,9 +188,9 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
   else
     compose (Or gcrt) oneStep >>= \gcomp ->
     addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
-    combSelHull (m,heur) (gcrt++getDisjuncts gcomp) undefinedF >>= \gnext ->
+--    combSelHull (m,heur) (gcrt++getDisjuncts gcomp) undefinedF >>= \gnext ->
 -- using g1=thd3 oneStep insted of gcrt gives simpler formulae!
---    combSelHull (m,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp) undefinedF >>= \gnext ->
+    combSelHull (m,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp) undefinedF >>= \gnext ->
     widen heur (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)
@@ -171,8 +199,10 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
 fixTestTD:: Relation -> Formula -> FS Bool
 fixTestTD oneStep candidate = 
   compose candidate oneStep >>= \gcomp ->
+  addOmegaStr ("#\tObtained invariant?") >> 
   combHull [candidate,gcomp] >>= \gnext ->
-  addOmegaStr ("#\tObtained invariant?") >> subset gnext candidate
+  subset gnext candidate
+-}
 
 compose:: Formula -> Relation -> FS (Formula)
 compose gcrt (ins,recs,gbase) =
@@ -191,46 +221,46 @@ getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
   if not (null ((io \\ i) \\ o)) then 
     error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
   else 
-    let ins = i in
     let recs = (recTheseQSizeVars i) in
-    ctxRec recs io postFromBU f >>= \ctx ->
-    addOmegaStr("# RecCtx:=" ++ showSet(fExists o ctx)) >>
-    simplify (fExists o ctx) >>= \oneStep ->
-    return (ins,recs,oneStep)
+--      putStrFS("debug1:="++showSet f) >>
+    getRecCtxs recs io postFromBU f >>= \(_,recCtxs) ->
+    let disjCtxRec = fExists o (fOr recCtxs) in
+--      putStrFS("debug2:="++showSet disjCtxRec) >>
+--      putStrFS("debug3:="++show o) >>
+    simplify disjCtxRec >>= \oneStep ->
+    addOmegaStr("# RecCtx:=" ++ showSet oneStep) >>
+    return (i,recs,oneStep)
 
-ctxRec:: [QSizeVar] -> [QSizeVar] -> Formula -> Formula -> FS Formula
-ctxRec recs io postFromBU formula = case formula of
+getRecCtxs:: [QSizeVar] -> [QSizeVar] -> Formula -> Formula -> FS (Formula,[Formula])
+-- qsvs -> formula from cAbst -> postFromBU -> (general Ctx,recursive Ctxs)
+getRecCtxs recs io postFromBU formula = case formula of
   And fs -> 
-    mapM (\f -> if isRec f then ctxRec recs io postFromBU f else return f) fs >>= \mapfs -> return (And mapfs)
+    mapAndUnzipM (\conjunct -> getRecCtxs recs io postFromBU conjunct) fs >>= \(genCtxs,recCtxss) ->
+    let genCtx = fAnd genCtxs in
+    let recCtxs = map (\recCtx -> fAnd [genCtx,recCtx])(concat recCtxss) in
+    return (genCtx,recCtxs)
+--    let genWithRecCtxss = map (\(i,recCtx) -> (fAnd (genCtxs \\ [genCtxs!!i]),recCtx)) (zip (numsFrom 0) recCtxss) in
+--    let genWithRecCtxssNotEmpty = filter (\(genCtx,recCtx) -> if recCtx==[] then False else True) genWithRecCtxss in
+--    let recCtxs = map (\(genCtx,recCtxs) -> (map (\recCtx -> fAnd [genCtx,recCtx]) recCtxs)) genWithRecCtxssNotEmpty in
+--    return (genCtx,concat recCtxs)
   Or fs -> 
-    mapM (\f -> if isRec f then ctxRec recs io postFromBU f else return fFalse) fs >>= \mapfs -> return (Or mapfs)
-  Not f -> 
-    ctxRec recs io postFromBU f >>= \ctx -> return (Not ctx)
-  GEq us -> error ("ctxRec: " ++ (showSet formula)) --It should not happen (?)
-  EqK us -> error ("ctxRec: " ++ (showSet formula)) --It should not happen (?)
-  AppRecPost mn insouts -> 
-    let ins = take (length recs) insouts in
-    let rhoFormalToActual = zipOrFail io insouts in
-    debugApply rhoFormalToActual postFromBU >>= \post ->
-    let eqs = And $ map (\(vrec,v) -> EqK [Coef vrec 1,Coef v (-1)]) (zip recs ins) in
-    return (And [post,eqs])
-  Forall qsvs f -> 
-    ctxRec recs io postFromBU f >>= \ctx -> return (Forall qsvs ctx)
-  Exists qsvs f -> 
-    ctxRec recs io postFromBU f >>= \ctx -> return (Exists qsvs ctx)
-  _ -> error ("ctxRec: unexpected argument: "++show formula)
-
-isRec:: Formula -> Bool
-isRec formula = case formula of
-  And fs -> any isRec fs
-  Or fs -> any isRec fs
-  Not f -> isRec f
-  GEq us -> False
-  EqK us -> False
-  AppRecPost mn insouts -> True
-  Forall qsvs f -> isRec f
-  Exists qsvs f -> isRec f
-  _ -> error ("isRec: unexpected argument: "++show formula)
+    mapAndUnzipM (\conjunct -> getRecCtxs recs io postFromBU conjunct) fs >>= \(genCtxs,recCtxss) ->
+    let genCtx = fOr genCtxs in
+    let recCtxs = (concat recCtxss) in
+    return (genCtx,recCtxs)
+  Exists exQsv f -> 
+    getRecCtxs recs io postFromBU f >>= \(genCtx,recCtxs) ->
+    return (Exists exQsv genCtx,map (Exists exQsv) recCtxs)
+  EqK ups -> return (formula,[])
+  GEq ups -> return (formula,[])
+  AppRecPost _ insouts ->
+    let actualArgs = take (length recs) insouts in    
+    let argsPairs = zip recs actualArgs in
+-- Include postFromBU instead of fTrue
+          let rhoFormalToActual = zipOrFail io insouts in
+          debugApply rhoFormalToActual postFromBU >>= \post ->
+    let eqs = map (\(f,a) -> EqK [Coef f 1,Coef a (-1)]) argsPairs in
+    return (post,[fAnd eqs])
 
 ----------------------------------
 --------Old fixpoint procedure----
@@ -346,32 +376,37 @@ iterTD recpost gcrt oneStep cnt =
     else iterTD recpost gnext oneStep (cnt+1)
 
 {---------------------------------
---------Simplify RecPost----
+--------NewSimplify RecPost----
 ----------------------------------
-Incorrect solution:
-MN<x> := (x>=0 || x<0 && exists(x1: x1=x-1 && MN<x1>))
-Introduce markers for applications:
-MN<x,x1,m> := (x>=0 || x<0 && exists(x1: x1=x-1 && m=0))
-Problem: x1 will be simplified due to the existential quantifier
-
-Steps for correct solution:
 Step1: Replace AppRecPost with markers (m=0) and collect actual arguments
-Step2: Float quantifiers for local-vars to the outermost scope
-Step3: Simplify all the quantified-local-vars, which are innermost than any actual-argument (local-vars)
-Step4: Replace markers with AppRecPost
+Step2: Simplify formula
+Step3: Replace markers with AppRecPost
 ...
 -}
 --Occurrences of AppRecPost will be replaced by a (b=0) and a marker is returned: (b,AppRecPost insouts)
 type Marker = (QSizeVar,Formula)
 
-newSimplifyRecPost:: RecPost -> FS RecPost
-newSimplifyRecPost recpost@(RecPost mn insouts prmf oth) = 
+newSimplifyEntireRecPost:: RecPost -> FS RecPost
+newSimplifyEntireRecPost recpost@(RecPost mn insouts prmf oth@(_,_,qsvByVal)) = 
   let (prms,f) = (case prmf of {Exists prms f -> (prms,f);_ -> error("assertion failed in simplifyRecPost")}) in
+  -- prms should be (primeTheseQSizeVars qsvByVal)
+  newSimplifyWithAppRecPost f >>= \sF ->
+  let entireRecPost = Exists prms sF in 
+  return (RecPost mn insouts entireRecPost oth)
+
+newSimplifyWithAppRecPost:: Formula -> FS Formula
+-- ^simplification of a formula that may contain an AppRecPost constructor.
+-- This function is not used currently: it is unsafe, because Omega.simplify, when given a complex argument, may drop information about a marker.
+newSimplifyWithAppRecPost f =
+  putStrFS ("#####simplifyRecPost") >>
+      addOmegaStr("1BefSimpl:="++showSet f) >>
   replaceAppRecPost f >>= \(markF,markAppRecPost,markArgs) ->
+      addOmegaStr("2WithMark:="++showSet markF) >>
   simplify markF >>= \sMarkF ->
-  let sF = replaceBackAppRecPost markAppRecPost sMarkF in
-  let sFWithArgs = Exists prms (fExists markArgs sF) in 
-  return (RecPost mn insouts sFWithArgs oth)
+      addOmegaStr("3AftSimplWithMark:="++showSet sMarkF) >>
+  let sF = fExists markArgs (replaceBackAppRecPost markAppRecPost sMarkF) in
+      addOmegaStr("4AftSimpl:="++showSet sF) >>
+  return sF
   where
   replaceAppRecPost:: Formula -> FS (Formula,[Marker],[QSizeVar])
   -- requires: formula is not mutually recursive
@@ -416,6 +451,22 @@ replaceBackAppRecPost replPair formula = case formula of
   AppRecPost mn insouts -> error $ "replaceBackAppRecPost: argument should not contain AppRecPost:\n " ++ show formula 
 
 
+{---------------------------------
+--------OldSimplify RecPost----
+----------------------------------
+Incorrect solution:
+MN<x> := (x>=0 || x<0 && exists(x1: x1=x-1 && MN<x1>))
+Introduce markers for applications:
+MN<x,x1,m> := (x>=0 || x<0 && exists(x1: x1=x-1 && m=0))
+Problem: x1 will be simplified due to the existential quantifier
+
+Steps for correct solution:
+Step1: Replace AppRecPost with markers (m=0) and collect actual arguments
+Step2: Float quantifiers for local-vars to the outermost scope
+Step3: Simplify all the quantified-local-vars, which are innermost than any actual-argument (local-vars)
+Step4: Replace markers with AppRecPost
+...
+-}
 oldSimplifyRecPost:: RecPost -> FS RecPost
 oldSimplifyRecPost recpost@(RecPost mn insouts f oth) = 
   let (quants,noF) = floatQfiers f in
@@ -436,15 +487,15 @@ oldSimplifyRecPost recpost@(RecPost mn insouts f oth) =
     Or fs -> 
       mapM replaceAppRecPost fs >>= \results -> let (replFs,replPair) = unzip results in
       return (Or replFs,concat replPair)
-    Not f -> 
-      replaceAppRecPost f >>= \(replF,replPair) ->
-      return (Not replF,replPair)
+--    Not f -> 
+--      replaceAppRecPost f >>= \(replF,replPair) ->
+--      return (Not replF,replPair)
     Exists exQsvs f ->
       replaceAppRecPost f >>= \(replF,replPair) ->
       return (Exists exQsvs replF,replPair)
-    Forall forQsvs f ->
-      replaceAppRecPost f >>= \(replF,replPair) ->
-      return (Forall forQsvs replF,replPair)
+--    Forall forQsvs f ->
+--      replaceAppRecPost f >>= \(replF,replPair) ->
+--      return (Forall forQsvs replF,replPair)
     GEq ups -> return (formula,[])
     EqK ups -> return (formula,[])
     AppRecPost _ _ ->
@@ -507,7 +558,6 @@ testRecPost recpost@(RecPost mn insouts f oth) =
     AppCAbst mn _ _ -> error ("unexpected argument: "++show formula)
     Union fs -> error ("unexpected argument: "++show formula)
     FormulaBogus -> error ("unexpected argument: "++show formula)
-    QLabelSubst subst lbl -> error ("unexpected argument: "++show formula)
 
 {-
 template formula = case formula of
@@ -518,6 +568,5 @@ template formula = case formula of
   GEq us ->
   EqK us ->
   AppRecPost mn insouts ->
-  QLabelSubst subst lbl ->
   _ -> error ("unexpected argument: "++show formula)
 -}
