@@ -112,7 +112,6 @@ swaparr:
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega_parser.hi
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega_types.hi
 ../omega_stub/src.hs/PFOmega.o : ../omega_stub/src.hs/Omega.hi
-ImpOutInfer.o : ImpOutInfer.hs
 ImpConfig.o : ImpConfig.hs
 MyPrelude.o : MyPrelude.hs
 Fresh.o : Fresh.hs
@@ -180,6 +179,15 @@ FixCalcParser.o : ImpFormula.hi
 FixCalcParser.o : ImpFixpoint2k.hi
 FixCalcParser.o : ImpConfig.hi
 FixCalcParser.o : ImpAST.hi
+ImpOutInfer.o : ImpOutInfer.hs
+ImpOutInfer.o : MyPrelude.hi
+ImpOutInfer.o : ImpTypeCommon.hi
+ImpOutInfer.o : ImpFixpoint2k.hi
+ImpOutInfer.o : ImpFixpoint.hi
+ImpOutInfer.o : ImpFormula.hi
+ImpOutInfer.o : ImpConfig.hi
+ImpOutInfer.o : ImpAST.hi
+ImpOutInfer.o : Fresh.hi
 ImpTypeInfer.o : ImpTypeInfer.hs
 ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi

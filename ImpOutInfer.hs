@@ -3,7 +3,6 @@ import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,
 import ImpAST
 import ImpConfig(Flags,checkingAfterInference,noRecPreDerivation,separateFstFromRec,Prederivation(..),prederivation,Postcondition(..),postcondition,useFixpoint2k)
 import ImpFormula
-import ImpFixpoint(fixpoint)
 import ImpFixpoint2k(fixpoint2k)
 import ImpTypeCommon
 import MyPrelude
@@ -110,27 +109,27 @@ outInferMethDeclRec prog m =
           let inv = fExists (primeTheseQSizeVars nonimp) primInv in
           composition u deltaInit inv >>= \deltaTransInv ->
 ---- each ERR separately
---          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
---                            EqK [Const 0,Const 1] -> return ([lbl],f)
---                            _ ->
---                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
---                              replaceAllWithFalse replF >>= \fstf ->
---                              gistCtxGivenInv fstf typeInv >>= \gfstf ->
---                              putStrFS("fstERR"++lbl++":="++showSet gfstf) >>
---                              composition u deltaTransInv gfstf >>= \recf ->                              
---                              gistCtxGivenInv recf typeInv >>= \grecf ->
---                              putStrFS("recERR"++lbl++":="++showSet grecf) >>
---                              return ([lbl],Or [gfstf,grecf])) errs >>= \newMethErrs ->
---          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
--- all ERRs at once
-          replaceAllWithFormula (getERROutcome out1) errs >>= \replF ->
-          simplify replF >>= \fstf ->
-          putStrFS("fstERR:="++showSet fstf) >>
-          composition u deltaTransInv fstf >>= \recf ->
-          simplify recf >>= \grecf ->
-          putStrFS("recERR:="++showSet grecf) >>
-          let newMethErrs = [(["ERR"],Or [fstf,grecf])] in
-          let gistedERR = Or [fstf,grecf] in
+          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
+                            EqK [Const 0,Const 1] -> return ([lbl],f)
+                            _ ->
+                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
+                              replaceAllWithFalse replF >>= \fstf ->
+                              gistCtxGivenInv fstf typeInv >>= \gfstf ->
+                              putStrFS("fstERR"++lbl++":="++showSet gfstf) >>
+                              composition u deltaTransInv gfstf >>= \recf ->                              
+                              gistCtxGivenInv recf typeInv >>= \grecf ->
+                              putStrFS("recERR"++lbl++":="++showSet grecf) >>
+                              return ([lbl],Or [gfstf,grecf])) errs >>= \newMethErrs ->
+          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
+---- all ERRs at once
+--          replaceAllWithFormula (getERROutcome out1) errs >>= \replF ->
+--          simplify replF >>= \fstf ->
+--          putStrFS("fstERR:="++showSet fstf) >>
+--          composition u deltaTransInv fstf >>= \recf ->
+--          simplify recf >>= \grecf ->
+--          putStrFS("recERR:="++showSet grecf) >>
+--          let newMethErrs = [(["ERR"],Or [fstf,grecf])] in
+--          let gistedERR = Or [fstf,grecf] in
 ---COMMON: each or all ERRs
           let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
@@ -153,38 +152,35 @@ outInferMethDeclNonRec prog m =
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
           invFromTyEnv gamma >>= \typeInv ->
           gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
------- each ERR separately
---          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
---                            EqK [Const 0,Const 1] -> return ([lbl],f)
---                            _ ->
---                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
---                              replaceAllWithFalse replF >>= \replAllF ->
---                              gistCtxGivenInv replAllF typeInv >>= \f ->
---                              putStrFS("ERR"++lbl++":="++showSet f) >>
---                              return ([lbl],f)) errF >>= \newMethErrs ->
---          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
--- all ERRs at once
-          replaceAllWithFormula (getERROutcome out1) errF >>= \replF ->
-          simplify replF >>= \f ->
-          putStrFS("ERR:="++showSet f) >>
-          let newMethErrs = [(["ERR"],f)] in
-          let gistedERR = f in
+---- each ERR separately
+          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
+                            EqK [Const 0,Const 1] -> return ([lbl],f)
+                            _ ->
+                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
+                              replaceAllWithFalse replF >>= \replAllF ->
+                              gistCtxGivenInv replAllF typeInv >>= \f ->
+                              putStrFS("ERR"++lbl++":="++showSet f) >>
+                              return ([lbl],f)) errF >>= \newMethErrs ->
+          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
+---- all ERRs at once
+--          replaceAllWithFormula (getERROutcome out1) errF >>= \replF ->
+--          simplify replF >>= \f ->
+--          putStrFS("ERR:="++showSet f) >>
+--          let newMethErrs = [(["ERR"],f)] in
+--          let gistedERR = f in
 ---COMMON: each or all ERRs
           let gistedOut = [OK gistedOK,ERR gistedERR] in
 ------prederivation
-          if (methName m=="main") then
-            simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
-            simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
-            simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
-            let lpre1 = (["NEVER_BUG"],pre1) in
-            let lpre2 = (["MUST_BUG"],pre2) in
-            let lpre3 = (["MAY_BUG"],pre3) in
-            when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
-            let notFalse = (filter (\(lbl,f) -> case f of {EqK [Const 0,Const 1] -> False;_ -> True}) newMethErrs) in
-            when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
-            return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
-          else
-            return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs})
+          simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
+          simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
+          simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
+          let lpre1 = (["NEVER_BUG"],pre1) in
+          let lpre2 = (["MUST_BUG"],pre2) in
+          let lpre3 = (["MAY_BUG"],pre3) in
+          when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
+          let notFalse = (filter (\(lbl,f) -> case f of {EqK [Const 0,Const 1] -> False;_ -> True}) newMethErrs) in
+          when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
+          return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
 
 replaceAllWithFormula:: Formula -> [FormulaDecl] -> FS Formula
 replaceAllWithFormula formula [] = return formula

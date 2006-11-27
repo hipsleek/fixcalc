@@ -43,7 +43,8 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
       getCPUTimeFS >>= \time2 -> 
       putStrFS ("    BU " ++ show cntPost ++ "iter: " ++ showDiffTimes time2 time1)>>
 ---- TD fixpoint for simplified RecPost
-      topDown2k sRecPost fixFlags1 fTrue >>= \(inv,cntInv) ->
+--      topDown2k sRecPost fixFlags1 fTrue >>= \(inv,cntInv) ->
+      topDown2k sRecPost (1,SimilarityHeur) fTrue >>= \(inv,cntInv) ->
       getCPUTimeFS >>= \time3 -> 
       addOmegaStr ("# Inv:=" ++ showRelation (i,recTheseQSizeVars i,inv) ++ "\n") >>
       putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
@@ -143,7 +144,7 @@ topDown2k recpost (m,heur) postFromBU =
 --      pairwiseCheck (fOr [g1,gcompOneMore]) >>= \g2 -> 
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
-  let mdisj = 1 in -- min m (countDisjuncts g2) in
+  let mdisj = min m (countDisjuncts g2) in
   putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
   combSelHull (mdisj,heur) (getDisjuncts g2) undefinedF >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
@@ -222,13 +223,11 @@ getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
     error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
   else 
     let recs = (recTheseQSizeVars i) in
---      putStrFS("debug1:="++showSet f) >>
+      addOmegaStr("debug1:="++showSet f) >>
     getRecCtxs recs io postFromBU f >>= \(_,recCtxs) ->
     let disjCtxRec = fExists o (fOr recCtxs) in
---      putStrFS("debug2:="++showSet disjCtxRec) >>
---      putStrFS("debug3:="++show o) >>
+      addOmegaStr("debug2:="++showSet disjCtxRec) >>
     simplify disjCtxRec >>= \oneStep ->
-    addOmegaStr("# RecCtx:=" ++ showSet oneStep) >>
     return (i,recs,oneStep)
 
 getRecCtxs:: [QSizeVar] -> [QSizeVar] -> Formula -> Formula -> FS (Formula,[Formula])

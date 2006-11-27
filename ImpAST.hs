@@ -400,7 +400,7 @@ instance ShowImpp MethDecl where
     "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
     "individualERRs:={"++showImpp (methErrs m)++"}\n"++
     "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n" ++
---      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
+      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
 --      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
 --      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
     passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
