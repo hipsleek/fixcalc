@@ -85,7 +85,7 @@ InputItem:
                  case lookupVar $1 env of
                    Just (F f) -> 
                       simplify f >>= \fsimpl ->
-                      putStrFS("\n" ++ showSet (fqsv fsimpl,fsimpl) ++ "\n") >> return env
+                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
                    Just (R recpost) -> 
                       putStrFS ("\n" ++ show recpost ++ "\n") >> return env
                    Nothing -> error ("Variable not declared - "++$1++"\n")
