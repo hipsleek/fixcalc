@@ -1,0 +1,19 @@
+#mnF(paper, StrongPost, m=3, SimHeur
+mnF:={[g_0,g_1] -> [PRMg_0,PRMg_1] -> []: (exists (g_6,PRMg_6 : exists (g_10,PRMg_10 : exists (g_38,g_39 : ((g_39 + -1 >= 0 && (-g_0) + g_39 = 0 && (-g_6) + 0 = 0 && (-PRMg_6) + 0 = 0 && (-PRMg_10) + 1 = 0 && (-g_10) + 1 = 0 && (-g_38) + g_39 + -1 = 0 && mnF(g_38,g_39,PRMg_0,PRMg_1)) || (g_0 + -1 >= 0 && (-g_1) + g_39 = 0 && (-g_6) + 0 = 0 && (-PRMg_6) + 0 = 0 && (-PRMg_10) + 1 = 0 && (-g_10) + 1 = 0 && (-g_38) + g_0 + -1 = 0 && mnF(g_38,g_39,PRMg_0,PRMg_1)) || (0 + (-PRMg_0) >= 0 && (-g_0) + PRMg_0 = 0 && (-g_1) + PRMg_1 = 0 && (-g_6) + 0 = 0 && (-PRMg_6) + 0 = 0 && (-PRMg_10) + 0 = 0 && (-g_10) + 0 = 0))))))};
+
+mnF;
+Fix:=bottomup(mnF,3,SimHeur);
+F0:={[]: 0=1};
+F1:=mnF(F0);
+F2:=mnF(F1);
+F3:=mnF(F2);
+F3H:=selhull(F3,3,SimHeur);
+F4:=mnF(F3H);
+F4H:=selhull(F4,3,SimHeur);
+F3W:=widen(F3H,F4H);
+fixtest(mnF,F3W);
+
+F1;F2;F3;F3H;F4;F4H;
+F3W;Fix;
+F3W subset Fix;
+Fix subset F3W;
