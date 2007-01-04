@@ -168,43 +168,6 @@ fixTestTD oneStep candidate =
   addOmegaStr ("#\tObtained invariant?") >> 
   subset (Or [gcomp,thd3 oneStep]) candidate 
 
-{-
--- 2nd widening strategy + general selHull
-topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
-topDown2k recpost (m,heur) postFromBU = 
-  getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
-  addOmegaStr ("#\tG1:="++showRelation oneStep) >>
---  putStrFS ("    Disj during TDfix: "++show (countDisjuncts g1)) >>
-  compose g1 (ins,recs,g1) >>= \gcomp ->
-  getFlags >>= \flags -> 
-      pairwiseCheck g1 >>=  \pwG1 -> let mdisj = min m (countDisjuncts pwG1) in
---      putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts pwG1)) >>
-      addOmegaStr ("#\tG2 hulled to G2r") >>
-      combSelHull (mdisj,heur) (getDisjuncts g1 ++ getDisjuncts gcomp) undefinedF >>= \g2 ->
-      iterTD2k recpost (mdisj,heur) g2 oneStep 3
-
-iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
-iterTD2k recpost (m,heur) gcrt oneStep cnt = 
-  if (cnt>maxIter) then return (fTrue,-1)
-  else
-    compose (Or gcrt) oneStep >>= \gcomp ->
-    addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
---    combSelHull (m,heur) (gcrt++getDisjuncts gcomp) undefinedF >>= \gnext ->
--- using g1=thd3 oneStep insted of gcrt gives simpler formulae!
-    combSelHull (m,heur) (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp) undefinedF >>= \gnext ->
-    widen heur (gcrt,gnext) >>= \gcrtW ->
-    fixTestTD oneStep (Or gcrtW) >>= \fixok ->
-    if fixok then return (Or gcrtW,cnt)
-    else iterTD2k recpost (m,heur) gcrtW oneStep (cnt+1)
-
-fixTestTD:: Relation -> Formula -> FS Bool
-fixTestTD oneStep candidate = 
-  compose candidate oneStep >>= \gcomp ->
-  addOmegaStr ("#\tObtained invariant?") >> 
-  combHull [candidate,gcomp] >>= \gnext ->
-  subset gnext candidate
--}
-
 compose:: Formula -> Relation -> FS (Formula)
 compose gcrt (ins,recs,gbase) =
   takeFresh (length ins) >>= \freshies ->
@@ -217,6 +180,9 @@ compose gcrt (ins,recs,gbase) =
   return disj2
   
 getOneStep:: RecPost -> Formula -> FS Relation
+-- ^does not work correctly when postFromBU is different than the True formula. This problem is encountered for non-linear recursive function like quick_sort and msort.
+-- Adding a strong postFromBU (which includes the checks) makes the resulting TransInv too strong (all rec-checks will be satisfied.
+-- Possible solution: mark AppRecPost with a number in the order in which they appear in the source code.
 -- ensures: (length ins) = (length recs)
 getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
   if not (null ((io \\ i) \\ o)) then 
