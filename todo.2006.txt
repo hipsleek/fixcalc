@@ -25,6 +25,14 @@ June.2006
 14-19.March.2007
 - Review paper according to PLDI'reviewers comments.
 
+
+
+
+=========
+Bugs (March 2007):
+- function in collatz.imp. With pass-by-value parameters: {OK=false,ERR=false}
+- running optimized version of imp (-O2) gives segm.fault.
+
 =========
 To do (November 2006):
 - pretty print for Omega formulae
