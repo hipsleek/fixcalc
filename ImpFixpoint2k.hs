@@ -59,6 +59,7 @@ bottomUp2k recpost (m,heur) initFormula =
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
     subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
+    addOmegaStr ("# Fx:="++showSet f2) >>
     addOmegaStr ("# F2:="++showSet f2r) >>
   subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>

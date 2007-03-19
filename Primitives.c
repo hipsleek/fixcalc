@@ -455,3 +455,16 @@ void printStats(){
   printf("No. of postcondition runtime checks: %d\n",runtime_checksPost);
 }
 
+int randInt(){
+  return rand();
+}
+
+int even(int x) {
+  if (x%2 == 0) { return 1; }
+  else { return 0; }
+}
+
+int odd(int x) {
+  if (x%2 != 0) { return 1; }
+  else { return 0; }
+}

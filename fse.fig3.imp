@@ -1,52 +1,21 @@
 #include "Primitives.imp"
 
 void foo(int y) {
-  int lock := 1; --1 means U
   int x:=randInt();
-  int z:=randInt();
-  int i:=randInt();
-  lock :=0; --0 means L
-  x:=y;
-  if (z>=0) then {
-    lock := 1;
-    y:=y+1
-  } else { void };
-  while (notEq(x,y)) do {
-    lock :=0;
-    x:=y;
-    if (z>=0) then {
-      lock := 1;
-      y:=y+1
-    } else { void }
-  };
-  if (notEq(lock,0)) then { verror() }
+  int lock := 0; --0 means U
+  goo(lock, x, y);
+  if (notEq(lock,1)) then { verror() }
   else { void }
 }
 
-{-
-main(int argc, char** argv)
-{
-	int lock = 1;
-	int x,y,z;
-	int i;
-	x = atoi(argv[1]);
-	y = atoi(argv[2]);
-	z = atoi(argv[3]);
-	i = atoi(argv[4]);
-
-	do
-	{
-		lock = 0;
-		x = y;
-		if (z>=	0)
-		{
-			lock = 1;
-			y++;
-		}
-	}while(x!=y);
-
-	if (lock != 0)
-		error();
+void goo(ref int lock, ref int x, ref int y) {
+  lock := 1; -- 1 means L
+  x := y;
+  if (randBool()) then {
+    lock := 0;
+    y := y+1
+  } else { void };
+  if (notEq(x,y)) then {
+    goo(lock,x,y)
+  } else { void }
 }
-
--}
