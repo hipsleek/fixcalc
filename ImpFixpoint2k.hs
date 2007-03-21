@@ -31,25 +31,21 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
 --      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ _ sf _) ->
       let sRecPost@(RecPost _ _ sf _) = recPost in
 --            addOmegaStr("SimplCAbst:="++showSet sf) >>
----- BU2k fixpoint for simplified RecPost
+---- Bottom-Up fixpoint
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
       getCPUTimeFS >>= \time1 -> 
       bottomUp2k sRecPost fixFlags1 fFalse >>= \(post,cntPost) ->
       addOmegaStr ("# Post" ++ show (fst fixFlags1) ++ ":=" ++ showSet post) >> 
       addOmegaStr ("#\tend bottomUp2k" ++ "\n") >>
-      putStrFS("OK:=" ++ showSet post) >>
---            equivalent postNoSimpl post >>= \b ->
---            (if (not b) then putStrFS ("###notEquivalent") else putStrFS ("###Equivalent")) >>
       getCPUTimeFS >>= \time2 -> 
-      putStrFS ("    BU " ++ show cntPost ++ "iter: " ++ showDiffTimes time2 time1)>>
----- TD fixpoint for simplified RecPost
---      topDown2k sRecPost fixFlags1 fTrue >>= \(inv,cntInv) ->
+--      putStrFS("OK:=" ++ showSet post) >>
+--      putStrFS ("    BU " ++ show cntPost ++ "iter: " ++ showDiffTimes time2 time1)>>
+---- Top-Down fixpoint
       topDown2k sRecPost (1,SimilarityHeur) fTrue >>= \(inv,cntInv) ->
       getCPUTimeFS >>= \time3 -> 
       addOmegaStr ("# Inv:=" ++ showRelation (i,recTheseQSizeVars i,inv) ++ "\n") >>
-      putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
-      putStrFS("    TD " ++ show cntInv ++ "iter: " ++ showDiffTimes time3 time2) >>
---      let (inv,cntInv) = (fTrue,-1) in
+--      putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
+--      putStrFS("    TD " ++ show cntInv ++ "iter: " ++ showDiffTimes time3 time2) >>
       return (post,inv)
      
 ----Bottom-Up fixpoint
@@ -63,9 +59,8 @@ bottomUp2k recpost (m,heur) initFormula =
     addOmegaStr ("# F2:="++showSet f2r) >>
   subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
---  putStrFS ("    Disj during BUfix: "++show (countDisjuncts f1r) ++ ", " ++ show (countDisjuncts f2r) ++ ", " ++ show (countDisjuncts f3r)) >>
   pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
-  putStrFS("Upper-bound m:="++show m++", Heuristic m:=" ++ show (countDisjuncts pwF3)) >>
+--  putStrFS("Upper-bound m:="++show m++", Heuristic m:=" ++ show (countDisjuncts pwF3)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4
     
@@ -74,8 +69,6 @@ iterBU2k:: RecPost -> FixFlags -> Formula -> DisjFormula -> Formula -> Int -> FS
 iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
--- 2nd widening strategy: iterate using fcrt
---    subrec recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
 -- 3nd widening strategy: iterate using scrt (fcrt is not used anymore)
     subrec recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
@@ -94,8 +87,8 @@ iterate2k recpost (m,heur) scrt cnt =
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHull (m,heur) (getDisjuncts fnext) undefinedF >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok -> 
-    when (not fixok) (putStrFS ("not a Reductive point at "++show cnt)) >>
-    putStrFS("    Post" ++ show cnt ++ ":=" ++ showSet (Or snext)) >>
+--    when (not fixok) (putStrFS ("not a Reductive point at "++show cnt)) >>
+--    putStrFS("    Post" ++ show cnt ++ ":=" ++ showSet (Or snext)) >>
     if (cnt>maxIter) then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterate2k recpost (m,heur) snext (cnt+1)  
     
@@ -115,9 +108,7 @@ subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
  subrec1 f g = case f of 
     And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
     Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
---    Not ff -> subrec1 ff g >>= \res -> return (Not res)
     Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
---    Forall vars ff -> subrec1 ff g >>= \res -> return (Forall vars res)
     GEq us -> return f
     EqK us -> return f
     AppRecPost actualMN actualIO ->
@@ -128,8 +119,6 @@ subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
       else
         let rho = zip formalIO actualIO in
         debugApply rho g >>= \rhoG ->
--- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed
---        return rhoG
         return $ fAnd [rhoG,noChange qsvByVal]
     _ -> error ("unexpected argument: "++show f)
 
@@ -140,13 +129,10 @@ topDown2k recpost (m,heur) postFromBU =
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("#\tG1:="++showRelation oneStep) >>
   compose g1 oneStep >>= \gcomp ->
---      simplify (fOr [g1,gcomp]) >>= \g11 ->
---      compose g11 oneStep >>= \gcompOneMore ->
---      pairwiseCheck (fOr [g1,gcompOneMore]) >>= \g2 -> 
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
-  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
+--  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
   combSelHull (mdisj,heur) (getDisjuncts g2) undefinedF >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 
@@ -205,10 +191,6 @@ getRecCtxs recs io postFromBU formula = case formula of
     let genCtx = fAnd genCtxs in
     let recCtxs = map (\recCtx -> fAnd [genCtx,recCtx])(concat recCtxss) in
     return (genCtx,recCtxs)
---    let genWithRecCtxss = map (\(i,recCtx) -> (fAnd (genCtxs \\ [genCtxs!!i]),recCtx)) (zip (numsFrom 0) recCtxss) in
---    let genWithRecCtxssNotEmpty = filter (\(genCtx,recCtx) -> if recCtx==[] then False else True) genWithRecCtxss in
---    let recCtxs = map (\(genCtx,recCtxs) -> (map (\recCtx -> fAnd [genCtx,recCtx]) recCtxs)) genWithRecCtxssNotEmpty in
---    return (genCtx,concat recCtxs)
   Or fs -> 
     mapAndUnzipM (\conjunct -> getRecCtxs recs io postFromBU conjunct) fs >>= \(genCtxs,recCtxss) ->
     let genCtx = fOr genCtxs in

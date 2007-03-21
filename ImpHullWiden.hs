@@ -11,7 +11,11 @@ import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
 
-showDebugMSG = False
+showDebugMSG:: Int
+showDebugMSG = 0
+-- 0 -> do not show messages
+-- 1 -> show only loss-of-precision messages
+-- 2 -> show more messages
 
 type Disjunct = Formula -- Formula is a disjunct (a conjunctive formula without disjunctions)
 type DisjFormula = [Formula] -- represents (Or [Formula]).
@@ -32,7 +36,7 @@ widen heur (xs,ys) =
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
-  when (showDebugMSG) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
+  when (showDebugMSG >= 2) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   addOmegaStr ("# WidenOUT:=" ++ showSet(Or res)) >> 
   return res
@@ -69,7 +73,7 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
   let (i,j) = chooseMaxElem affinMx in
-  when True (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
+  when (showDebugMSG>=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -104,14 +108,10 @@ widenOne (fcrt,fnext) =
 closure:: Disjunct -> FS [Disjunct]
 -- requires: f is conjunctive formula
 closure f =
---  let updSubst = collectUpdSubst f in
   let updSubst = [] in
   let conjs = buildClauses updSubst f in
---    addOmegaStr ("Subst:"++show updSubst) >> 
---    addOmegaStr ("FPlusClosure:=" ++ showSet (And conjs)) >>
   let noconst = discoverIneqWithoutNegConstant conjs in
   discover2Ineq conjs >>= \discov ->
---  putStrFS ("###"++showSet(fAnd conjs)++"\n>>>"++showSet(fAnd discov)++"\n|||"++showSet(fAnd noconst)) >>
   return (conjs++discov++noconst)
   where
     -- input: (i+13<=j)
@@ -215,7 +215,7 @@ combSelHull (m,heur) disj fbase =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      when showDebugMSG (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
+      when (showDebugMSG>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
@@ -237,8 +237,6 @@ computeHalfMx heur disj =
       computeHalfMx1 heur mat (m,n) i disj | i>n = return mat
       computeHalfMx1 heur mat (m,n) i disj = 
         computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
--- The upper-half of the matrix is traversed with "computeHalfRow". I suspect "computeHalfCol" is redundant/useless
---        computeHalfCol heur mat1 (m,n) (i-1) i disj >>= \mat2 ->
         computeHalfMx1 heur mat1 (m,n) (i+1) disj
 
 -- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
@@ -259,10 +257,10 @@ computeHalfCol heur mat (m,n) i j disj =
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
   let (i,j) = chooseMaxElem affinMx in
-  when ((affinMx!(i,j))<100) (putStrFS ("SelHull chooses disjuncts with less than 100%: "++ show (affinMx!(i,j)))) >>
-  when showDebugMSG (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
+  when (showDebugMSG>=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chooses disjuncts with less than 100%: "++ show (affinMx!(i,j)))) >>
+  when (showDebugMSG>=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
-  when showDebugMSG (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
+  when (showDebugMSG>=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
                                ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
   else 
@@ -326,7 +324,6 @@ affinity:: Maybe Formula -> Maybe Formula -> Heur -> (Formula -> Formula -> FS F
 affinity Nothing _ heur _ _ = return identityA
 affinity _ Nothing heur _ _ = return identityA
 affinity (Just f1) (Just f2) HausdorffHeur _ fsv =
-  putStrFS (concatMap show fsv) >>
   mapM (\x -> projectQSV f1 x) fsv >>= \ranges1 ->
   mapM (\x -> projectQSV f2 x) fsv >>= \ranges2 ->
   let distances = map hausdorffDistance (zip ranges1 ranges2) in
@@ -334,7 +331,8 @@ affinity (Just f1) (Just f2) HausdorffHeur _ fsv =
   let maxdist = 1000 in
   let haus = ceiling (fromIntegral (100*inc) / fromIntegral (length fsv+1)) + 
              ceiling (fromIntegral (100*dist) / fromIntegral ((length fsv+1)*maxdist))in
-  putStrFS ("haus: " ++ show (length fsv) ++ ":" ++ show inc ++ ":" ++ show dist ++ ":" ++ show haus ++ ":" ++ show (100-haus)) >>
+--  putStrFS (concatMap show fsv) >>
+--  putStrFS ("haus: " ++ show (length fsv) ++ ":" ++ show inc ++ ":" ++ show dist ++ ":" ++ show haus ++ ":" ++ show (100-haus)) >>
   return (100-haus)
 affinity (Just f1) (Just f2) heur operation _ = 
     operation f1 f2 >>= \foperation -> 
@@ -382,7 +380,7 @@ projectQSV:: Formula -> QSizeVar -> FS Range
 projectQSV f1 qsv = 
   let f2 = fExists (fqsv f1 \\ [qsv]) f1 in
   hull f2 >>= \f3 -> 
-  putStrFS ("simpl:= " ++ show f3 ++ "\trange: " ++ show (extractRange f3)) >>
+--  putStrFS ("simpl:= " ++ show f3 ++ "\trange: " ++ show (extractRange f3)) >>
   return (extractRange f3)
 
 extractRange:: Formula -> Range
@@ -484,7 +482,7 @@ countConjuncts formula = case formula of
 hullExistentials:: Formula -> FS Formula
 hullExistentials disj = 
   if (noExistentialsInDisjuncts==True) && (countExis disj > 0) then 
-    putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj) >>
+    when (showDebugMSG>=1) (putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
     hull disj
   else return disj
 

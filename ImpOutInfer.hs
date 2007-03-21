@@ -72,13 +72,13 @@ outInferScc prog scc =
       putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
       outInferMethDeclNonRec prog (findMethod (methName mDecl) prog) >>= \updProg2 ->
       getCPUTimeFS >>= \time2 ->
-      putStrFS ("###Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1++"###") >> 
+      putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
       return updProg2
     CyclicSCC mDecls ->
       if (length mDecls /= 1) then error "Mutual recursion is not implemented"
       else
         let mDecl = (head mDecls) in
-        putStrFS ("###Inferring " ++ methName mDecl ++ "...###") >> getCPUTimeFS >>= \time1 ->
+        putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
         outInferMethDeclRec prog (findMethod (methName mDecl) prog) >>= \updProg2 ->  
         getCPUTimeFS >>= \time2 ->
         putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
@@ -95,7 +95,6 @@ outInferMethDeclRec prog m =
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
       invFromTyEnv gamma >>= \typeInv ->
       let recPostOK = RecPost fname (inputs `union` outputs) (getOKOutcome out1) (inputs,outputs,qsvByVal) in
-      putStrFS("###Fixpoint for OK outcome:###") >>
       fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
       gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
       let fixOKProg = updateMethDecl prog m{methOut=[OK gistedOK,ERR FormulaBogus]} in
@@ -124,10 +123,10 @@ outInferMethDeclRec prog m =
 ---- all ERRs at once
           replaceAllWithFormula (getERROutcome out1) errs >>= \replF ->
           simplify replF >>= \fstf ->
-          putStrFS("fstERR:="++showSet fstf) >>
+          -- putStrFS("fstERR:="++showSet fstf) >>
           composition u deltaTransInv fstf >>= \recf ->
           simplify recf >>= \grecf ->
-          putStrFS("recERR:="++showSet grecf) >>
+          -- putStrFS("recERR:="++showSet grecf) >>
           let newMethErrs = [(["ERR"],Or [fstf,grecf])] in
           let gistedERR = Or [fstf,grecf] in
 ---COMMON: each or all ERRs
@@ -165,7 +164,7 @@ outInferMethDeclNonRec prog m =
 ---- all ERRs at once
           replaceAllWithFormula (getERROutcome out1) errF >>= \replF ->
           simplify replF >>= \f ->
-          putStrFS("ERR:="++showSet f) >>
+          -- putStrFS("ERR:="++showSet f) >>
           let newMethErrs = [(["ERR"],f)] in
           let gistedERR = f in
 ---COMMON: each or all ERRs
@@ -177,9 +176,9 @@ outInferMethDeclNonRec prog m =
           let lpre1 = (["NEVER_BUG"],pre1) in
           let lpre2 = (["MUST_BUG"],pre2) in
           let lpre3 = (["MAY_BUG"],pre3) in
-          when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
+          -- when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
           let notFalse = (filter (\(lbl,f) -> case f of {EqK [Const 0,Const 1] -> False;_ -> True}) newMethErrs) in
-          when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
+          -- when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
           return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
 
 replaceAllWithFormula:: Formula -> [FormulaDecl] -> FS Formula

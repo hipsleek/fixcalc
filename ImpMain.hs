@@ -50,7 +50,7 @@ compile flags prog =
               typeInferProg dsgProg >>= \infProg ->
               printProgImpi infProg >>
               getCPUTimeFS >>= \time1 -> specialize infProg >>= \specializedProg -> getCPUTimeFS >>= \time2 ->
-              putStrFS ("Specialization...done in " ++ showDiffTimes time2 time1) >> 
+              -- putStrFS ("Specialization...done in " ++ showDiffTimes time2 time1) >> 
               printProgC specializedProg >>
               printProgImpt specializedProg >>
               if (checkingAfterInference flags) then 

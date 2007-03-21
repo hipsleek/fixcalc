@@ -398,16 +398,15 @@ instance ShowImpp MethDecl where
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
     "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
-    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
-    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n" ++
-      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
+--    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
+    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
+--      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
 --      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
---      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n-}\n" ++
-    passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")\n  where\n  (" ++ 
-    showImpp (strong $ methPost m) ++ 
---      "),\n  (" ++ showImpp (weak $ methPost m) ++ "),\n  (" ++ showImpp (cond $ methPost m) ++ 
-    "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showImpp (methUpsis m) ++ 
-    "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
+--      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
+    passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ 
+--    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ 
+--    "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showImpp (methUpsis m) ++ "}," ++ 
+    "\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 instance ShowImpp PrimDecl where
   showImpp p = 
@@ -697,9 +696,9 @@ printProgImpi prog =
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".impi" in
 	let io = 
-	      writeFile outFile (showImpp prog) >>
-	      let upsis = getUpsisFromProg prog in
-	        putStrLn ("## " ++ show (snd upsis) ++ " runtime tests. " ++ (fst upsis))
+--	      let upsis = getUpsisFromProg prog in
+--	      putStrLn ("## " ++ show (snd upsis) ++ " runtime tests. " ++ (fst upsis)) >>
+	      writeFile outFile (showImpp prog)
 	  in
 	  unsafePerformIO io `seq` return ()
 

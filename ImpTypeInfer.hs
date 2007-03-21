@@ -22,7 +22,7 @@ typeInferProg prog@(Prog _ prims meths) =
   outInferSccs prog sccs >>= \infProg -> 
 --  typeInferSccs prog sccs >>= \infProg -> 
     getCPUTimeFS >>= \time2 ->
-    putStrFS ("Array-bounds inference...done in " ++ showDiffTimes time2 time1) >> 
+--    putStrFS ("Array-bounds inference...done in " ++ showDiffTimes time2 time1) >> 
     addOmegaStr "Inference is finished..." >>
   return infProg
 
