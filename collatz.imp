@@ -18,24 +18,25 @@ void foo(ref int n) {
 Void main()
 {
   int n := randInt();
-  foo(n)
+  foo(n);
+  verror()
 }
 
 
-void goo_OK(ref int n) {
-  if (eq(n,1)) then {
-    void
-  } else {
-    n := randInt();
-    goo_OK(n)
-  }
-}
-
-void goo_BAD({- ref -} int n) {
-  if (eq(n,1)) then {
-    void
-  } else {
-    n := randInt();
-    goo_BAD(n)
-  }
-}
+--void goo_OK(ref int n) {
+--  if (eq(n,1)) then {
+--    void
+--  } else {
+--    n := randInt();
+--    goo_OK(n)
+--  }
+--}
+--
+--void goo_BAD({- ref -} int n) {
+--  if (eq(n,1)) then {
+--    void
+--  } else {
+--    n := randInt();
+--    goo_BAD(n)
+--  }
+--}
