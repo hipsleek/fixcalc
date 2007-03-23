@@ -1,8 +1,8 @@
 {
 module FixCalcParser where
 import ImpAST
-import ImpConfig(defaultFlags)
-import ImpFixpoint2k(bottomUp2k,Heur(..),subrec,combSelHull,getDisjuncts,undefinedF,widen,fixTestBU)
+import ImpConfig(defaultFlags,Heur(..))
+import ImpFixpoint2k(bottomUp2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU)
 import ImpFormula(simplify,subset)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -135,7 +135,7 @@ Lhs:
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; lit -> error ("Heuristic not implemented - "++lit)} in
-                     combSelHull ($5,heur) (getDisjuncts f) undefinedF >>= \disj -> return (F (Or disj))}
+                     combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
   | widen '(' lit ',' lit ')' 
         {\env -> putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of

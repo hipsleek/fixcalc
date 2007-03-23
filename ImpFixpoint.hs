@@ -1,7 +1,8 @@
+-- #hide
 module ImpFixpoint(fixpoint) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(useTrueFixpoint,useAnnotatedFixpoint,useSelectiveHull,widenEarly,pairwiseDuringFix)
+import ImpConfig(useAnnotatedFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(inverseSubst,debugApply,noChange,fsvTy,Subst,primeTheseQSizeVars,simplify,hull,subset,pairwiseCheck)
 import ImpTypeCommon(setsForParamPassing)
 import InSolver(impUnion,impCompose)
@@ -19,9 +20,6 @@ fixpoint m cabst =
   setsForParamPassing (Meth m) >>= \(_,_,_,qsvByRef,_) ->
   let annPost = strong (methPost m) in
   let annInv = methInv m in
-  if useTrueFixpoint then
-    return (fTrue,fTrue)
-  else
     addOmegaStr ("\nCAbst: " ++ show cabst) >>
     getCPUTimeFS >>= \time1 ->
   prepareCAbstBU cabst qsvByRef >>= \(preparedCAbstBU,rhoBackToPrimesBU) ->
@@ -73,16 +71,16 @@ bottomUp:: CAbst -> FS Formula
 bottomUp cabst@(CAbst name qsvs formula) =  
   subrec cabst fFalse >>= \f1 ->
     addOmegaStr ("\tF1 simplifies to F1r") >>
-  (if pairwiseDuringFix then pairwiseCheck f1 else simplify f1) >>= \f1r ->
+  simplify f1 >>= \f1r ->
   subrec cabst f1r >>= \f2 ->
     addOmegaStr ("\tF2 simplifies to F2r") >>
-  (if pairwiseDuringFix then pairwiseCheck f2 else simplify f2) >>= \f2r -> 
+  simplify f2 >>= \f2r -> 
   subrec cabst f2r >>= \f3 ->
     addOmegaStr ("\tF3 simplifies to F3r") >>
-  (if pairwiseDuringFix then pairwiseCheck f3 else simplify f3) >>= \f3r ->
+  simplify f3 >>= \f3r ->
   subrec cabst f3r >>= \f4 ->
     addOmegaStr ("\tF4 simplifies to F4r") >>
-  (if pairwiseDuringFix then pairwiseCheck f4 else simplify f4) >>= \f4r ->
+  simplify f4 >>= \f4r ->
   getFlags >>= \flags ->
   if useSelectiveHull flags then -- selective hulling
       addOmegaStr ("\tSelective hull for F3r") >>
@@ -125,13 +123,13 @@ bottomUp3:: CAbst -> FS Formula
 bottomUp3 cabst@(CAbst name qsvs formula) =  
   subrec cabst fFalse >>= \f1 ->
     addOmegaStr ("\tF1 simplifies to F1r") >>
-  (if pairwiseDuringFix then pairwiseCheck f1 else simplify f1) >>= \f1r ->
+  simplify f1 >>= \f1r ->
   subrec cabst f1r >>= \f2 ->
     addOmegaStr ("\tF2 simplifies to F2r") >>
-  (if pairwiseDuringFix then pairwiseCheck f2 else simplify f2) >>= \f2r -> 
+  simplify f2 >>= \f2r -> 
   subrec cabst f2r >>= \f3 ->
     addOmegaStr ("\tF3 simplifies to F3r") >>
-  (if pairwiseDuringFix then pairwiseCheck f3 else simplify f3) >>= \f3r ->
+  simplify f3 >>= \f3r ->
   getFlags >>= \flags ->
   if useSelectiveHull flags then -- selective hulling
       addOmegaStr ("\tSelective hull for F2r") >>

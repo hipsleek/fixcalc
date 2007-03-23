@@ -1,3 +1,7 @@
+{- | 
+  Provides an interface to the Omega functions. 
+  Does some conversions (Imp->Omega) and (Omega->Imp).
+-}
 module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impCompose,impPairwiseCheck) where
 import qualified Omega as Omega
 import qualified PFOmega as Omega

@@ -1,5 +1,6 @@
+{- |Provides operators for Hulling and Widening on the powerset domain of polyhedra -}
 -----Operators common to BU and TD
-module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula) where
+module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,Disjunct,DisjFormula) where
 import Fresh(FS,addOmegaStr,putStrFS)
 import ImpAST
 import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
@@ -17,8 +18,8 @@ showDebugMSG = 0
 -- 1 -> show only loss-of-precision messages
 -- 2 -> show more messages
 
-type Disjunct = Formula -- Formula is a disjunct (a conjunctive formula without disjunctions)
-type DisjFormula = [Formula] -- represents (Or [Formula]).
+type Disjunct = Formula -- ^Formula is a disjunct (a conjunctive formula without disjunctions)
+type DisjFormula = [Formula] -- ^represents (Or [Formula]).
 
 ----------------------------------
 --------Widening powersets--------
@@ -361,7 +362,6 @@ affinity (Just f1) (Just f2) heur operation _ =
           let s = ceiling $ sum (map getAverageConjuncts disj) in
           let diffSteps = 100 - (20*nsteps-s) in
           return diffSteps
-        SyntacticHeur -> error "not implemented"
     where
       mset:: Formula -> Formula -> Formula -> FS [Formula]
       -- requires: f1,f2 are conjunctive formulae

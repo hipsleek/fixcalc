@@ -1,7 +1,8 @@
-module ImpOutInfer(outInferSccs,applyRecToPrimOnInvariant,RecFlags) where
+{- |Does the outcome inference. It uses the call-graph computation from "ImpTypeInfer". -}
+module ImpOutInfer(outInferSccs,RecFlags) where
 import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(Flags,checkingAfterInference,noRecPreDerivation,separateFstFromRec,Prederivation(..),prederivation,Postcondition(..),postcondition,useFixpoint2k)
+import ImpConfig(Flags,checkingAfterInference,separateFstFromRec,Prederivation(..),prederivation,Postcondition(..),postcondition,useFixpoint2k)
 import ImpFormula
 import ImpFixpoint2k(fixpoint2k)
 import ImpTypeCommon
@@ -12,40 +13,37 @@ import List(union,unzip4,(\\),nub)
 import Maybe(catMaybes,fromJust)
 import Monad(when)
 
-type RecFlags = (Int,[Lit]) -- (whatPhase,nameOfRecFs)
--- whatPhase: 0 - noRecursion; 1 - collect cAbst; 2 - derive preconditions
--- whatPhase: 3 - collect cAbst for OK outcome; 4 - collect cAbst for ERR outcome
+type RecFlags = (Int,[Lit]) 
+{- ^RecFlags represents a pair of (whatPhase, nameOfRecFs).
 
-applyRecToPrimOnInvariant:: Formula -> FS Formula
-applyRecToPrimOnInvariant inv =
-  let qsv = fqsv inv in
-  let recs = filter (\q -> case q of {(s,Recursive) -> True;_ -> False} ) qsv in
-  let prims = map (\q -> case q of {(s,Recursive) -> (s,Primed);_ -> error "assertion failed in applyRecToPrimOnInvariant"}) recs in
-  debugApply (zip recs prims) inv
+  Meaning of whatPhase: 0 - noRecursion; 1 - collect cAbst; 2 - derive preconditions
+  
+  3 - collect cAbst for OK outcome; 4 - collect cAbst for ERR outcome
+-}
 
 ------------------------
 ----OUTCOMES------------
 ------------------------
-outAnd::Outcomes -> Formula -> Outcomes
+outAnd::[Outcome] -> Formula -> [Outcome]
 outAnd [OK f1,ERR f2] f = [OK (And [f1,f]), ERR f2] 
-outoutAnd::Outcomes -> Outcomes -> Outcomes
+outoutAnd::[Outcome] -> [Outcome] -> [Outcome]
 outoutAnd [OK f1,ERR f2] [OK fa,ERR fb] = [OK (And [f1,fa]),ERR (Or [f2,And [f1,fb]])]
-outOr:: Outcomes -> Outcomes -> Outcomes
+outOr:: [Outcome] -> [Outcome] -> [Outcome]
 outOr [OK f1,ERR f2] [OK fa,ERR fb] = [OK (Or [f1,fa]),ERR (Or [f2,fb])]
-outExists:: [QSizeVar] -> Outcomes -> Outcomes
+outExists:: [QSizeVar] -> [Outcome] -> [Outcome]
 outExists x [OK f1,ERR f2]  = [OK (fExists x f1), ERR (fExists x f2)]
-outcomposition:: [QSizeVar] -> Outcomes -> Formula -> FS Outcomes
+outcomposition:: [QSizeVar] -> [Outcome] -> Formula -> FS [Outcome]
 outcomposition u [OK f1,ERR f2] f = composition u f1 f >>= (\compF -> return [OK compF,ERR f2])
-outdebugApply:: Subst -> Outcomes -> FS Outcomes
+outdebugApply:: Subst -> [Outcome] -> FS [Outcome]
 outdebugApply rho [OK f1,ERR f2] = debugApply rho f1 >>= \rhof1 -> debugApply rho f2 >>= \rhof2 -> 
   return [OK rhof1, ERR rhof2]
-outsimplify:: Outcomes -> FS Outcomes
+outsimplify:: [Outcome] -> FS [Outcome]
 outsimplify [OK f1,ERR f2] = simplify f1 >>= \sf1 -> simplify f2 >>= \sf2 -> return [OK sf1,ERR sf2]
-outoutcomposition:: [QSizeVar] -> Outcomes -> Outcomes -> FS Outcomes
+outoutcomposition:: [QSizeVar] -> [Outcome] -> [Outcome] -> FS [Outcome]
 outoutcomposition u [OK f1,ERR f2] [OK fa,ERR fb] = 
   composition u f1 fa >>= \f1a -> composition u f1 fb >>= \f1b ->
   return [OK f1a,ERR (Or [f2,f1b])]
-outNonDet:: [QSizeVar] -> Outcomes -> Outcomes -> FS Outcomes
+outNonDet:: [QSizeVar] -> [Outcome] -> [Outcome] -> FS [Outcome]
 outNonDet ress [OK f1, ERR f3] [OK f2, ERR f4] =
   takeFresh (length ress) >>= \freshies1 ->
   let freshQsvs1 = map (\fsh -> (SizeVar fsh,Unprimed)) freshies1 in
@@ -213,8 +211,8 @@ replaceAllWithFalse formula = case formula of
   AppRecPost mn insouts -> return fFalse
   _ -> error ("unexpected argument: "++show formula)
 
-outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> Outcomes -> RecFlags 
-  -> FS (AnnoType,Outcomes,[FormulaDecl])
+outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> [Outcome] -> RecFlags 
+  -> FS (AnnoType,[Outcome],[FormulaDecl])
 -------KTrue-----------------------
 outInferExp prog KTrue mn _ gamma outcomes recFlags = 
   fresh >>= \s ->
@@ -449,8 +447,3 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just crtlbl) fName argsIdent)
             outdebugApply rho outm >>= \rhooutm ->
             outoutcomposition w out rhooutm >>= \out2 ->
             return $ (typ,out2,errF) 
-
-
-getNeverBug:: [LabelledFormula] -> [LabelledFormula]
-getNeverBug phis = -- [head phis]
-  [] -- disable checking of the preconditions

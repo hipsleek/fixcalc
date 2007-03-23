@@ -1,11 +1,17 @@
+{- |It computes the call graph using functions from Data.Graph.
+   
+   The type-inference process traverses the call-graph in bottom-up order and analyzes each method.
+   
+   The functions mkChk and mkChkRec decide whether a check is safe, unsafe or partially-safe.
+-}
 module ImpTypeInfer(typeInferProg) where
-import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
+import Fresh
 import ImpAST
-import ImpConfig(Flags,checkingAfterInference,noRecPreDerivation,separateFstFromRec,Prederivation(..),prederivation,Postcondition(..),postcondition,useFixpoint2k)
+import ImpConfig
 import ImpFormula
 import ImpFixpoint(fixpoint)
 import ImpFixpoint2k(fixpoint2k)
-import ImpOutInfer(outInferSccs,applyRecToPrimOnInvariant,RecFlags)
+import ImpOutInfer(outInferSccs,RecFlags)
 import ImpTypeCommon
 import MyPrelude
 -----------------
@@ -116,8 +122,8 @@ typeInferMethDeclNonRec prog m =
 
 -- Program -> Exp -> Method_name -> Variables_to_Quantify -> Type_Environment -> RecFlags
 -- -> (Type_for_exp,Context,Preconditions,RuntimeExps)
-typeInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> Formulae -> RecFlags 
-  -> FS (AnnoType,Formulae,[LabelledFormula],[QLabel])
+typeInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> [Formula] -> RecFlags 
+  -> FS (AnnoType,[Formula],[LabelledFormula],[QLabel])
 -------KTrue-----------------------
 typeInferExp prog KTrue mn _ gamma delta recFlags = 
   fresh >>= \s ->
@@ -399,22 +405,16 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
 
 typeInferExp prog exp@(ExpError) mn v gamma delta recFlags = 
   error $ "ExpError encountered during type inference?\n "++showImppTabbed exp 1
--------The Rest--------------------
 typeInferExp prog e _ _ _ _ _ = error $ "typeInferExp not implemented for the following construct\n " ++ showImppTabbed e 1
 
-extract :: [LabelledFormula] -> String
-extract rhoPhim =
-  if length rhoPhim == 0 then ""
-  else showImpp (fst (head rhoPhim))
-
 -------MkChk-----------------------
-mkChks:: [QSizeVar] -> [QSizeVar] -> Formulae -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
+mkChks:: [QSizeVar] -> [QSizeVar] -> [Formula] -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
 mkChks v u delta typeInv lblChks =
   mapM (mkChk v u delta typeInv) lblChks >>= \mays ->
   let (maybePhis,maybeUpsis) = unzip mays in
     return $ (catMaybes maybePhis,catMaybes maybeUpsis)
 
-mkChk:: [QSizeVar] -> [QSizeVar] -> Formulae -> Formula -> LabelledFormula -> FS (Maybe LabelledFormula,Maybe QLabel)
+mkChk:: [QSizeVar] -> [QSizeVar] -> [Formula] -> Formula -> LabelledFormula -> FS (Maybe LabelledFormula,Maybe QLabel)
 mkChk v u [deltaS,deltaW,deltaC] typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then 
@@ -437,13 +437,13 @@ mkChk v u [deltaS,deltaW,deltaC] typeInv (lbl,phi) =
     else addOmegaStr ("propagate gisted PHI") >> return (Just (lbl,simple),Nothing)
 
 -------MkChkRec--------------------
-mkChksRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> Formulae -> Formula -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
+mkChksRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> [Formula] -> Formula -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
 mkChksRec v u uRec typs delta inv typeInv lblChks =
   mapM (mkChkRec v u uRec typs delta inv typeInv) lblChks >>= \mays ->
   let (maybePhis,maybeUpsis) = unzip mays in
     return $ (catMaybes maybePhis,catMaybes maybeUpsis)
 
-mkChkRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> Formulae -> Formula -> Formula -> LabelledFormula -> FS (Maybe LabelledFormula,Maybe QLabel)
+mkChkRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> [Formula] -> Formula -> Formula -> LabelledFormula -> FS (Maybe LabelledFormula,Maybe QLabel)
 mkChkRec v u uRec typs [deltaS,deltaW,deltaC] inv typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then -- prederivation using necessary preconditions

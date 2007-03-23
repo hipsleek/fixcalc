@@ -60,7 +60,7 @@ install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
 
 doc: $(SRCS)
-	haddock -h -o doc --ignore-all-exports --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
+	haddock -h -o doc --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
 	ImpMain.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
 	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs ImpTypeInfer.hs

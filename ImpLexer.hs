@@ -1,5 +1,51 @@
-module ImpLexer where
+{- | This module implements the lexer.
+-}
+
+module ImpLexer(lexer,getLineNum,getInput,runP,P(..),Tk(..)) where
 import Data.Char(isAlpha,isDigit,isAlphaNum)
+
+-------Parser Monad-----------------
+data St = MkState {input :: String, linenum :: Int}
+newtype P a = P (St -> (St, a))
+
+instance Monad P where
+    --return :: a -> P a
+    return a = P (\st -> (st, a))
+
+    --(>>=) :: P a -> (a -> P b) -> P b
+    (P a) >>= f = P (\st -> let (st', a') = (a st)
+	                        (P b)     = (f a')
+	                    in b st')
+
+runP :: String -> P a -> a
+runP s (P a) = snd $ a initState
+    where initState = MkState {input = s, linenum = 1}
+
+getLineNum :: P Int
+getLineNum = P (\st -> (st, linenum st))
+
+incLineNum :: P ()
+incLineNum = P (\st -> (st{linenum = (linenum st) + 1}, ()))
+
+resetLineNum :: P ()
+resetLineNum = P (\st -> (st{linenum = 1}, ())) --after parsing primitives: lineNum is 1 again
+
+getInput :: P String
+getInput = P (\st -> (st, input st))
+
+setInput :: String -> P ()
+setInput s = P (\st -> (st{input = s}, ()))
+{-
+printState :: P ()
+printState = do l <- getLineNum
+		s <- getInput
+		(unsafePerformIO $ putStr $ show ("ln: " ++ (show l) ++ " input: " ++ s))
+		  `seq` return ()
+-}
+-- Like return, but update the pending input stream as well.
+returnPI :: Tk -> String -> P Tk
+returnPI t s = setInput s >> return t
+
 -------Tokens----------------------
 data Tk=
 	TkAlphaNum String
@@ -24,9 +70,10 @@ data Tk=
 	| TkBogus
 
 lexer :: (Tk -> P a) -> P a
-lexer cont = getInput >>= 
-	\input -> lexer' input >>= 
-		\token -> cont token
+lexer cont = 
+  getInput >>= \input -> 
+  lexer' input >>= \token -> 
+  cont token
 
 lexer' :: String -> P Tk
 lexer' [] = return TkEOF
@@ -89,7 +136,7 @@ lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkFo
 lexer' ('e':'r':'r':'o':'r':xs) | not $ isAlphaNum (head xs) = returnPI TkError xs
 lexer' ('i':'n':'c':'l':'u':'d':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkKwInclude xs
 lexer' ('r':'e':'f':xs) | not $ isAlphaNum (head xs) = returnPI TkKwRef xs
-lexer' ('\"':xs) = lexString "" xs
+lexer' ('\"':xs) = lexString "" xs 
 
 lexer' all@(x:xs)
   | _isSpace x   = lexer' $ dropWhile (_isSpace) xs 
@@ -136,46 +183,5 @@ lexString part s = case s of
   '\"':xs -> returnPI (TkString (reverse part)) xs
   c:xs -> lexString (c:part) xs
   
--------State Monad-----------------
-data St = MkState {input :: String, linenum :: Int}
-newtype P a = P (St -> (St, a))
-
-instance Monad P where
-    --return :: a -> P a
-    return a = P (\st -> (st, a))
-
-    --(>>=) :: P a -> (a -> P b) -> P b
-    (P a) >>= f = P (\st -> let (st', a') = (a st)
-	                        (P b)     = (f a')
-	                    in b st')
-
-runP :: String -> P a -> a
-runP s (P a) = snd $ a initState
-    where initState = MkState {input = s, linenum = 1}
-
-getLineNum :: P Int
-getLineNum = P (\st -> (st, linenum st))
-
-incLineNum :: P ()
-incLineNum = P (\st -> (st{linenum = (linenum st) + 1}, ()))
-
-resetLineNum :: P ()
-resetLineNum = P (\st -> (st{linenum = 1}, ())) --after parsing primitives: lineNum is 1 again
-
-getInput :: P String
-getInput = P (\st -> (st, input st))
-
-setInput :: String -> P ()
-setInput s = P (\st -> (st{input = s}, ()))
-{-
-printState :: P ()
-printState = do l <- getLineNum
-		s <- getInput
-		(unsafePerformIO $ putStr $ show ("ln: " ++ (show l) ++ " input: " ++ s))
-		  `seq` return ()
--}
--- Like return, but update the pending input stream as well.
-returnPI :: Tk -> String -> P Tk
-returnPI t s = setInput s >> return t
 
 

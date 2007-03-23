@@ -1,5 +1,17 @@
--------Common to checking and inference
-module ImpTypeCommon where
+-- |Implements a type-environment and functions that deal with types (common to both checking and inference). 
+
+module ImpTypeCommon(
+  -- *Type environment
+  TypeEnv, extendTypeEnv, lookupVar,
+  initialTransFromTyEnv, invFromTyEnv,
+  impFromTyEnv, nonimpFromTyEnv, qsvFromTyEnv,
+
+  -- *Various functions to collect size variables from types
+  setsForParamPassing, 
+  equate, equateNonImpToPrim,
+  initialTransFromTy, initArrFormula, impFromTy, 
+  freshTy, genLabelArr
+) where
 import ImpAST
 import ImpConfig(isIndirectionIntArray)
 import Fresh(FS,fresh,takeFresh,getFlags,putStrFS)
@@ -12,9 +24,6 @@ import Maybe(fromJust)
 -------TypeEnvironment-------------
 type TypeEnv = [(Lit,AnnoType)]
 
-emptyTypeEnv :: TypeEnv
-emptyTypeEnv = []
-
 extendTypeEnv :: TypeEnv -> (Lit,AnnoType) -> TypeEnv
 extendTypeEnv gamma (var,ty) = 
   (var,ty):gamma
@@ -24,23 +33,18 @@ lookupVar lit [] = Nothing
 lookupVar lit env@((v,ty):rest) | (lit == v) = Just ty
   | otherwise = lookupVar lit rest
 
-freshTy:: AnnoType -> FS AnnoType
-freshTy ty = case ty of
-  PrimBool{} -> fresh >>= \fsh -> return $ PrimBool{anno=Just fsh}
-  PrimFloat{} -> return $ PrimFloat{anno=Nothing}
-  PrimInt{} -> fresh >>= \fsh -> return $ PrimInt{anno=Just fsh}
-  PrimVoid{} -> return $ PrimVoid{anno=Nothing}
-  ArrayType{elemType=eTy,indxTypes=iTys} ->
-    mapM freshTy iTys >>= \fshITys ->
-    freshTy eTy >>= \fshETy ->
-    return $ ArrayType{elemType=fshETy,indxTypes=fshITys}
+{- | Given a function, it computes five sets of QSizeVar:
 
--- Given a function: compute five sets of QSizeVar:
--- inputs: set of boundary size variables. To be used in type judgement (V)
--- outputs: primed qsvByRef + return
--- res: set of size variables in return type
--- qsvByRef: imperative size variables that are passed by reference. x \subset Imp(v)
--- qsvByVal: imperative size variables that are passed by value. y \subset Imp(v) and x+y = Imp(v)
+  1. inputs: set of boundary size variables. To be used in type judgement (V)
+
+  2. outputs: primed qsvByRef + return
+
+  3. res: set of size variables in return type
+
+  4. qsvByRef: imperative size variables that are passed by reference. x \subset Imp(v)
+ 
+  5. qsvByVal: imperative size variables that are passed by value. y \subset Imp(v) and x+y = Imp(v)
+-}
 setsForParamPassing:: Callable -> FS ([QSizeVar],[QSizeVar],[QSizeVar],[QSizeVar],[QSizeVar])
 setsForParamPassing (Meth m) = 
   let ((passbyM,t,fname):args) = methParams m in
@@ -72,45 +76,28 @@ setsForParamPassing (Prim p) =
   concatMapM (\(_,tyi,namei) -> minmaxFromTy tyi) args >>= \qsvByRef ->
     return (inputs,outputs,res,qsvByRef,qsvByVal)
 
---used in DeclArray rule
---appends a counter to the label: label corresponding to dimension 1, dim 2,...
-genLabelArr:: (Maybe Label) -> Int -> QLabel
-genLabelArr (Just lbl) cnt = lbl:['D':show cnt]
-genLabelArr Nothing cnt = error $ "no label for array declaration: type annotation process not done??"
+-- result: list containing min-max size variables (passed by reference)
+minmaxFromTy:: AnnoType -> FS [QSizeVar]
+minmaxFromTy ty | isPrimitiveType ty = return []
+minmaxFromTy ArrayType{elemType=eTy,indxTypes=iTys} =
+  getFlags >>= \flags ->
+  if (isIndirectionIntArray flags && (sameBaseTy eTy (PrimInt{anno=Nothing}))) then
+    return [(ArrSizeVar (fromJust (anno eTy)) Min,Unprimed),(ArrSizeVar (fromJust (anno eTy)) Max,Unprimed)]
+  else return []
 
--------Equate types -> Formula------------
---generates equality constraints from ty1 and ty2
---resulting size variables from ty1 (ty2) are primed/unprimed depending on pORu1 (pORu2)
---verifies that ty1 and ty2 have the same underlying type
---the error could be more informative if sameBaseTy is moved to place from where equate is called
-equate:: (AnnoType,AnnoType) -> (PorU,PorU) -> FS (Maybe Formula)
-equate (ty1,ty2) (pORu1,pORu2) = 
-  if (sameBaseTy ty1 ty2) then
-    (if (pORu1==Primed) then primeThisTy ty1 else unprimeThisTy ty1) >>= \pORuTy1 ->
-    (if (pORu2==Primed) then primeThisTy ty2 else unprimeThisTy ty2) >>= \pORuTy2 ->
-    if (length pORuTy1 /= length pORuTy2) then return Nothing
-    else
-      let zippedPU = zip pORuTy1 pORuTy2 in
-      let eqs = map (\pair -> EqK [Coef (fst pair) 1,Coef (snd pair) (-1)]) zippedPU in
-      if (null eqs) then 
-        return (Just fTrue)
-      else return $ Just (fAnd eqs)
-  else return Nothing
+-- |Given an annotated type, it replaces all annotations by fresh ones.
+freshTy:: AnnoType -> FS AnnoType
+freshTy ty = case ty of
+  PrimBool{} -> fresh >>= \fsh -> return $ PrimBool{anno=Just fsh}
+  PrimFloat{} -> return $ PrimFloat{anno=Nothing}
+  PrimInt{} -> fresh >>= \fsh -> return $ PrimInt{anno=Just fsh}
+  PrimVoid{} -> return $ PrimVoid{anno=Nothing}
+  ArrayType{elemType=eTy,indxTypes=iTys} ->
+    mapM freshTy iTys >>= \fshITys ->
+    freshTy eTy >>= \fshETy ->
+    return $ ArrayType{elemType=fshETy,indxTypes=fshITys}
 
---returns a primed version of all size variables from primTy
-primeThisTy:: AnnoType -> FS [QSizeVar]
-primeThisTy ty = 
-  impFromTy ty >>= \ity ->
-  nonImpFromTy ty >>= \nity ->
-  return (primeTheseQSizeVars ity ++ nity)
---returns an unprimed version of all size variables from primTy
-unprimeThisTy:: AnnoType -> FS [QSizeVar]
-unprimeThisTy ty = 
-  sizeVarsFromAnnTy ty >>= \svs -> 
-  return $ map (\s -> (s,Unprimed)) svs
-
--- input:: {x::Int, a::[Float]Int, b::Bool}
--- output:: (x'=x && a>0 && 0<=b<=1)
+-- |Given the typeEnv {x::Int, a::[Float]Int, b::Bool}, it returns the formula: (x'=x && a>0 && 0<=b<=1).
 initialTransFromTyEnv:: TypeEnv -> FS Formula
 initialTransFromTyEnv tenv = 
   mapM (\(v,ty) -> initialTransFromTy ty) tenv >>= \fs ->
@@ -144,8 +131,7 @@ initialTransFromTy ty =
         _ -> fTrue 
   in return $ (fAnd [noX,initp])
 
--- input:: {x::Int, a::[Float]Int, b::Bool}
--- output:: (a>0 && 0<=b<=1)
+-- | Given the typeEnv {x::Int, a::[Float]Int, b::Bool}, it returns the formula (a>0 && 0<=b<=1).
 invFromTyEnv:: TypeEnv -> FS Formula
 invFromTyEnv tenv = 
   mapM (\(v,ty) -> invFromTy ty) tenv >>= \fs ->
@@ -177,16 +163,62 @@ invFromTy ty =
         _ -> fTrue 
   in return initp
 
+-------Equate types -> Formula------------
+{- |
+  1. Given ty1 and ty2, it verifies that they have the same underlying type. 
+  The error could be more informative if sameBaseTy is moved to the place from where equate is called.
+
+  2. Size variables from ty1 and ty2 are primed (or unprimed) depending on the arguments pORu1 and pORu2.
+  
+  3. It generates equalities between corresponding size variables from ty1 and ty2.
+-}
+equate:: (AnnoType,AnnoType) -> (PorU,PorU) -> FS (Maybe Formula)
+equate (ty1,ty2) (pORu1,pORu2) = 
+  if (sameBaseTy ty1 ty2) then
+    (if (pORu1==Primed) then primeThisTy ty1 else unprimeThisTy ty1) >>= \pORuTy1 ->
+    (if (pORu2==Primed) then primeThisTy ty2 else unprimeThisTy ty2) >>= \pORuTy2 ->
+    if (length pORuTy1 /= length pORuTy2) then return Nothing
+    else
+      let zippedPU = zip pORuTy1 pORuTy2 in
+      let eqs = map (\pair -> EqK [Coef (fst pair) 1,Coef (snd pair) (-1)]) zippedPU in
+      if (null eqs) then 
+        return (Just fTrue)
+      else return $ Just (fAnd eqs)
+  else return Nothing
+
+-- |Given a list of types, it generates equalities of  the form (f0=f0' && s0=s0') for the non-imp size variables.
+equateNonImpToPrim:: [AnnoType] -> FS Formula
+equateNonImpToPrim tys = 
+  mapM nonImpFromTy tys >>= \nitys ->
+  let qsvNonImps = concat nitys in
+  let fs = map (\(ty,Unprimed) -> EqK [Coef (ty,Unprimed) 1,Coef (ty,Primed) (-1)]) qsvNonImps in
+    return (fAnd fs)
+
+--returns a primed version of all size variables from primTy
+primeThisTy:: AnnoType -> FS [QSizeVar]
+primeThisTy ty = 
+  impFromTy ty >>= \ity ->
+  nonImpFromTy ty >>= \nity ->
+  return (primeTheseQSizeVars ity ++ nity)
+--returns an unprimed version of all size variables from primTy
+unprimeThisTy:: AnnoType -> FS [QSizeVar]
+unprimeThisTy ty = 
+  sizeVarsFromAnnTy ty >>= \svs -> 
+  return $ map (\s -> (s,Unprimed)) svs
+
+-- |qsvFromTyEnv tenv == (impFromTyEnv tenv ++ nonimpFromTyEnv tenv).
 qsvFromTyEnv:: TypeEnv -> FS [QSizeVar]
 qsvFromTyEnv tenv = 
   impFromTyEnv tenv >>= \imps -> nonimpFromTyEnv tenv >>= \nonimps ->
   return (imps++nonimps)
 
+-- |It returns a list containing imperative size variables (all but sizes of arrays).
 impFromTyEnv:: TypeEnv -> FS [QSizeVar]
 impFromTyEnv tenv = 
   mapM (\(v,ty) -> impFromTy ty) tenv >>= \imps ->
   return (concat imps)
 
+-- |It returns a list containing non-imperative size variables (sizes of arrays).
 nonimpFromTyEnv:: TypeEnv -> FS [QSizeVar]
 nonimpFromTyEnv tenv = 
   mapM (\(v,ty) -> nonImpFromTy ty) tenv >>= \nonimps ->
@@ -208,23 +240,6 @@ nonImpFromTy ArrayType{elemType=eTy,indxTypes=iTys} =
   return (qsvIndx)
 nonImpFromTy _ = return []
 
--- result: list containing min-max size variables (passed by reference)
-minmaxFromTy:: AnnoType -> FS [QSizeVar]
-minmaxFromTy ty | isPrimitiveType ty = return []
-minmaxFromTy ArrayType{elemType=eTy,indxTypes=iTys} =
-  getFlags >>= \flags ->
-  if (isIndirectionIntArray flags && (sameBaseTy eTy (PrimInt{anno=Nothing}))) then
-    return [(ArrSizeVar (fromJust (anno eTy)) Min,Unprimed),(ArrSizeVar (fromJust (anno eTy)) Max,Unprimed)]
-  else return []
-
--- given [f0,f1,...] generates (f0=f0',...) but not (..f1=f1'..)
-equateNonImpToPrim:: [AnnoType] -> FS Formula
-equateNonImpToPrim tys = 
-  mapM nonImpFromTy tys >>= \nitys ->
-  let qsvNonImps = concat nitys in
-  let fs = map (\(ty,Unprimed) -> EqK [Coef (ty,Unprimed) 1,Coef (ty,Primed) (-1)]) qsvNonImps in
-    return (fAnd fs)
-
 initArrFormula:: AnnoType -> AnnoType -> FS (Maybe Formula)
 initArrFormula tp arrTy = 
   isIndirectionArrTy arrTy >>= \isIndir ->
@@ -244,3 +259,9 @@ initArrFormula tp arrTy =
             _ -> return Nothing
         else 
           return $ Just (noChange arrtys)
+
+--used in DeclArray rule
+--appends a counter to the label: label corresponding to dimension 1, dim 2,...
+genLabelArr:: (Maybe Label) -> Int -> QLabel
+genLabelArr (Just lbl) cnt = lbl:['D':show cnt]
+genLabelArr Nothing cnt = error $ "no label for array declaration: type annotation process not done??"

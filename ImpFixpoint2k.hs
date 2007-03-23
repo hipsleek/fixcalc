@@ -1,10 +1,21 @@
-module ImpFixpoint2k(fixpoint2k,bottomUp2k,Heur(..),subrec,combSelHull,getDisjuncts,undefinedF,widen,fixTestBU) where
+{- |Fixed point analysis that is used in (1) bug discovery from "ImpOutInfer", (2) array bound check elimination from "ImpTypeInfer" and 
+  (3) FixedPoint Calculator from "FixCalc".
+-}
+module ImpFixpoint2k(
+  fixpoint2k, 
+  bottomUp2k,   -- |Returns an approximation for the least-fixed point of a CAbst (so called bottom-up fixpoint).
+  fixTestBU,
+  subrec,
+  combSelHull,  -- |Function re-exported from "ImpHullWiden".
+  getDisjuncts, -- |Function re-exported from "ImpHullWiden".
+  widen         -- |Function re-exported from "ImpHullWiden".
+) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(useSelectiveHull,widenEarly,Heur(..),FixFlags,fixFlags)
+import ImpConfig(useSelectiveHull,widenEarly,Heur(..),fixFlags,FixFlags)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
-import MyPrelude(showDiffTimes,noElemFromFstIsInSnd,zipOrFail,thd3,numsFrom)
+import MyPrelude
 ---------------
 import List((\\),nub)
 import Maybe(catMaybes)
@@ -12,8 +23,6 @@ import Monad(when,mapAndUnzipM)
 
 maxIter::Int
 maxIter = 10
-
-undefinedF = error "this dummy argument (formula) should not be used"
 
 -- fixpoint2k:: Method_declaration -> CAbst -> (Postcondition,Invariant)
 fixpoint2k:: MethDecl -> RecPost -> FS (Formula,Formula)
@@ -85,7 +94,7 @@ iterate2k:: RecPost -> FixFlags -> DisjFormula -> Int -> FS (Formula,Int)
 iterate2k recpost (m,heur) scrt cnt =
     subrec recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
-    combSelHull (m,heur) (getDisjuncts fnext) undefinedF >>= \snext ->
+    combSelHull (m,heur) (getDisjuncts fnext) undefined >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok -> 
 --    when (not fixok) (putStrFS ("not a Reductive point at "++show cnt)) >>
 --    putStrFS("    Post" ++ show cnt ++ ":=" ++ showSet (Or snext)) >>
@@ -133,7 +142,7 @@ topDown2k recpost (m,heur) postFromBU =
   addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
 --  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
-  combSelHull (mdisj,heur) (getDisjuncts g2) undefinedF >>= \disjG2 ->
+  combSelHull (mdisj,heur) (getDisjuncts g2) undefined >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 
 iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
@@ -143,7 +152,7 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
     compose (Or gcrt) oneStep >>= \gcomp ->
     simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
     addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
-    combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefinedF >>= \gnext ->
+    combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefined >>= \gnext ->
     widen heur (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)

@@ -1,5 +1,6 @@
+-- #ignore-exports
 module Main(main) where
-import Fresh(initialState,runFS,putStrFS,getFlags,FS(..),addOmegaStr,getCPUTimeFS)
+import Fresh(initialState,runFS,putStrFS,getFlags,FS(..),getCPUTimeFS)
 import ImpAST(Prog(..),printProgImpi,printProgC,printProgImpt)
 import ImpConfig(defaultFlags,Flags(..),Postcondition(..),Prederivation(..),Heur(..))
 import ImpParser(parse)
@@ -9,11 +10,8 @@ import ImpTypeChecker(typeCheckProg)
 import ImpTypeInfer(typeInferProg)
 import MyPrelude
 ------------------------------------------
-import Numeric(fromRat,showFFloat)
 import System(getArgs)
-import System.IO(hFlush,stdout)
 import System.CPUTime(getCPUTime)
-import System.Time(getClockTime,diffClockTimes)
 
 
 main :: IO ()

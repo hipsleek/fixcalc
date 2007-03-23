@@ -1,55 +1,58 @@
-module ImpConfig where
+{- | 
+  Lists all the configuration flags.
+-}
+
+module ImpConfig(
+  Flags(..),
+  Hull(..), 
+  Prederivation(..),
+  Postcondition(..),
+  Heur(..),
+  FixFlags,
+  defaultFlags,
+  whatHull,
+  noExistentialsInDisjuncts,
+  useFixpoint2k
+) where
 
 data Hull = Hull | ConvexHull deriving Show
 data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD deriving (Show,Eq)
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
-
-data Heur = SimilarityHeur | DifferenceHeur | SyntacticHeur | HausdorffHeur deriving (Show,Eq)
 type FixFlags = (Int,Heur)
+data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur deriving (Show,Eq)
 
 data Flags = Flags {
-  isIndirectionIntArray:: Bool,
+  isIndirectionIntArray:: Bool, -- ^Collect constraints regarding Min and Max values of the array elements. Default is False.
   checkingAfterInference:: Bool,
   noInference:: Bool,
+---- derive 2 stronger preconditions that need specialization for recursive functions
+---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
-  useAnnotatedFixpoint:: Bool,
-  useSelectiveHull:: Bool,
-  widenEarly:: Bool,
-  fixFlags:: (Int,Heur),
-  prederivation:: Prederivation,
-  postcondition:: Postcondition,
+  useAnnotatedFixpoint:: Bool, -- ^Use the annotated fixpoint where it is provided. Default is False.
+  useSelectiveHull:: Bool, -- Old by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
+  widenEarly:: Bool, -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
+  fixFlags:: FixFlags, -- ^Number of disjuncts (m) and heuristic function to compute disjunct affinity. Default is (5, Similarity).
+  prederivation:: Prederivation, -- ^Kind of prederivation. Default is PostPD.
+  postcondition:: Postcondition, -- ^Whether to accumulate preconditions in the computed postcondition. Default is True.
   outputFile:: String
 } deriving Show
 
 defaultFlags = Flags { 
----- True: collect constraints regarding Min and Max values of the array elements.
----- False: do not collect. As a consequence, functions are allowed to return values of array type.
   isIndirectionIntArray = False,
   checkingAfterInference = False,
   noInference = False,
----- derive 2 stronger preconditions that need specialization for recursive functions
----- otherwise the resulting program may not type-check
   separateFstFromRec = False,
-  useAnnotatedFixpoint = True, --use the annotated fixpoint where it is provided.
-  useSelectiveHull = False,-- Old fixpoint: Quicksort (Hanoi and Mergesort) require selectiveHull for precise result
-  widenEarly = True, -- Old fixpoint: Quicksort requires widenEarly (and selHull) for precise result
+  useAnnotatedFixpoint = True, 
+  useSelectiveHull = False,
+  widenEarly = True, 
   fixFlags = (5,SimilarityHeur),
   prederivation = PostPD,
-  postcondition = StrongPost, -- StrongPost: accumulate preconditions of the callee in the postcondition of the caller
+  postcondition = StrongPost, 
   outputFile = "a"
 }
----- Fresh.hs
-enableLog = True
-
----- ImpTypeInfer.hs
-noRecPreDerivation = False -- propagate False with no effort as recursive checks
-whatHull = Hull
-
----- ImpFixpoint.hs
-useTrueFixpoint = False -- replace the result of fixpoint: (Post,Inv) = (True,True)
-pairwiseDuringFix = False
 
 
+whatHull = Hull 
 useFixpoint2k = True
 noExistentialsInDisjuncts = True
 

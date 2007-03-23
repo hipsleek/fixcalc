@@ -1,15 +1,20 @@
+{- | 
+  Utility functions.
+-}
+
 module MyPrelude where
 import Debug.Trace
 import Numeric(fromRat,showFFloat)
 
-singleton:: [a] -> Bool
-singleton [x] = True
-singleton _ = False
-
 tr :: Show a => String -> a -> a
 tr msg x = trace (msg ++ show x ++ msg) x
 
+tra:: Show a => String -> a -> a
 tra msg x = trace msg x
+
+singleton:: [a] -> Bool
+singleton [x] = True
+singleton _ = False
 
 fst3:: (a,b,c) -> a
 fst3 (a,b,c) = a
@@ -34,18 +39,11 @@ concatMapM:: Monad m => (a -> m [b]) -> [a] -> m [b]
 concatMapM f xs = 
   mapM f xs >>= \ys -> return (concat ys)
 
-showDiffTimes:: Integer -> Integer -> String
-showDiffTimes tEndCPU tStartCPU =
-  let tAllCPU = fromRat $ (fromInteger (tEndCPU - tStartCPU)) / picoSec in
-  (showFFloat Nothing tAllCPU " seconds")
-
-picoSec :: Rational
-picoSec = 1000000000000 -- 10^12
-
 noElemFromFstIsInSnd:: Eq a => [a] -> [a] -> Bool
 noElemFromFstIsInSnd [] ys = True
 noElemFromFstIsInSnd (x:xs) ys = if x `elem` ys then False else noElemFromFstIsInSnd xs ys
 
+numsFrom:: Int -> [Int]
 numsFrom n = n:numsFrom (n+1)
 
 updateList:: [a] -> Int -> a -> [a]
@@ -56,3 +54,12 @@ concatSepBy:: [a] -> [[a]] -> [a]
 concatSepBy sep [] = []
 concatSepBy sep [p] = p
 concatSepBy sep (p:ps) = p ++ sep ++ (concatSepBy sep ps)
+
+showDiffTimes:: Integer -> Integer -> String
+showDiffTimes tEndCPU tStartCPU =
+  let tAllCPU = fromRat $ (fromInteger (tEndCPU - tStartCPU)) / picoSec in
+  (showFFloat Nothing tAllCPU " seconds")
+
+picoSec :: Rational
+picoSec = 1000000000000 -- 10^12
+

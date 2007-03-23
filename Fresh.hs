@@ -1,24 +1,23 @@
+{- | 
+  Provides a Monad to maintain the state of the analyzer.
+  Mainly used for unique name generation.
+-}
 module Fresh where
-import ImpConfig(Flags,enableLog,outputFile)
+import ImpConfig(Flags,outputFile)
 import MyPrelude
 ------------------------------------------
 import System.CPUTime(getCPUTime)
 import System.IO.Unsafe(unsafePerformIO)
 -------FS Fresh---------------------------
 data St = MkState { 
-  cnt :: Integer, 
--- omegaStrs are kept in reverse order, so that adding a string is fast (to the front of the list)
--- be careful to reverse these strings, just before they are to be used
-  omegaStrs:: [String],
-  flags:: Flags,
+  cnt :: Integer, -- ^Used for unique name generation.
+  omegaStrs:: [String], -- ^Strings to be printed in the log file. Kept in reverse order, so that adding a string is fast (to the front of the list).
+  flags:: Flags, -- ^ Set of flags read from the command-line.
   safePrimChecks:: Int,
   unsafePrimChecks:: Int,
   safeUserChecks:: Int,
   unsafeUserChecks:: Int
 }
-
-initialState:: Flags -> St
-initialState fs = MkState{cnt=0,omegaStrs=[],flags=fs, safePrimChecks=0, unsafePrimChecks=0, safeUserChecks=0, unsafeUserChecks=0}
 
 newtype FS a = FS (St -> IO (St,a))
 
@@ -36,17 +35,17 @@ instance Functor FS where
   -- fmap:: (a->b) -> FS a -> FS b
   fmap f (FS stFunction) = FS (\n -> stFunction n >>= \(n1,a) -> return (n1,f a))
 	                    
-putStrNoLnFS:: String -> FS ()
-putStrNoLnFS str = FS (\st -> putStr str >> return (st,()))
+runFS:: St -> FS a -> IO a
+runFS state (FS a) = 
+  a state >>= \(finalState,result) ->
+  let strs = reverse (omegaStrs finalState) in
+  let outFile = outputFile (flags finalState) ++ ".omega" in
+  let str = concatSepBy "\n" strs in
+  writeFile outFile str >>
+  return result
 
-putStrFS:: String -> FS ()
-putStrFS str = FS (\st -> putStrLn str >> return (st,()))
-
-getCPUTimeFS:: FS Integer
-getCPUTimeFS = FS (\st -> getCPUTime >>= \t -> return (st,t))
-
-getFlags:: FS Flags
-getFlags = FS (\st -> return (st,flags st))
+initialState:: Flags -> St
+initialState fs = MkState{cnt=0,omegaStrs=[],flags=fs, safePrimChecks=0, unsafePrimChecks=0, safeUserChecks=0, unsafeUserChecks=0}
 
 fresh:: FS String
 fresh = FS (\st -> return (st{cnt = (cnt st) + 1},"f_" ++ show (cnt st)))
@@ -56,6 +55,29 @@ freshVar = FS (\st -> return (st{cnt = (cnt st) + 1},"v_" ++ show (cnt st)))
 
 freshLabel:: FS String
 freshLabel = FS (\st -> return (st{cnt = (cnt st) + 1},"l_" ++ show (cnt st)))
+
+takeFresh:: Int -> FS [String]
+takeFresh 0 = return []
+takeFresh n = fresh >>= \fsh -> 
+  takeFresh (n-1) >>= \fshs -> return $ fsh:fshs
+
+addOmegaStr:: String -> FS ()
+addOmegaStr newStr = 
+  FS (\st -> return (st{omegaStrs=(newStr:omegaStrs st)},()))
+
+writeOmegaStrs:: FS ()
+writeOmegaStrs = 
+  getFlags >>= \flags ->
+  let outFile = outputFile flags ++ ".omega" in
+  getOmegaStrs >>= \strs ->
+  let str = concatSepBy "\n" strs in
+    FS (\st -> writeFile outFile str >> return (st,()))
+  where
+  getOmegaStrs:: FS [String]
+  getOmegaStrs = FS (\st -> return (st,reverse (omegaStrs st)))
+
+getFlags:: FS Flags
+getFlags = FS (\st -> return (st,flags st))
 
 incSafePrimChecks:: FS ()
 incSafePrimChecks = FS (\st -> return (st{safePrimChecks = (safePrimChecks st) + 1},()))
@@ -81,35 +103,14 @@ incUnsafeUserChecks = FS (\st -> return (st{unsafeUserChecks = (unsafeUserChecks
 getUnsafeUserChecks:: FS Int
 getUnsafeUserChecks = FS (\st -> return (st,unsafeUserChecks st))
 
-takeFresh:: Int -> FS [String]
-takeFresh 0 = return []
-takeFresh n = fresh >>= \fsh -> 
-  takeFresh (n-1) >>= \fshs -> return $ fsh:fshs
+putStrFS:: String -> FS ()
+putStrFS str = FS (\st -> putStrLn str >> return (st,()))
 
-addOmegaStr:: String -> FS ()
-addOmegaStr newStr = 
-  if not enableLog then FS(\st -> return (st,())) else
-  FS (\st -> return (st{omegaStrs=(newStr:omegaStrs st)},()))
+putStrNoLnFS:: String -> FS ()
+putStrNoLnFS str = FS (\st -> putStr str >> return (st,()))
 
-getOmegaStrs:: FS [String]
-getOmegaStrs = FS (\st -> return (st,reverse (omegaStrs st)))
-
-writeOmegaStrs:: FS ()
-writeOmegaStrs = 
-  getFlags >>= \flags ->
-  let outFile = outputFile flags ++ ".omega" in
-  getOmegaStrs >>= \strs ->
-  let str = concatSepBy "\n" strs in
-    FS (\st -> writeFile outFile str >> return (st,()))
-
-runFS:: St -> FS a -> IO a
-runFS state (FS a) = 
-  a state >>= \(finalState,result) ->
-  let strs = reverse (omegaStrs finalState) in
-  let outFile = outputFile (flags finalState) ++ ".omega" in
-  let str = concatSepBy "\n" strs in
-  writeFile outFile str >>
-  return result
+getCPUTimeFS:: FS Integer
+getCPUTimeFS = FS (\st -> getCPUTime >>= \t -> return (st,t))
 
 ---------For Debugging-------------------
 ---- empty state of the monad contains counter 0 and empty program

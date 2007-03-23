@@ -1,3 +1,7 @@
+{- | Does (simple) type-checking. At the same time, it converts loops (while, for) to tail-recursive functions.
+ 
+ Checks for double declarations, incompatible types, use of undeclared variables.
+-}
 module ImpSTypeChecker(sTypeCheck) where
 import ImpAST
 import ImpConfig(isIndirectionIntArray)

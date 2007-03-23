@@ -9,86 +9,34 @@ import System.IO.Unsafe(unsafePerformIO)
 -------AST-------------------------
 data Prog = Prog [String] [PrimDecl] [MethDecl]
 
+-- | A declaration of a primitive is represented with (Arguments, Postcondition, PreconditionS, Runtime-testS).
 data PrimDecl = PrimDecl {
--- Arguments, Postcondition, PreconditionS, Runtime-testS
   primParams:: [(PassBy,AnnoType,Lit)],
   primPost:: Formula,
   primPres:: [LabelledFormula],
   primTests:: [LabelledExp]
 }
-primName:: PrimDecl -> Lit
-primName p = thd3 (head (primParams p))
-
+-- | A declaration of a method is represented with (Arguments, Postcondition, PreconditionS, Runtime-checkS, Invariant, Body).
 data MethDecl = MethDecl {
--- Arguments, Postcondition, PreconditionS, Runtime-checkS, Invariant, Body
   methParams:: [(PassBy,AnnoType,Lit)],
   methPost:: [Formula],
   methPres:: [LabelledFormula],
   methUpsis:: [QLabel],
   methInv:: Formula,
-  methOut:: Outcomes, --length methOut == 2, ["OK", "ERR"]
-  methErrs:: [LabelledFormula],
-  methOutBugs:: [LabelledFormula], --length methOutBugs == 3, ["NEVER_BUG","MUST_BUG","MAY_BUG"]
+  methOut:: [Outcome], -- ^2 outcomes: [OK: F1, ERR: F2]
+  methOutBugs:: [LabelledFormula], -- ^3 formulae on input: [NEVER_BUG: F1, MUST_BUG: F2, MAY_BUG: F3]
+  methErrs:: [LabelledFormula], -- ^individual error conditions
   methBody:: Exp
 }
-methName:: MethDecl -> Lit 
-methName m = thd3 (head (methParams m))
 
-updateMethDecl (Prog incls prims oldMeths) newm = 
-  let newMeths = map (\oldm -> 
-                          if methName oldm == methName newm then newm 
-                          else oldm
-                      ) oldMeths in (Prog incls prims newMeths)
-
-type LabelledFormula = (QLabel,Formula) --precondition
-type LabelledExp = (Label,Exp) --runtime test
-type Label = String
-type QLabel = [Label]
--------Find Method-----------------
 data Callable = Prim PrimDecl
   | Meth MethDecl
-  
 data PassBy = PassByRef | PassByVal deriving (Show,Eq)
 
-type Outcomes = [Outcome]
-data Outcome = OK Formula | ERR Formula
-getOKOutcome [OK f1, ERR f2] = f1
-getOKOutcome _ = FormulaBogus
-getERROutcome [OK f1, ERR f2] = f2
-getERROutcome _ = FormulaBogus
-
--- Types for 3Contexts version
-type Formulae = [Formula]
-triple:: a -> [a]
-triple = replicate 3
-strong::Formulae -> Formula
-strong = head
-weak::Formulae -> Formula
-weak (x:xs) = head xs
-cond::Formulae -> Formula
-cond (x1:x2:xs) = head xs
--- Types for 3Contexts version
-
--- list of [MethOrPrim] is assumed not to contain duplicates (same criteria of equality)
-findCallable:: Lit -> [Callable] -> Maybe Callable
-findCallable lit [] = Nothing
-
-findCallable fName (c:cs) =
-  case c of
-    Meth m ->
-      if methName m == fName then 
-        Just c 
-      else findCallable fName cs
-    Prim p ->
-      if primName p == fName then 
-        Just c 
-      else findCallable fName cs
-
--- requires:: mn method should be defined in Prog (findMethod cannot fail)
-findMethod:: Lit -> Prog -> MethDecl
-findMethod mn (Prog _ prims meths) = findMethod1 mn meths where
-  findMethod1 mn (m:ms) | methName m == mn = m
-  findMethod1 mn (m:ms) | methName m /= mn = findMethod1 mn ms
+type LabelledFormula = (QLabel,Formula) -- ^precondition
+type LabelledExp = (Label,Exp) -- ^runtime test
+type QLabel = [Label]
+type Label = String
 
 -------Annotated Types-------------
 data AnnoType = PrimInt {anno:: Maybe Anno}
@@ -97,22 +45,7 @@ data AnnoType = PrimInt {anno:: Maybe Anno}
   | PrimFloat {anno:: Maybe Anno}
   | ArrayType {elemType::AnnoType, indxTypes::[AnnoType]}
   | TopType {anno:: Maybe Anno}
-
 type Anno = String
------------------------------------
-isPrimitiveType:: AnnoType -> Bool
-isPrimitiveType PrimBool{} = True
-isPrimitiveType PrimFloat{} = True
-isPrimitiveType PrimInt{} = True
-isPrimitiveType PrimVoid{} = True
-isPrimitiveType TopType{} = error "isPrimitiveType: argument must not be TopType"
-isPrimitiveType _ = False
-
-isIndirectionArrTy:: AnnoType -> FS Bool
-isIndirectionArrTy ArrayType{elemType=PrimInt{}} = 
-  getFlags >>= \flags ->
-  return (isIndirectionIntArray flags)
-isIndirectionArrTy _ = return False
 -------Exp-------------------------
 data Exp = KTrue
   | KFalse
@@ -120,13 +53,13 @@ data Exp = KTrue
   | KIntNum Int
   | KFloatNum Float
   | ExpVar Lit
-  | If Bool Exp Exp Exp -- the Bool flag: is the conditional nonDet
+  | If Bool Exp Exp Exp -- ^the Bool flag indicates if the conditional is non-deterministic.
   | LblMethCall (Maybe Label) Lit [Exp]
   | AssignVar Lit Exp
   | Seq Exp Exp
   | ExpBlock [VarDecl] Exp
   | ExpError
-  | ExpBogus  --used for variable declaration without initialization
+  | ExpBogus  -- ^used in a variable declaration (where the initializer is missing).
   | While Exp Exp
   | For Exp Exp Exp Exp
 
@@ -135,21 +68,22 @@ data VarDecl = VarDecl AnnoType Lit Exp
 
 type Lit=String
 
--- remove duplicates before using this: nub
-freeVars:: Exp -> [Lit]
-freeVars (ExpVar lit) = [lit]
-freeVars (AssignVar lit e) = lit:freeVars e
-freeVars (If _ e1 e2 e3) = concatMap freeVars [e1,e2,e3]
-freeVars (LblMethCall lbl id es) = concatMap freeVars es
-freeVars (Seq e1 e2) = freeVars e1 ++ freeVars e2
-freeVars (ExpBlock vds eb) = concatMap freeVarsVarDecl vds++freeVars eb
-freeVars (While e1 eb) = freeVars e1 ++ freeVars eb
-freeVars (For e1 e2 e3 eb) = concatMap freeVars [e1,e2,e3,eb]
-freeVars _ = []
+data Outcome = OK Formula | ERR Formula
+getOKOutcome [OK f1, ERR f2] = f1
+getOKOutcome _ = FormulaBogus
+getERROutcome [OK f1, ERR f2] = f2
+getERROutcome _ = FormulaBogus
 
-freeVarsVarDecl:: VarDecl -> [Lit]
-freeVarsVarDecl (VarDecl primTy lit e1) = lit:freeVars e1
-freeVarsVarDecl (LblArrVarDecl lbl arrTy indxs lit e1) = lit:concatMap freeVars (e1:indxs)
+-- Types for 3Contexts version
+triple:: a -> [a]
+triple = replicate 3
+strong::[Formula] -> Formula
+strong = head
+weak::[Formula] -> Formula
+weak (x:xs) = head xs
+cond::[Formula] -> Formula
+cond (x1:x2:xs) = head xs
+-- Types for 3Contexts version
 
 -------Formula---------------------
 data CAbst = CAbst Lit [QSizeVar] Formula
@@ -190,6 +124,72 @@ data PorU= Primed
 data MorM = Min | Max 
   deriving (Eq)
 
+-------Functions-----------
+primName:: PrimDecl -> Lit
+primName p = thd3 (head (primParams p))
+
+methName:: MethDecl -> Lit 
+methName m = thd3 (head (methParams m))
+
+updateMethDecl (Prog incls prims oldMeths) newm = 
+  let newMeths = map (\oldm -> 
+                          if methName oldm == methName newm then newm 
+                          else oldm
+                      ) oldMeths in (Prog incls prims newMeths)
+
+-- list of [MethOrPrim] is assumed not to contain duplicates (same criteria of equality)
+findCallable:: Lit -> [Callable] -> Maybe Callable
+findCallable lit [] = Nothing
+
+findCallable fName (c:cs) =
+  case c of
+    Meth m ->
+      if methName m == fName then 
+        Just c 
+      else findCallable fName cs
+    Prim p ->
+      if primName p == fName then 
+        Just c 
+      else findCallable fName cs
+
+-- requires:: mn method should be defined in Prog (findMethod cannot fail)
+findMethod:: Lit -> Prog -> MethDecl
+findMethod mn (Prog _ prims meths) = findMethod1 mn meths where
+  findMethod1 mn (m:ms) | methName m == mn = m
+  findMethod1 mn (m:ms) | methName m /= mn = findMethod1 mn ms
+
+----Functions on types-------------
+isPrimitiveType:: AnnoType -> Bool
+isPrimitiveType PrimBool{} = True
+isPrimitiveType PrimFloat{} = True
+isPrimitiveType PrimInt{} = True
+isPrimitiveType PrimVoid{} = True
+isPrimitiveType TopType{} = error "isPrimitiveType: argument must not be TopType"
+isPrimitiveType _ = False
+
+isIndirectionArrTy:: AnnoType -> FS Bool
+isIndirectionArrTy ArrayType{elemType=PrimInt{}} = 
+  getFlags >>= \flags ->
+  return (isIndirectionIntArray flags)
+isIndirectionArrTy _ = return False
+-----------------------------------
+-- |Given e, this function returns the free variables used in e. Be sure to remove duplicates before using this function.
+freeVars:: Exp -> [Lit]
+freeVars (ExpVar lit) = [lit]
+freeVars (AssignVar lit e) = lit:freeVars e
+freeVars (If _ e1 e2 e3) = concatMap freeVars [e1,e2,e3]
+freeVars (LblMethCall lbl id es) = concatMap freeVars es
+freeVars (Seq e1 e2) = freeVars e1 ++ freeVars e2
+freeVars (ExpBlock vds eb) = concatMap freeVarsVarDecl vds++freeVars eb
+freeVars (While e1 eb) = freeVars e1 ++ freeVars eb
+freeVars (For e1 e2 e3 eb) = concatMap freeVars [e1,e2,e3,eb]
+freeVars _ = []
+
+freeVarsVarDecl:: VarDecl -> [Lit]
+freeVarsVarDecl (VarDecl primTy lit e1) = lit:freeVars e1
+freeVarsVarDecl (LblArrVarDecl lbl arrTy indxs lit e1) = lit:concatMap freeVars (e1:indxs)
+
+
 -------Canonical Formula-----------
 fTrue::Formula
 fTrue = EqK [Const 0]
@@ -220,6 +220,7 @@ fForall vs f = if (null vs) then f else (Forall vs f)
 fGT:: [Update] -> Formula
 fGT ups = GEq (Const (-1):ups)
 
+-- |Counts the number of AppRecPost in a formula.
 countAppRecPost:: Formula -> Int
 countAppRecPost formula = case formula of
   And fs -> sum (map (\f -> countAppRecPost f) fs)
@@ -232,7 +233,7 @@ countAppRecPost formula = case formula of
   _ -> error ("countAppRecPost: unexpected argument: "++show formula)
     
 -------Selectors from Formulae------------
---extract size variables from a formula without keeping DUPLICATES
+-- |Extracts size variables from a formula without keeping DUPLICATES
 fqsv:: Formula -> [QSizeVar]
 fqsv f = nub $ case f of 
   And formulae -> concatMap (\f -> fqsv f) formulae
@@ -258,14 +259,12 @@ fqsvU (up:ups) =
     case up of
       Const int -> rest
       Coef qsv int -> qsv:rest  -- << Diferent from sizeVarsFromUpdates
+
 -------Show Prog-------------------
 --Problematic !!
 -- multi-dimensional arrays as function arguments: all sizes (but the last) must be filled - with what??
 -- test in conditional, init value in varDecl, arguments of function and rhs of assign must be proper expressions (no varDecl, if, seq)
       
-tabs:: Int -> String
-tabs x = replicate x ' '
-
 --showC - C code (as close as possible)
 class ShowC a where
   showC:: a -> String
@@ -273,6 +272,9 @@ class ShowC a where
   -- showCTabbed with "return" or without (inserting only ;)
   showCTabbedRet:: a -> (Bool,String) -> Int -> String
   showCTabbedRet a (b,pre) cnt = showC a
+
+tabs:: Int -> String
+tabs x = replicate x ' '
 
 instance ShowC Prog where
   showC (Prog inclFilenames prims meths) = showPreludeC inclFilenames ++ concatMap showC meths
