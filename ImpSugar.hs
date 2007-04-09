@@ -1,11 +1,11 @@
 module ImpSugar(specialize,desugarInfer,desugarChecker) where
 import ImpAST
-import Fresh(FS,fresh,freshVar,freshLabel)
+import Fresh(FS,fresh,freshVar,freshLabel,putStrFS)
 import ImpTypeCommon(freshTy)
 import MyPrelude
 ------------------------------------------
 import Maybe(catMaybes)
-
+import Monad(when)
 -------Specialization--------------    
 specialize:: Prog -> FS Prog
 specialize prog@(Prog incls prims meths) = 
@@ -150,11 +150,92 @@ desugarChecker prog@(Prog incls prims meths) =
   return (Prog incls prims newMeths2)
 
 -- |Before inference: freshes types of local variables AND types of method arguments. Freshes labels (EVEN if they are provided).
+-- It introduces local variables for parameters passed-by-value that are assigned.
 desugarInfer:: Prog -> FS Prog
 desugarInfer prog@(Prog incls prims meths) = 
-  mapM typeAnnoInfM meths >>= \newMeths1 ->
+  mapM transMethParams meths >>= \newMeths ->
+  mapM typeAnnoInfM newMeths >>= \newMeths1 ->
   mapM (desugarM prog) newMeths1 >>= \newMeths2 ->
   return (Prog incls prims newMeths2)
+
+-- |Introduces a local variable for each parameter (passed-by-value) that is assigned in the method body.
+transMethParams:: MethDecl -> FS MethDecl
+transMethParams m@MethDecl{methBody=eb} =
+  let lvs = collectModifiedExp eb in
+  let assignedParams = filter (\(passBy,typ,lit) -> any (\lv -> lv==lit && passBy==PassByVal) lvs  ) (tail (methParams m)) in
+--  when (length assignedParams /= 0) (putStrFS ("##assignedParams: " ++ methName m ++ ": " ++ concatArgs assignedParams)) >>
+  -- foreach assignedParams: declare fsh and initialize; replace
+  mapM (\viparam -> fresh >>= \fsh -> return (viparam,fsh)) assignedParams >>= \pairs ->
+  let newMethDecl = foldl (\methDecl -> \(viparam,fsh) ->
+                      -- replace: var => fsh
+                      let e1 = replVarExp (thd3 viparam,fsh) (methBody methDecl) in
+                      -- declare fsh: t fsh=p;
+                      let e2 = ExpBlock [VarDecl (snd3 viparam) fsh (ExpVar (thd3 viparam))] e1 in
+                      methDecl{methBody=e2}
+                  ) m (reverse pairs) in
+  return newMethDecl
+
+-- |Given two strings (old,new) and exp, replaces occurrences of old with new (inside exp).
+replVarExp:: (Lit,Lit) -> Exp -> Exp
+replVarExp pair@(old,new) exp = 
+  case exp of
+    KTrue -> exp
+    KFalse -> exp
+    KVoid -> exp
+    KIntNum _ -> exp
+    KFloatNum _ -> exp
+    ExpVar lit -> ExpVar (if lit==old then new else lit)
+    If b e1 e2 e3 -> If b (replVarExp pair e1) (replVarExp pair e2) (replVarExp pair e3)
+    LblMethCall l lit es -> LblMethCall l lit (map (replVarExp pair) es)
+    AssignVar lit e -> AssignVar (if lit==old then new else lit) (replVarExp pair e)
+    Seq e1 e2 -> Seq (replVarExp pair e1) (replVarExp pair e2)
+    ExpBlock varDecls e -> 
+      let (mustStop,newVarDecls) = replVarVarDecls pair False varDecls in
+      let newe = if mustStop then e else (replVarExp pair e) in
+      ExpBlock newVarDecls newe
+    ExpError -> exp
+    ExpBogus  -> exp
+  where
+  replVarVarDecls:: (Lit,Lit) -> Bool -> [VarDecl] -> (Bool,[VarDecl])
+  replVarVarDecls pair mustStop [] = (mustStop,[])
+  replVarVarDecls pair mustStop (varDecl:varDecls) = 
+    let (newMustStop,newVarDecl) = replVarVarDecl pair mustStop varDecl in
+    let (finalMustStop,newVarDecls) = replVarVarDecls pair newMustStop varDecls in 
+    (finalMustStop,newVarDecl:newVarDecls)
+  replVarVarDecl:: (Lit,Lit) -> Bool -> VarDecl -> (Bool,VarDecl)
+  replVarVarDecl pair@(old,new) mustStop varDecl = 
+    case varDecl of
+      VarDecl typ lit e -> 
+        if mustStop then (mustStop,varDecl)
+        else
+          let newMustStop = if lit==old then True else mustStop in
+          (newMustStop, (VarDecl typ lit (replVarExp pair e)))
+      LblArrVarDecl mlbl typ es lit e ->
+        if mustStop then (mustStop,varDecl)
+        else
+          let newMustStop = if lit==old then True else mustStop in
+          let newes = map (replVarExp pair) es in
+          (newMustStop, (LblArrVarDecl mlbl typ newes lit (replVarExp pair e)))
+
+-- |Given exp, returns a list of literals that are assigned inside exp.
+-- It does not look for assignments inside loop-functions.
+collectModifiedExp:: Exp -> [Lit]
+collectModifiedExp exp = 
+  case exp of
+    KTrue -> []
+    KFalse -> []
+    KVoid -> []
+    KIntNum _ -> []
+    KFloatNum _ -> []
+    ExpVar lit -> []
+    If _ e1 e2 e3 -> collectModifiedExp e1 ++ collectModifiedExp e2 ++ collectModifiedExp e3
+    LblMethCall _ lit es -> concatMap collectModifiedExp es
+    AssignVar lit e -> lit:(collectModifiedExp e)
+    Seq e1 e2 -> collectModifiedExp e1 ++ collectModifiedExp e2
+    ExpBlock varDecls e -> collectModifiedExp e
+    ExpError -> []
+    ExpBogus  -> []
+-- ======================================
 
 -------Label & Size Annotation-----
 typeAnnoChkM:: MethDecl -> FS MethDecl

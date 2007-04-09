@@ -5,10 +5,10 @@
 module ImpSTypeChecker(sTypeCheck) where
 import ImpAST
 import ImpConfig(isIndirectionIntArray)
-import Fresh(FS,fresh,getFlags)
+import Fresh(FS,fresh,getFlags,putStrFS)
 import ImpFormula(sameBaseTy)
 import ImpTypeCommon(TypeEnv,extendTypeEnv,lookupVar,freshTy)
-import MyPrelude(snd3)
+import MyPrelude(snd3,concatSepBy)
 ------------------------------------------
 import List(nub)
 
@@ -120,7 +120,10 @@ sTypeCheckExp prog@(Prog incls prims meths) exp@(LblMethCall lbl fName args) mn 
                             error $ "incompatible types\nfound "++showTy actualTy++ "\nrequired: "++showTy formalTy++"\n "++showImppTabbed exp 1
                           else True
                    ) (zip formalTys actualTys) in
-  return (newMds,LblMethCall lbl fName newArgs,retTy)
+  if (length formalTys /= length actualTys || 
+      any (\(fTy,aTy) -> not (sameBaseTy fTy aTy)) (zip formalTys actualTys)) then
+    error (fName ++ "(" ++ concatSepBy "," (map showTy formalTys) ++ ") cannot be applied to (" ++ concatSepBy "," (map showTy actualTys) ++ ")") 
+  else return (newMds,LblMethCall lbl fName newArgs,retTy)
 
 sTypeCheckExp prog exp@(While e1 eb) mn gamma = 
   sTypeCheckExp prog e1 mn gamma >>= \(newMd1,newE1,newTy1) ->

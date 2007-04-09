@@ -47,7 +47,7 @@ OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 .y.hs:
 	happy -agci $<
   
-all: imp
+all: imp fixcalc
 
 imp : $(OBJS) ImpParser.y
 	rm -f $@

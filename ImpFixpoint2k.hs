@@ -14,7 +14,7 @@ import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(useSelectiveHull,widenEarly,Heur(..),fixFlags,FixFlags)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
+import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula,showDebugMSG )
 import MyPrelude
 ---------------
 import List((\\),nub)
@@ -28,7 +28,7 @@ maxIter = 10
 fixpoint2k:: MethDecl -> RecPost -> FS (Formula,Formula)
 -- requires: CAbst has ex-quantified variables that are all different
 -- otherwise simplifyRecPost is incorrect: (ex x: x=1 & (ex x: x=2)) is transformed to (ex x: (ex x: (x=1 & x=2)))
-fixpoint2k m recPost@(RecPost mn io f (i,o,_)) =
+fixpoint2k m recPost@(RecPost mn io f (i,o,byval)) =
   if simulateOldFixpoint then fixpoint m recPost
   else
   if not (fst (testRecPost recPost)) then error ("assertion failed in fixpoint2k") 
@@ -69,9 +69,10 @@ bottomUp2k recpost (m,heur) initFormula =
   subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
   pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
---  putStrFS("Upper-bound m:="++show m++", Heuristic m:=" ++ show (countDisjuncts pwF3)) >>
+  when (showDebugMSG>=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
-  iterBU2k recpost (mdisj,heur) f3r s3 f1r 4
+  iterBU2k recpost (mdisj,heur) f3r s3 f1r 4 >>= \res ->
+  return res
     
 iterBU2k:: RecPost -> FixFlags -> Formula -> DisjFormula -> Formula -> Int -> FS (Formula,Int)
 -- requires: scrt, sbase are in conjunctive form
@@ -141,7 +142,7 @@ topDown2k recpost (m,heur) postFromBU =
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
---  putStrFS("    suggestedM:="++show m++", heurM:=" ++ show (countDisjuncts g2)) >>
+--  when (showDebugMSG>=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts g2) undefined >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 
@@ -185,10 +186,8 @@ getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
     error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
   else 
     let recs = (recTheseQSizeVars i) in
-      addOmegaStr("debug1:="++showSet f) >>
     getRecCtxs recs io postFromBU f >>= \(_,recCtxs) ->
     let disjCtxRec = fExists o (fOr recCtxs) in
-      addOmegaStr("debug2:="++showSet disjCtxRec) >>
     simplify disjCtxRec >>= \oneStep ->
     return (i,recs,oneStep)
 

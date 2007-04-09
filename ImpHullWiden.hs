@@ -1,6 +1,6 @@
 {- |Provides operators for Hulling and Widening on the powerset domain of polyhedra -}
 -----Operators common to BU and TD
-module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,Disjunct,DisjFormula) where
+module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,Disjunct,DisjFormula,showDebugMSG) where
 import Fresh(FS,addOmegaStr,putStrFS)
 import ImpAST
 import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
@@ -13,7 +13,7 @@ import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
 
 showDebugMSG:: Int
-showDebugMSG = 0
+showDebugMSG = 1
 -- 0 -> do not show messages
 -- 1 -> show only loss-of-precision messages
 -- 2 -> show more messages

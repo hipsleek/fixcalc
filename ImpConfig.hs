@@ -12,7 +12,8 @@ module ImpConfig(
   defaultFlags,
   whatHull,
   noExistentialsInDisjuncts,
-  useFixpoint2k
+  useFixpoint2k,
+  traceIndividualErrors
 ) where
 
 data Hull = Hull | ConvexHull deriving Show
@@ -55,5 +56,5 @@ defaultFlags = Flags {
 whatHull = Hull 
 useFixpoint2k = True
 noExistentialsInDisjuncts = True
-
+traceIndividualErrors = False
 

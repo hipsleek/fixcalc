@@ -400,7 +400,7 @@ instance ShowImpp MethDecl where
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
     "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
---    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
+    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
     "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
 --      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
 --      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
