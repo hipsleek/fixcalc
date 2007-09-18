@@ -314,3 +314,6 @@ bool<r> berror()
 
 --int<res> partition(float [int<a>] a, int<l> l, int<h> h) 
 --  where (0<=l<=res<a && l=l' && h=h'),{},{}
+
+Int<c> mul3(Int<a>a)
+	where (c=3a && a=a'),{},{}
