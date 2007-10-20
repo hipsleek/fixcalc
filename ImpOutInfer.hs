@@ -105,7 +105,7 @@ outInferMethDeclRec prog m =
           applyRecToPrimOnInvariant fixedInvOK >>= \primInv ->
           let inv = fExists (primeTheseQSizeVars nonimp) primInv in
           composition u deltaInit inv >>= \deltaTransInv ->
-{-
+{- this commented code was moved to getERRConditions:
 ---- each ERR separately
           mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
                             EqK [Const 0,Const 1] -> return ([lbl],f)
@@ -151,7 +151,7 @@ outInferMethDeclNonRec prog m =
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
           invFromTyEnv gamma >>= \typeInv ->
           gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
-{-
+{- this commented code was moved to getERRConditions:
 ---- each ERR separately
           mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
                             EqK [Const 0,Const 1] -> return ([lbl],f)
