@@ -37,7 +37,7 @@ bool test(int j, int i, int qi, int[int] board)
   if (j >= i) then { True }
   else {
     int qj := board[j];
-    if (qi = qj) then { True }
+    if (qi = qj) then { False }
     else {
       if ((abs (qi - qj)) = (i - j)) then { False }
       else { 
