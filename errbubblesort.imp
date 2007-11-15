@@ -6,7 +6,8 @@ Void main()
   Float [Int][dim] A := 0.0;
   init_arrF(A,0,dim-1);
   printArrF(A);
-  bubble_sort(A,dim);
+  bubble_sort(A,dim); -- correct
+--  bubble_sort(A,dim+10); -- bug: detected as MUST-BUG
   printArrF(A);
   printStats()
 }
@@ -41,6 +42,7 @@ Void doj(Float[Int] a, Int i, Int j, Int n)
 	else 
 	{
 	  {
+--	    Bool temp := ltFF(subF(a,j+1),subF(a,j)); -- correct
 	    Bool temp := ltFF(subF(a,j+7),subF(a,j)); -- bug
 	    if (temp) then
 		    { swap (a,j,j+1) }
