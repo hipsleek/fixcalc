@@ -317,3 +317,9 @@ bool<r> berror()
 
 Int<c> mul3(Int<a>a)
 	where (c=3a && a=a'),{},{}
+
+void assert(bool<flag> flag)
+  where (flag'=flag),{L: (flag=1)},{}
+  
+float sqrt(float s) 
+  where (0=0),{},{}

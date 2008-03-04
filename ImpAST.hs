@@ -403,9 +403,9 @@ instance ShowImpp MethDecl where
     "individualERRs:={"++showImpp (methErrs m)++"}\n"++
     "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
 -- printing NEVER/MUST/MAY is expensive. For benchmark evaluation is disabled:
---      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
---      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
---      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
+      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
+      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
+      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
     passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ 
 --    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ 
 --    "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showImpp (methUpsis m) ++ "}," ++ 
