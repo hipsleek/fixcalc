@@ -1,6 +1,6 @@
 #include "Primitives.imp"
 
-{-
+
 void foo(ref int n) {
   if eq(n,1) then {
     void
@@ -21,8 +21,8 @@ Void main()
   foo(n);
   verror()
 }
--}
 
+{-
 void goo_OK(ref int n) {
   if (eq(n,1)) then {
     void
@@ -32,7 +32,7 @@ void goo_OK(ref int n) {
   }
 }
 
-void goo_BAD({- ref -} int n) {
+void goo_BAD(/* ref */ int n) {
   if (eq(n,1)) then {
     void
   } else {
@@ -40,3 +40,4 @@ void goo_BAD({- ref -} int n) {
     goo_BAD(n)
   }
 }
+-}

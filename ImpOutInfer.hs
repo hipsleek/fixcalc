@@ -197,7 +197,8 @@ addLOOPCondition (fname,outputs,typeInv) [OK fOK,ERR fERR] errs =
 
 getERRConditions:: Maybe (Formula,[QSizeVar]) -> Formula -> Formula -> [FormulaDecl] -> FS (Formula,[LabelledFormula])
 getERRConditions mRecFlags typeInv errOutcome errs = 
-  if traceIndividualErrors then
+  getFlags >>= \flags -> 
+  if traceIndividualErrors flags then
     mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
                       EqK [Const 0,Const 1] -> return Nothing
                       _ ->

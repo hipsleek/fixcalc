@@ -35,6 +35,7 @@ data Flags = Flags {
   fixFlags:: FixFlags, -- ^Number of disjuncts (m) and heuristic function to compute disjunct affinity. Default is (5, Similarity).
   prederivation:: Prederivation, -- ^Kind of prederivation. Default is PostPD.
   postcondition:: Postcondition, -- ^Whether to accumulate preconditions in the computed postcondition. Default is True.
+  traceIndividualErrors:: Bool,  -- ^Trace individual errors for Dual Analysis.
   outputFile:: String
 } deriving Show
 
@@ -49,6 +50,7 @@ defaultFlags = Flags {
   fixFlags = (5,SimilarityHeur),
   prederivation = PostPD,
   postcondition = StrongPost, 
+  traceIndividualErrors = False,
   outputFile = "a"
 }
 
@@ -56,5 +58,4 @@ defaultFlags = Flags {
 whatHull = Hull 
 useFixpoint2k = True
 noExistentialsInDisjuncts = True
-traceIndividualErrors = False
 
