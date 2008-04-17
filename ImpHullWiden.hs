@@ -1,6 +1,16 @@
 {- |Provides operators for Hulling and Widening on the powerset domain of polyhedra -}
 -----Operators common to BU and TD
-module ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,Disjunct,DisjFormula,showDebugMSG) where
+module ImpHullWiden(
+  widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
+  widenOne,       -- |Conjunctive widening. 
+  combHull,       -- |Given F in DNF-form, performs convex-hulling and returns a conjunctive formula.
+  combSelHull,    -- |Given F in DNF-form and m, performs selective hulling. Ensures that length(res)=m. The third argument is not used.
+  countDisjuncts, -- |Given F in DNF-form (e.g. result of simplify), returns the number of disjuncts from F.
+  getDisjuncts,   -- |Given F in DNF-form (e.g. result of simplify), returns a list with the disjuncts from F.
+  Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
+  DisjFormula,    -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
+  showDebugMSG
+) where
 import Fresh(FS,addOmegaStr,putStrFS)
 import ImpAST
 import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
@@ -12,14 +22,14 @@ import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
 
+{- | 0 -> do not show any messages
+     1 -> show only loss-of-precision messages
+     2 -> show more messages -}
 showDebugMSG:: Int
 showDebugMSG = 1
--- 0 -> do not show messages
--- 1 -> show only loss-of-precision messages
--- 2 -> show more messages
 
-type Disjunct = Formula -- ^Formula is a disjunct (a conjunctive formula without disjunctions)
-type DisjFormula = [Formula] -- ^represents (Or [Formula]).
+type Disjunct = Formula 
+type DisjFormula = [Formula] 
 
 ----------------------------------
 --------Widening powersets--------

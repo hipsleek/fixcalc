@@ -92,7 +92,7 @@ outInferMethDeclRec prog m =
   outdebugApply rho out >>= \outp -> 
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
       invFromTyEnv gamma >>= \typeInv ->
-      let recPostOK = RecPost fname (inputs `union` outputs) (getOKOutcome out1) (inputs,outputs,qsvByVal) in
+      let recPostOK = RecPost fname (getOKOutcome out1) (inputs,outputs,qsvByVal) in
       fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
       gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
       let fixOKProg = updateMethDecl prog m{methOut=[OK gistedOK,ERR FormulaBogus]} in

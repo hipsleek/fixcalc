@@ -3,7 +3,7 @@
 -}
 module ImpFixpoint2k(
   fixpoint2k, 
-  bottomUp2k,   -- |Returns an approximation for the least-fixed point of a CAbst (so called bottom-up fixpoint).
+  bottomUp2k,   
   fixTestBU,
   subrec,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
@@ -24,11 +24,12 @@ import Monad(when,mapAndUnzipM)
 maxIter::Int
 maxIter = 10
 
--- fixpoint2k:: Method_declaration -> CAbst -> (Postcondition,Invariant)
+{- |Given CAbst, returns two results of fixpoint computation: a postcondition and a transitive invariants.
+    This function uses the old fixpoint procedure if simulateOldFixpoint returns True. Only in this case the first argument is used. -}
 fixpoint2k:: MethDecl -> RecPost -> FS (Formula,Formula)
 -- requires: CAbst has ex-quantified variables that are all different
 -- otherwise simplifyRecPost is incorrect: (ex x: x=1 & (ex x: x=2)) is transformed to (ex x: (ex x: (x=1 & x=2)))
-fixpoint2k m recPost@(RecPost mn io f (i,o,byval)) =
+fixpoint2k m recPost@(RecPost mn f (i,o,byval)) =
   if simulateOldFixpoint then fixpoint m recPost
   else
   if not (fst (testRecPost recPost)) then error ("assertion failed in fixpoint2k") 
@@ -38,7 +39,7 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,byval)) =
 --            bottomUp2k recPost fixFlags1 fFalse >>= \(postNoSimpl,_) ->
 --            putStrFS("OK:="++showSet postNoSimpl) >>
 --      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ _ sf _) ->
-      let sRecPost@(RecPost _ _ sf _) = recPost in
+      let sRecPost@(RecPost _ sf _) = recPost in
 --            addOmegaStr("SimplCAbst:="++showSet sf) >>
 ---- Bottom-Up fixpoint
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
@@ -60,6 +61,9 @@ fixpoint2k m recPost@(RecPost mn io f (i,o,byval)) =
 ----Bottom-Up fixpoint
 -- 3rd widening strategy + general selHull
 bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
+-- ^Given CAbst, fixpoint flags and an initial formula F (usually False), returns an approximation 
+-- for the least-fixed point of CAbst and the number of iterations in which the results is obtained.
+-- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
@@ -102,6 +106,7 @@ iterate2k recpost (m,heur) scrt cnt =
     if (cnt>maxIter) then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterate2k recpost (m,heur) snext (cnt+1)  
     
+{- |Given CAbst and F, returns True if F is a reductive point of CAbst: CAbst(F) => F. -}
 fixTestBU:: RecPost -> Formula -> FS Bool
 fixTestBU recpost candidate = 
     addOmegaStr ("#\tObtained postcondition?") >>
@@ -109,9 +114,10 @@ fixTestBU recpost candidate =
     subset fnext candidate
 
 subrec :: RecPost -> Formula -> FS Formula
--- ^similar function to ImpTypeInfer.replaceLblWithFormula.
--- For example: subrec (RecPost foo [i,s] (...foo(f0,f1)...) (_,_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
-subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
+-- ^Given CAbst and F, returns CAbst(F). 
+-- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
+-- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
+subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
   subrec1 f1 f2
  where 
  subrec1:: Formula -> Formula -> FS Formula
@@ -124,10 +130,10 @@ subrec (RecPost formalMN formalIO f1 (_,_,qsvByVal)) f2 =
     AppRecPost actualMN actualIO ->
       if not (formalMN==actualMN) then
         error "subrec: mutual recursion detected" 
-      else if not (length formalIO == length actualIO) then
+      else if not (length (formalI++formalO) == length actualIO) then
         error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
       else
-        let rho = zip formalIO actualIO in
+        let rho = zip (formalI++formalO) actualIO in
         debugApply rho g >>= \rhoG ->
         return $ fAnd [rhoG,noChange qsvByVal]
     _ -> error ("unexpected argument: "++show f)
@@ -181,15 +187,12 @@ getOneStep:: RecPost -> Formula -> FS Relation
 -- Adding a strong postFromBU (which includes the checks) makes the resulting TransInv too strong (all rec-checks will be satisfied.
 -- Possible solution: mark AppRecPost with a number in the order in which they appear in the source code.
 -- ensures: (length ins) = (length recs)
-getOneStep recPost@(RecPost mn io f (i,o,_)) postFromBU =
-  if not (null ((io \\ i) \\ o)) then 
-    error ("getOneStep: incoherent arguments io, i, o\n io: " ++ show io ++ "\n i:" ++ show i ++ "\n o:" ++ show o)
-  else 
-    let recs = (recTheseQSizeVars i) in
-    getRecCtxs recs io postFromBU f >>= \(_,recCtxs) ->
-    let disjCtxRec = fExists o (fOr recCtxs) in
-    simplify disjCtxRec >>= \oneStep ->
-    return (i,recs,oneStep)
+getOneStep recPost@(RecPost mn f (i,o,_)) postFromBU =
+  let recs = (recTheseQSizeVars i) in
+  getRecCtxs recs (i++o) postFromBU f >>= \(_,recCtxs) ->
+  let disjCtxRec = fExists o (fOr recCtxs) in
+  simplify disjCtxRec >>= \oneStep ->
+  return (i,recs,oneStep)
 
 getRecCtxs:: [QSizeVar] -> [QSizeVar] -> Formula -> Formula -> FS (Formula,[Formula])
 -- qsvs -> formula from cAbst -> postFromBU -> (general Ctx,recursive Ctxs)
@@ -228,7 +231,7 @@ simulateOldFixpoint = False
 
 -- old version of the fixpoint procedure
 fixpoint:: MethDecl -> RecPost -> FS (Formula,Formula)
-fixpoint m recPost@(RecPost mn io f (i,o,_)) =
+fixpoint m recPost@(RecPost mn f (i,o,_)) =
 ---- BU fixpoint for non-simplified RecPost
       getCPUTimeFS >>= \time1 ->
       addOmegaStr ("\n# " ++ show recPost) >> addOmegaStr ("#\tstart bottomUp") >>
@@ -343,12 +346,12 @@ Step3: Replace markers with AppRecPost
 type Marker = (QSizeVar,Formula)
 
 newSimplifyEntireRecPost:: RecPost -> FS RecPost
-newSimplifyEntireRecPost recpost@(RecPost mn insouts prmf oth@(_,_,qsvByVal)) = 
+newSimplifyEntireRecPost recpost@(RecPost mn prmf oth@(_,_,qsvByVal)) = 
   let (prms,f) = (case prmf of {Exists prms f -> (prms,f);_ -> error("assertion failed in simplifyRecPost")}) in
   -- prms should be (primeTheseQSizeVars qsvByVal)
   newSimplifyWithAppRecPost f >>= \sF ->
   let entireRecPost = Exists prms sF in 
-  return (RecPost mn insouts entireRecPost oth)
+  return (RecPost mn entireRecPost oth)
 
 newSimplifyWithAppRecPost:: Formula -> FS Formula
 -- ^simplification of a formula that may contain an AppRecPost constructor.
@@ -424,7 +427,7 @@ Step4: Replace markers with AppRecPost
 ...
 -}
 oldSimplifyRecPost:: RecPost -> FS RecPost
-oldSimplifyRecPost recpost@(RecPost mn insouts f oth) = 
+oldSimplifyRecPost recpost@(RecPost mn f oth) = 
   let (quants,noF) = floatQfiers f in
   replaceAppRecPost noF >>= \(markNoF,markAppRecPost) ->
       let actualInsouts = concatMap (\(qsvs,f) -> case f of AppRecPost mn args -> args) markAppRecPost in
@@ -432,7 +435,7 @@ oldSimplifyRecPost recpost@(RecPost mn insouts f oth) =
       simplify exMarkNoF >>= \sMarkNoF ->
       let sNoF = replaceBackAppRecPost markAppRecPost sMarkNoF in
       let sF = pasteQfiers (quantsArgs,sNoF) in
-  return (RecPost mn insouts sF oth)
+  return (RecPost mn sF oth)
   where
   replaceAppRecPost:: Formula -> FS (Formula,[Marker])
   -- requires: formula is not mutually recursive
@@ -493,7 +496,7 @@ floatQfiers formula = case formula of
 
 
 --testRecPost:: RecPost -> Bool
-testRecPost recpost@(RecPost mn insouts f oth) = 
+testRecPost recpost@(RecPost mn f oth) = 
   let (b,qsvs) = testF f in
   (b,qsvs) --  && (length qsvs == length (nub qsvs))
   where 

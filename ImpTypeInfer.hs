@@ -74,7 +74,7 @@ typeInferMethDeclRec prog m =
       let delta1 = map (\ctx -> Exists (primeTheseQSizeVars qsvByVal) ctx) deltap in
       let delta2 = case postcondition flags of { WeakPost -> weak delta1; StrongPost -> strong delta1} in
       let recCAbst = CAbst fname (inputs `union` res) delta2 in
-      let recPost = RecPost fname (inputs `union` outputs) delta2 (inputs,outputs,qsvByVal) in
+      let recPost = RecPost fname delta2 (inputs,outputs,qsvByVal) in
         (if useFixpoint2k then fixpoint2k m recPost else fixpoint m recCAbst) >>= \(fixedPost,fixedInv) ->
         (if useFixpoint2k then applyRecToPrimOnInvariant fixedInv else return fixedInv) >>= \inv ->
 -- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed

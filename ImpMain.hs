@@ -84,7 +84,8 @@ showHelpMessage =
   putStrLn "  +indir:\t Enable array indirection." >>
   putStrLn "  +check:\t Infer the input file and type-check the result." >>
   putStrLn "  -infer +check: Type-check the input file (written in impt)." >>
-  putStrLn "Default arguments: -indir -check -m:5 PostStrong Similarity" >>
+  putStrLn "  +individual:\t Enable tracing of individual errors." >>
+  putStrLn "Default arguments: -m:5 Similarity PostStrong -indir -check -individual" >>
   return Nothing
 
 allArgs:: Flags -> [String] -> IO (Maybe Flags)

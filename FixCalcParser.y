@@ -69,7 +69,7 @@ InputItem:
     lit ':=' Lhs ';'                                    
         {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
                  $3 env >>= \lhs -> 
-                 case lhs of {R (RecPost _ args f triple) -> return (R (RecPost $1 args f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedLHS ->
+                 case lhs of {R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedLHS ->
                  return (extendRelEnv env ($1,renamedLHS))}
   | lit subset lit ';'                                
         {\env -> putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
@@ -110,7 +110,7 @@ Lhs:
                   {\env -> putStrFS ("{ ... };") >> 
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $16)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
-                           else return (R (RecPost "dummy" (reverse $3++reverse $8) $16 (reverse $3,reverse $8,reverse $13)))}
+                           else return (R (RecPost "dummy" $16 (reverse $3,reverse $8,reverse $13)))}
   | lit '(' lit ')'
                 {\env -> putStrFS ($1 ++ "(" ++ $3 ++ ");") >>
                          let cabst = case lookupVar $1 env of {Just (R recpost) -> recpost; 
@@ -126,7 +126,7 @@ Lhs:
                    Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFS ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
@@ -134,7 +134,7 @@ Lhs:
                    Just (R recpost) -> error ("Argument of selhull is not a formula\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (F f) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
   | widen '(' lit ',' lit ')' 
         {\env -> putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ ");") >>

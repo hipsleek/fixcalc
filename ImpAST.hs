@@ -86,11 +86,13 @@ cond (x1:x2:xs) = head xs
 -- Types for 3Contexts version
 
 -------Formula---------------------
-data CAbst = CAbst Lit [QSizeVar] Formula
-data RecPost = RecPost Lit [QSizeVar] Formula ([QSizeVar],[QSizeVar],[QSizeVar])
--- RecPost represents a Const-Abstraction with: name arguments formula (inputs,outputs,imperByValue)
--- typeInv: (arguments = inputs+outputs)
--- meaning: (fExists (primeTheseSizeVars imperByValue) formula) && noChange(imperByValue)
+data CAbst = CAbst Lit [QSizeVar] Formula 
+-- ^This CAbst type was used in the old fixpoint procedure. It is deprecated, 
+-- since it requires retrieving what are the size variables passed by val or passed by ref from the corresponding MethDecl.
+data RecPost = RecPost Lit Formula ([QSizeVar],[QSizeVar],[QSizeVar])
+-- ^This is the type that corresponds to a constraint abstraction.
+-- Its arguments are: name body (inputs,outputs,imperByValue).
+-- The meaning: (fExists (primeTheseSizeVars imperByValue) body) && noChange(imperByValue).
 data FormulaDecl = FormulaDecl Lit [QSizeVar] Formula
 
 type Relation = ([QSizeVar],[QSizeVar],Formula)
@@ -596,7 +598,7 @@ instance Show CAbst where
     fname ++ "<" ++ concatSepBy "," (map show ins) ++ "> = (" ++ show formula ++ ")"
 
 instance Show RecPost where
-  show (RecPost fname args formula (ins,outs,byVal)) = 
+  show (RecPost fname formula (ins,outs,byVal)) = 
     fname ++ ":={[" ++ concatSepBy "," (map show ins) ++ "] -> [" ++ concatSepBy "," (map show outs) ++ "] -> [" ++ concatSepBy "," (map show byVal) ++ "]: (" ++ show formula ++ ")};\n"
     
 instance Show Formula where
