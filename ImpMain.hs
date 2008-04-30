@@ -80,6 +80,7 @@ showHelpMessage =
   putStrLn "  -m:<bound>:\t Use <bound>-disjunctive fixpoint, where <bound> is the maximum number of disjuncts." >>
   putStrLn "  Similarity:\t Uses the Similarity-based heuristic" >>
   putStrLn "  Hausdorff:\t Uses the Hausdorff-based heuristic" >>
+  putStrLn "  SimInteractive:\t Uses the Similarity-based heuristic to compute affinities + Interactive choice" >>
   putStrLn "  <pre><post>:\t Use the <pre><post> combination of prederivation and postcondition. <pre> can be Post/Strong/Sel/Weak. <post> can be Strong/Weak." >>
   putStrLn "  +indir:\t Enable array indirection." >>
   putStrLn "  +check:\t Infer the input file and type-check the result." >>
@@ -121,6 +122,7 @@ oneArg prevFs arg = case arg of
   "WeakWeak" -> return $ Just prevFs{prederivation=WeakPD,postcondition=WeakPost}
   "Similarity" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimilarityHeur)}
   "Hausdorff" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),HausdorffHeur)} 
+  "SimInteractive" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimInteractiveHeur)} 
   "+individual" -> return $ Just prevFs{traceIndividualErrors=True}
   "-individual" -> return $ Just prevFs{traceIndividualErrors=False}
   "-infer" -> return $ Just prevFs{noInference=True}

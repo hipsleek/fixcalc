@@ -10,7 +10,7 @@ F3:=mergeF2(F2);
 F3H:=selhull(F3,5,SimHeur);
 F4:=mergeF2(F3H);
 F4H:=selhull(F4,5,SimHeur);
-F3W:=widen(F3H,F4H);
+F3W:=widen(F3H,F4H,SimHeur);
 fixtest(mergeF2,F3W);
 
 F1;F2;F3;F3H;F4;F4H;

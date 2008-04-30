@@ -58,6 +58,7 @@ clean:
 	
 install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
+	cp fixcalc ~popeeaco/public_html/cgi-bin/fixcalc/.
 
 doc: $(SRCS)
 	haddock -h -o doc --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \

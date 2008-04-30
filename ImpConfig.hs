@@ -19,7 +19,7 @@ data Hull = Hull | ConvexHull deriving Show
 data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD deriving (Show,Eq)
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
 type FixFlags = (Int,Heur)
-data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur deriving (Show,Eq)
+data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur | SimInteractiveHeur deriving (Show,Eq)
 
 data Flags = Flags {
   isIndirectionIntArray:: Bool, -- ^Collect constraints regarding Min and Max values of the array elements. Default is False.

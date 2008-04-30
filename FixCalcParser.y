@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Heur(..))
-import ImpFixpoint2k(bottomUp2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU)
+import ImpFixpoint2k(bottomUp2k,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU)
 import ImpFormula(simplify,subset)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -47,6 +47,7 @@ import Monad(foldM)
   widen   {TkKwWiden}
   subset  {TkKwSubset}
   bottomup{TkKwBottomup}
+  topdown {TkKwTopdown}
   selhull {TkKwSelhull}
 
 %left '||'
@@ -128,6 +129,14 @@ Lhs:
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
+  | topdown '(' lit ',' intNum ',' lit ')'
+        {\env -> putStrFS ("topdown(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
+                 case lookupVar $3 env of
+                   Just (F f) -> error ("Argument of topdown is not a constraint abstraction\n")
+                   Nothing -> error ("Variable not declared - "++$3++"\n")
+                   Just (R recpost) -> 
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     topDown2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFS ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
@@ -136,11 +145,13 @@ Lhs:
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
-  | widen '(' lit ',' lit ')' 
-        {\env -> putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ ");") >>
+  | widen '(' lit ',' lit ',' lit ')' 
+        {\env -> putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (F f1),Just (F f2)) -> widen SimilarityHeur (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
-                      return (F (Or disj))
+                   (Just (F f1),Just (F f2)) -> 
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     widen heur (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                     return (F (Or disj))
                    (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
                    (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
                    (_,_) -> error ("Variable not declared - "++$3++"\n")

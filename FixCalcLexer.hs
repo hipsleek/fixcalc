@@ -16,7 +16,7 @@ data Tk=
 	| TkEOF
 	| TkRec
 	| TkString String
-	| TkKwFixtest | TkKwWiden | TkKwSubset | TkKwBottomup | TkKwSelhull | TkKwWidenppl
+	| TkKwFixtest | TkKwWiden | TkKwSubset | TkKwBottomup | TkKwTopdown | TkKwSelhull | TkKwWidenppl
 
 lexer :: (Tk -> P a) -> P a
 lexer cont = getInput >>= 
@@ -67,6 +67,7 @@ lexer' ('w':'i':'d':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWide
 lexer' ('w':'i':'d':'e':'n':'p':'p':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWidenppl xs
 lexer' ('s':'u':'b':'s':'e':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSubset xs
 lexer' ('b':'o':'t':'t':'o':'m':'u':'p':xs) | not $ isAlphaNum (head xs) = returnPI TkKwBottomup xs
+lexer' ('t':'o':'p':'d':'o':'w':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwTopdown xs
 lexer' ('s':'e':'l':'h':'u':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSelhull xs
 lexer' ('\"':xs) = lexString "" xs
 

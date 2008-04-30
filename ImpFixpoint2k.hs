@@ -4,6 +4,7 @@
 module ImpFixpoint2k(
   fixpoint2k, 
   bottomUp2k,   
+  topDown2k,
   fixTestBU,
   subrec,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
@@ -38,7 +39,7 @@ fixpoint2k m recPost@(RecPost mn f (i,o,byval)) =
 --            addOmegaStr("CAbst:="++showSet f) >>
 --            bottomUp2k recPost fixFlags1 fFalse >>= \(postNoSimpl,_) ->
 --            putStrFS("OK:="++showSet postNoSimpl) >>
---      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ _ sf _) ->
+--      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ sf _) ->
       let sRecPost@(RecPost _ sf _) = recPost in
 --            addOmegaStr("SimplCAbst:="++showSet sf) >>
 ---- Bottom-Up fixpoint
@@ -62,7 +63,7 @@ fixpoint2k m recPost@(RecPost mn f (i,o,byval)) =
 -- 3rd widening strategy + general selHull
 bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- ^Given CAbst, fixpoint flags and an initial formula F (usually False), returns an approximation 
--- for the least-fixed point of CAbst and the number of iterations in which the results is obtained.
+-- for the least-fixed point of CAbst and the number of iterations in which the result is obtained.
 -- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
@@ -141,6 +142,10 @@ subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
 -----Top Down fixpoint
 -- 2nd widening strategy + general selHull
 topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
+-- ^Given CAbst, fixpoint flags and the postcondition formula F (usually True), returns a transitive
+-- invariant and the number of iterations in which the result is obtained.
+-- This computation is also named top-down fixpoint and is a generalization of the U+ transitive closure 
+-- operator computed by Omega Calculator (see PEPM'00 paper for more details).
 topDown2k recpost (m,heur) postFromBU = 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("#\tG1:="++showRelation oneStep) >>

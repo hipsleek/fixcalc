@@ -12,5 +12,5 @@ F3:=sumvec(F2); F3;
 F3H:=selhull(F3,2,SimHeur); F3H;
 F4:=sumvec(F3H); F4;
 F4H:=selhull(F4,2,SimHeur); F4H;
-F3W:=widen(F3H,F4H); F3W;
+F3W:=widen(F3H,F4H,SimHeur); F3W;
 fixtest(sumvec,F3W);

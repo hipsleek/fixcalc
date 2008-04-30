@@ -11,13 +11,14 @@ module ImpHullWiden(
   DisjFormula,    -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
   showDebugMSG
 ) where
-import Fresh(FS,addOmegaStr,putStrFS)
+import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS)
 import ImpAST
 import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
 import ImpFormula(simplify,hull,subset)
 import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
+import Data.Char(digitToInt,isDigit)
 import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
@@ -26,7 +27,7 @@ import Monad(filterM,when)
      1 -> show only loss-of-precision messages
      2 -> show more messages -}
 showDebugMSG:: Int
-showDebugMSG = 1
+showDebugMSG = 2
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 
@@ -83,8 +84,8 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
-  let (i,j) = chooseMaxElem affinMx in
-  when (showDebugMSG>=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
+  chooseElem heur affinMx >>= \(i,j) ->
+  when (showDebugMSG>=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -267,9 +268,9 @@ computeHalfCol heur mat (m,n) i j disj =
 
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
-  let (i,j) = chooseMaxElem affinMx in
-  when (showDebugMSG>=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chooses disjuncts with less than 100%: "++ show (affinMx!(i,j)))) >>
-  when (showDebugMSG>=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("MAX elem is: " ++ show (i,j))) >>
+  chooseElem heur affinMx >>= \(i,j) ->
+  when (showDebugMSG>=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
+  when (showDebugMSG>=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
   when (showDebugMSG>=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
                                ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
@@ -303,7 +304,7 @@ comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
 ----------------------------------
 type AffinMx = Array (Int,Int) Int
 identityA = -1 
--- identityA should be smaller than all elements from AffinMx (so that "chooseMaxElem" computes maximum element from AffinMx matrix)
+-- identityA should be smaller than all elements from AffinMx (so that "chooseElem" computes maximum element from AffinMx matrix)
 
 initAffinMx:: Int -> AffinMx
 initAffinMx n =
@@ -311,12 +312,23 @@ initAffinMx n =
   let l = map (\x -> ((x `quot` (n+1),x `rem` (n+1)),identityA)) gen in
     array ((0,0),(n,n)) l
 
--- returns the indices corresponding to the maximum element in the matrix
-chooseMaxElem:: AffinMx -> (Int,Int)
-chooseMaxElem mat = 
+-- |Returns the indices of either the maximum element in the matrix or chosen by the user with SimInteractiveHeur.
+chooseElem:: Heur -> AffinMx -> FS (Int,Int)
+chooseElem heur mat = 
   let firstMax = ((0,0),mat!(0,0)) in
   let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> if val>=amax then ((i,j),val) else ((mi,mj),amax)) firstMax (assocs mat) in
-  fst maxe
+  case heur of
+    SimInteractiveHeur -> 
+      putStrFS ("MAX elem is: " ++ show (fst maxe)) >>
+      putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
+      return (getIndices str (fst maxe))
+    _ -> return (fst maxe)
+
+getIndices:: String -> (Int,Int) -> (Int,Int)
+getIndices str givenmax = 
+  if length str >= 5 && str!!0 == '(' && isDigit (str!!1) && str!!2 == ',' && isDigit (str!!3) && str!!4 == ')' then
+    (digitToInt (str!!1), digitToInt (str!!3))
+  else givenmax
 
 showAffinMx:: AffinMx -> String
 showAffinMx mat = 
@@ -354,7 +366,15 @@ affinity (Just f1) (Just f2) heur operation _ =
       subset fTrue foperation >>= \operationIsTrue ->
       if operationIsTrue then return 0 else 
       case heur of
-        SimilarityHeur -> 
+        DifferenceHeur -> 
+          let n = countDisjuncts fDif in
+          let nsteps = if n>4 then 4 else n in
+          let disj = getDisjuncts fDif in
+          let getAverageConjuncts = (\c -> fromIntegral (countConjuncts c) / (fromIntegral n)) in
+          let s = ceiling $ sum (map getAverageConjuncts disj) in
+          let diffSteps = 100 - (20*nsteps-s) in
+          return diffSteps
+        _ -> {- SimilarityHeur, SimInteractiveHeur -}
 --          putStrFS("F1:="++showSet f1) >> putStrFS("F2:="++showSet f2) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
           mset f1 f2 foperation >>= \mSet ->
@@ -364,14 +384,6 @@ affinity (Just f1) (Just f2) heur operation _ =
 --          putStrFS("mSet::="++concatMap (\f -> showSet f) mSet) >>
 --          putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac)) >>
           return (ceiling frac)
-        DifferenceHeur -> 
-          let n = countDisjuncts fDif in
-          let nsteps = if n>4 then 4 else n in
-          let disj = getDisjuncts fDif in
-          let getAverageConjuncts = (\c -> fromIntegral (countConjuncts c) / (fromIntegral n)) in
-          let s = ceiling $ sum (map getAverageConjuncts disj) in
-          let diffSteps = 100 - (20*nsteps-s) in
-          return diffSteps
     where
       mset:: Formula -> Formula -> Formula -> FS [Formula]
       -- requires: f1,f2 are conjunctive formulae

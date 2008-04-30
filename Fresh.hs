@@ -7,6 +7,7 @@ import ImpConfig(Flags,outputFile)
 import MyPrelude
 ------------------------------------------
 import System.CPUTime(getCPUTime)
+import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
 -------FS Fresh---------------------------
 data St = MkState { 
@@ -108,6 +109,12 @@ putStrFS str = FS (\st -> putStrLn str >> return (st,()))
 
 putStrNoLnFS:: String -> FS ()
 putStrNoLnFS str = FS (\st -> putStr str >> return (st,()))
+
+getLineFS:: FS String
+getLineFS = FS (\st -> getLine >>= \str -> return (st,str))
+
+hFlushStdoutFS:: FS ()
+hFlushStdoutFS = FS (\st -> hFlush stdout >> return (st,()))
 
 getCPUTimeFS:: FS Integer
 getCPUTimeFS = FS (\st -> getCPUTime >>= \t -> return (st,t))
