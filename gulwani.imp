@@ -1,6 +1,6 @@
 #include "Primitives.imp"
 
--- Example from Figure 1 of Gulwani-PLDI'08
+{-- Example from Figure 1 of Gulwani-PLDI'08
 -- In our system, the assertion can be proven, but probably the TransInv is less precise than Gulwani's (x<0 \/ y>0)
 void PV1(int y) {
   int x := -50;
@@ -10,7 +10,7 @@ void PV1(int y) {
   };
   assert(y>0)
 }
-
+-}
 
 {-- Example from Figure 2 of Gulwani-PLDI'08
 -- In our system, the assertion cannot be proven.
@@ -25,6 +25,35 @@ void PV2() {
   assert(x=102)
 }
 -}
+
+-- Variant of the example from Figure 2 of Gulwani-PLDI'08: the loop phases are separated in two recursive functions.
+-- In our system, the assertion can be proven.
+void PV2_variant() {
+  int x:=0;
+  int y:=0;
+  if (x<=50) then { f1(x,y) }
+  else { f2(x,y) };
+  assert(x=102)
+}
+
+void f1(ref int x, ref int y) { 
+  y:=y+1;
+  if (y<0) then { void }
+  else {
+    x:=x+1;
+    if (x<=50) then { f1(x,y) }
+    else { f2(x,y) }
+  }
+}
+
+void f2(ref int x, ref int y) {
+  y:=y-1;
+  if (y<0) then { void }
+  else { 
+    x:=x+1;
+    f2(x,y)
+  }
+} 
 
 {-- Example from Figure 3b of Gulwani-PLDI'08
 -- In our system, the assertion is proven just like in Gulwani's paper.
@@ -70,6 +99,7 @@ void SP2(int d, int t, int s){
 -}
 
 {-- Example from Figure 10 of Gulwani-PLDI'08
+-- In our system, one non-termination precondition is precise, but the OK outcome is not precise (use "+individual" flag to see individual ERR outcomes).
 void Bug1(int y, int n) {
   int x:=0;
   if (y<9) then {

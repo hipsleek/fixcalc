@@ -27,7 +27,7 @@ import Monad(filterM,when)
      1 -> show only loss-of-precision messages
      2 -> show more messages -}
 showDebugMSG:: Int
-showDebugMSG = 2
+showDebugMSG = 1
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 
