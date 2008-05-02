@@ -81,12 +81,12 @@ showHelpMessage =
   putStrLn "  Similarity:\t Uses the Similarity-based heuristic" >>
   putStrLn "  Hausdorff:\t Uses the Hausdorff-based heuristic" >>
   putStrLn "  SimInteractive:\t Uses the Similarity-based heuristic to compute affinities + Interactive choice" >>
-  putStrLn "  <pre><post>:\t Use the <pre><post> combination of prederivation and postcondition. <pre> can be Post/Strong/Sel/Weak. <post> can be Strong/Weak." >>
-  putStrLn "  +indir:\t Enable array indirection." >>
-  putStrLn "  +check:\t Infer the input file and type-check the result." >>
-  putStrLn "  -infer +check: Type-check the input file (written in impt)." >>
+--  putStrLn "  <pre><post>:\t Use the <pre><post> combination of prederivation and postcondition. <pre> can be Post/Strong/Sel/Weak. <post> can be Strong/Weak." >>
+--  putStrLn "  +indir:\t Enable array indirection." >>
+--  putStrLn "  +check:\t Infer the input file and type-check the result." >>
+  putStrLn "  -infer +check: Type-check the input file (written in impt format)." >>
   putStrLn "  +individual:\t Enable tracing of individual errors." >>
-  putStrLn "Default arguments: -m:5 Similarity PostStrong -indir -check -individual" >>
+  putStrLn "Default arguments: -m:5 Similarity -individual" >>
   return Nothing
 
 allArgs:: Flags -> [String] -> IO (Maybe Flags)

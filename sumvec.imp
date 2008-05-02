@@ -1,38 +1,28 @@
 #include "Primitives.imp"
 
-Void main()
+void main()
 {
-  Int dim:=4;
-  Float [Int][dim] A := 0.0;
-  Float res := 0.0;
-  init_arrF(A,0,dim-1);
-  printArrF(A);
-  res := sum(A,1,dim-1);
-  printF(res)
+  int dim:=4;
+  int [int][dim] A := 0;
+  int res := 0;
+  init_arr(A,0,dim-1);
+  printArr(A);
+  res := sum(A,0,dim-1);
+  print(res)
 }
 
-Void init_arrF(Float[Int] a, Int i, Int j)
+void init_arr(int[int] a, int i, int j)
 {
-  if (i>j) then { Void }
+  if (i>j) then { void }
   else {
-    assignF(a,i,myrandomF(10.0));
-    init_arrF(a,i+1,j)
+    a[i]:=myrandom(10);
+    init_arr(a,i+1,j)
   }
 }
 
---Float sum(Float[Int] a, Int i,Int j)
---{
---  if (i>j) then { 0.0 }
---  else { plusFF((l1:subF(a,i)),(l2:sumRec(a,i+1,j))) }
---}
---
---Float sumRec(Float[Int<a>] a, Int<i> i,Int<j> j)
--- { if (i>j) then { 0.0 }
---   else { plusFF(subF(a,i),sumRec(a,i+1,j)) }
--- }
-
-Float sum (Float[Int<a>] a, Int<i> i,Int<j> j)
+int sum(int[int<a>] a, int<i> i,int<j> j)
 where (Bogus),{},{},(a=a^ && j=j^ && 0<=i<i^<=a,j+1 && a>j),
- { if (i>j) then { 0.0 }
-   else { plusFF(subF(a,i),sum(a,i+1,j)) }
- }
+{
+  if (i>j) then { 0 }
+  else { a[i]+sum(a,i+1,j) }
+}
