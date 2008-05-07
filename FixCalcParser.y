@@ -2,8 +2,8 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Heur(..))
-import ImpFixpoint2k(bottomUp2k,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU)
-import ImpFormula(simplify,subset)
+import ImpFixpoint2k(bottomUp2k,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
+import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
@@ -49,6 +49,10 @@ import Monad(foldM)
   bottomup{TkKwBottomup}
   topdown {TkKwTopdown}
   selhull {TkKwSelhull}
+  intersection {TkKwIntersection}
+  pairwisecheck {TkKwPairwisecheck}
+  hull    {TkKwHull}
+  fixtestinv {TkKwFixtestinv}
 
 %left '||'
 %left '&&'
@@ -67,11 +71,11 @@ LInputItem:
 
 InputItem::{RelEnv -> FS RelEnv}
 InputItem:
-    lit ':=' Lhs ';'                                    
+    lit ':=' Rhs ';'                                    
         {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
-                 $3 env >>= \lhs -> 
-                 case lhs of {R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedLHS ->
-                 return (extendRelEnv env ($1,renamedLHS))}
+                 $3 env >>= \rhs -> 
+                 case rhs of {R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
+                 return (extendRelEnv env ($1,renamedRHS))}
   | lit subset lit ';'                                
         {\env -> putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
                  case (lookupVar $1 env,lookupVar $3 env) of
@@ -98,10 +102,26 @@ InputItem:
                       fixTestBU recpost f >>= \fixok -> 
                       putStrFS("\n" ++ show fixok ++ "\n") >> return env
                    (_,_) -> error ("Arguments of fixtest are incorrect")}
+  | pairwisecheck lit ';'                                           
+        {\env -> putStrFS ("# PairwiseCheck "++ $2 ++";") >>
+                 case lookupVar $2 env of
+                   Just (F f) -> 
+                      pairwiseCheck f >>= \fsimpl ->
+                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
+                   _ -> error ("Argument of pairwisecheck is not a valid formula "++$2++"\n")
+        }
+  | fixtestinv '(' lit ',' lit ')' ';'
+        {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
+                 case (lookupVar $3 env,lookupVar $5 env) of
+                   (Just (R recpost),Just (F f)) ->
+                      getOneStep recpost fTrue >>= \oneStep ->
+                      fixTestTD oneStep f >>= \fixok -> 
+                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
+                   (_,_) -> error ("Arguments of fixtestInv are incorrect")}
                      
 
-Lhs::{RelEnv -> FS Value}
-Lhs:
+Rhs::{RelEnv -> FS Value}
+Rhs:
     '{' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFS ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
@@ -156,6 +176,21 @@ Lhs:
                    (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
+  | lit intersection lit
+        {\env -> putStrFS("# "++ $1 ++ " intersection " ++ $3 ++ ";") >>
+                 case (lookupVar $1 env,lookupVar $3 env) of
+                   (Just (F f1),Just (F f2)) ->
+                      simplify (And [f1,f2]) >>= \f3 -> 
+                      return (F f3)
+                   (_,_) -> error ("Argument of intersection is not a valid formula\n")
+         }
+  | hull lit
+        {\env -> putStrFS("# hull " ++ $2 ++ ";") >>
+                 case (lookupVar $2 env) of
+                   Just (F f1) -> hull f1 >>= \f2 -> 
+                      return (F f2)
+                   _ -> error ("Argument of hull is not a valid formula\n")
+         }
 
 Formula: QFormula  {$1}
   | '(' Formula ')' {$2}

@@ -6,6 +6,8 @@ module ImpFixpoint2k(
   bottomUp2k,   
   topDown2k,
   fixTestBU,
+  fixTestTD,
+  getOneStep,
   subrec,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
