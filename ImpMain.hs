@@ -79,10 +79,10 @@ showHelpMessage =
   putStrLn "Options:" >>
   putStrLn "  -m:<bound>\t\t Use <bound>-disjunctive fixpoint, where <bound> is the maximum number of disjuncts." >>
   putStrLn "  -club:<lub>\t\t Use the conjunctive lub operator <lub>, where <lub> can be Hull or ConvexHull." >>
-  putStrLn "  -dlub:<lub>\t\t Use the disjunctive lub operator <lub>, where <lub> can be Similarity, Hausdorff or SimInteractive." >>
+  putStrLn "  -dlub:<lub>\t\t Use the disjunctive lub operator <lub>, where <lub> can be Similarity, Hausdorff or Interactive." >>
   putStrLn "   Similarity\t\t Use the Planar affinity-based heuristic [ASIAN'06]." >>
   putStrLn "   Hausdorff\t\t Use the Hausdorff-based heuristic [Sriram et al-SAS'06]." >>
-  putStrLn "   SimInteractive\t Allow user to specify interactively which disjuncts to combine." >>
+  putStrLn "   Interactive\t\t Allow user to specify interactively which disjuncts to combine, and revert to Similarity-based heuristic when unspecified." >>
 --  putStrLn "  <pre><post>\t Use the <pre><post> combination of prederivation and postcondition. <pre> can be Post/Strong/Sel/Weak. <post> can be Strong/Weak." >>
 --  putStrLn "  +indir\t Enable array indirection." >>
 --  putStrLn "  +check\t Infer the input file and type-check the result." >>
@@ -126,15 +126,18 @@ oneArg prevFs arg = case arg of
   "SelWeak" ->      return $ Just prevFs{prederivation=SelectivePD,postcondition=WeakPost}
   "WeakStrong" ->   return $ Just prevFs{prederivation=WeakPD,postcondition=StrongPost}
   "WeakWeak" ->     return $ Just prevFs{prederivation=WeakPD,postcondition=WeakPost}
-  "Similarity" ->   return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimilarityHeur)}
-  "Hausdorff" ->    return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),HausdorffHeur)} 
-  "SimInteractive" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimInteractiveHeur)} 
   "+individual" ->  return $ Just prevFs{traceIndividualErrors=True}
   "-individual" ->  return $ Just prevFs{traceIndividualErrors=False}
   "-infer" ->       return $ Just prevFs{noInference=True}
   "-club:Hull" ->   return $ Just prevFs{whatHull=Hull}
   "-club:ConvexHull" -> return $ Just prevFs{whatHull=ConvexHull}
-  '-':'v':':':level -> return $ Just prevFs{showDebugMSG=read level}
+  "-dlub:Similarity" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimilarityHeur)}
+  "-dlub:Hausdorff" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),HausdorffHeur)} 
+  "-dlub:Interactive" -> return $ Just prevFs{fixFlags=(fst (fixFlags prevFs),SimInteractiveHeur),showDebugMSG=2} 
+  '-':'v':':':level -> 
+                    case snd (fixFlags prevFs) of
+                      SimInteractiveHeur -> return $ Just prevFs{showDebugMSG=2}
+                      _ -> return $ Just prevFs{showDebugMSG=read level}
   '-':'o':':':file -> return $ Just prevFs{outputFile=file}
   _ -> 
     putStrLn ("imp: unrecognised flag: " ++ arg) >>

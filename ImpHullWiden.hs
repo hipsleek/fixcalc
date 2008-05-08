@@ -1,10 +1,10 @@
 {- |Provides operators for Hulling and Widening on the powerset domain of polyhedra -}
 -----Operators common to BU and TD
 module ImpHullWiden(
-  widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
-  widenOne,       -- |Conjunctive widening. 
   combHull,       -- |Given F in DNF-form, performs convex-hulling and returns a conjunctive formula.
   combSelHull,    -- |Given F in DNF-form and m, performs selective hulling. Ensures that length(res)=m. The third argument is not used.
+  widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
+  widenOne,       -- |Conjunctive widening. 
   countDisjuncts, -- |Given F in DNF-form (e.g. result of simplify), returns the number of disjuncts from F.
   getDisjuncts,   -- |Given F in DNF-form (e.g. result of simplify), returns a list with the disjuncts from F.
   Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
@@ -26,6 +26,96 @@ type Disjunct = Formula
 type DisjFormula = [Formula] 
 
 ----------------------------------
+--------Selective Hull------------
+----------------------------------
+combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
+-- requires: disj represents the DNF-form of a formula f (Or fs)
+-- requires: m>=1
+-- ensures: length(res)=m
+combSelHull (m,heur) disj fbase = 
+  getFlags >>= \flags -> 
+  addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
+  (if length disj <= m then return disj
+  else case m of
+    1 -> combHull disj >>= \h -> return [h]
+    _ -> -- assert (1<m<(length disj))
+      mapM hullExistentials disj >>= \disjNoEx ->
+      let disjM = map (\d -> Just d) disjNoEx in
+      when (showDebugMSG flags>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
+                                   ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
+      computeHalfMx heur disjM >>= \affinMx ->
+      iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
+      return (catMaybes relatedDisjM)
+    ) >>= \res -> addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> return res
+
+combHull:: DisjFormula -> FS Formula
+-- requires: disj represents the DNF-form of a formula f (Or fs)
+combHull disj = hull (Or disj)
+
+computeHalfMx:: Heur -> [Maybe Disjunct] -> FS AffinMx
+-- ensures: (n,n)=length res, where n=length disj
+computeHalfMx heur disj = 
+  let n = length disj-1 in 
+  let mx = initAffinMx n in
+  computeHalfMx1 heur mx (n,n) 0 disj
+  where
+      computeHalfMx1:: Heur -> AffinMx -> (Int,Int) -> Int -> [Maybe Disjunct] -> FS AffinMx
+      computeHalfMx1 heur mat (m,n) i disj | i>n = return mat
+      computeHalfMx1 heur mat (m,n) i disj = 
+        computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
+        computeHalfMx1 heur mat1 (m,n) (i+1) disj
+
+-- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
+computeHalfRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
+computeHalfRow heur mat (m,n) i j disj | j>n = return mat
+computeHalfRow heur mat (m,n) i j disj = 
+  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj))>>= \affinIJ -> 
+  let newmat = mat // [((i,j),affinIJ)] in
+  computeHalfRow heur newmat (m,n) i (j+1) disj
+-- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
+computeHalfCol:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
+computeHalfCol heur mat (m,n) i j disj | i<0 = return mat
+computeHalfCol heur mat (m,n) i j disj = 
+  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj)) >>= \affinIJ -> 
+  let newmat = mat // [((i,j),affinIJ)] in
+  computeHalfCol heur newmat (m,n) (i-1) j disj
+
+iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
+iterateHalfMx (m,heur) disjM affinMx = 
+  getFlags >>= \flags -> 
+  when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx)) >>
+  chooseElem heur affinMx >>= \(i,j) ->
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
+  replaceRelated disjM (i,j) >>= \replDisjM ->
+  when (showDebugMSG flags >=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
+                               ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
+  if (length (catMaybes replDisjM))<=m then return replDisjM
+  else 
+    computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
+    computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
+    computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
+    computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
+    iterateHalfMx (m,heur) replDisjM affinMx4
+
+-- replaces two related disjuncts with their hull
+replaceRelated:: [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
+-- requires: (0<=i,j<length disj)
+-- ensures: length res=length disj
+replaceRelated disj (i,j) =
+  let relI = map (\i -> fromJust (disj!!i)) [i,j] in
+  hull (Or relI) >>= \hulled ->
+  let disjI = updateList disj i (Just hulled) in
+  let disjIJ = updateList disjI j Nothing in
+  return disjIJ
+  
+comb2Hull:: Formula -> Formula -> FS Formula
+comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
+
+comb2Widen:: Formula -> Formula -> FS Formula
+comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
+
+----------------------------------
 --------Widening powersets--------
 ----------------------------------
 widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
@@ -42,7 +132,6 @@ widen heur (xs,ys) =
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
-  when (showDebugMSG flags >= 2) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   addOmegaStr ("# WidenOUT:=" ++ showSet(Or res)) >> 
   return res
@@ -79,8 +168,9 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
   getFlags >>= \flags -> 
+  when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
-  when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
+  when (showDebugMSG flags >=1) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -208,95 +298,6 @@ closure f =
     mulUpdate x (Coef qsv i) = Coef qsv (i*x)
 
 ----------------------------------
---------Selective Hull------------
-----------------------------------
-combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
--- requires: disj represents the DNF-form of a formula f (Or fs)
--- requires: m>=1
--- ensures: length(res)=m
-combSelHull (m,heur) disj fbase = 
-  getFlags >>= \flags -> 
-  addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
-  (if length disj <= m then return disj
-  else case m of
-    1 -> combHull disj >>= \h -> return [h]
-    _ -> -- assert (1<m<(length disj))
-      mapM hullExistentials disj >>= \disjNoEx ->
-      let disjM = map (\d -> Just d) disjNoEx in
-      when (showDebugMSG flags>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
-                                   ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
-      computeHalfMx heur disjM >>= \affinMx ->
-      iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
-      return (catMaybes relatedDisjM)
-    ) >>= \res -> addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> return res
-
-combHull:: DisjFormula -> FS Formula
--- requires: disj represents the DNF-form of a formula f (Or fs)
-combHull disj = hull (Or disj)
-
-computeHalfMx:: Heur -> [Maybe Disjunct] -> FS AffinMx
--- ensures: (n,n)=length res, where n=length disj
-computeHalfMx heur disj = 
-  let n = length disj-1 in 
-  let mx = initAffinMx n in
-  computeHalfMx1 heur mx (n,n) 0 disj
-  where
-      computeHalfMx1:: Heur -> AffinMx -> (Int,Int) -> Int -> [Maybe Disjunct] -> FS AffinMx
-      computeHalfMx1 heur mat (m,n) i disj | i>n = return mat
-      computeHalfMx1 heur mat (m,n) i disj = 
-        computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
-        computeHalfMx1 heur mat1 (m,n) (i+1) disj
-
--- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
-computeHalfRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
-computeHalfRow heur mat (m,n) i j disj | j>n = return mat
-computeHalfRow heur mat (m,n) i j disj = 
-  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj))>>= \affinIJ -> 
-  let newmat = mat // [((i,j),affinIJ)] in
-  computeHalfRow heur newmat (m,n) i (j+1) disj
--- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
-computeHalfCol:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
-computeHalfCol heur mat (m,n) i j disj | i<0 = return mat
-computeHalfCol heur mat (m,n) i j disj = 
-  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj)) >>= \affinIJ -> 
-  let newmat = mat // [((i,j),affinIJ)] in
-  computeHalfCol heur newmat (m,n) (i-1) j disj
-
-iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
-iterateHalfMx (m,heur) disjM affinMx = 
-  getFlags >>= \flags -> 
-  chooseElem heur affinMx >>= \(i,j) ->
-  when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
-  when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
-  replaceRelated disjM (i,j) >>= \replDisjM ->
-  when (showDebugMSG flags >=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
-                               ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
-  if (length (catMaybes replDisjM))<=m then return replDisjM
-  else 
-    computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
-    computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
-    computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
-    computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
-    iterateHalfMx (m,heur) replDisjM affinMx4
-
--- replaces two related disjuncts with their hull
-replaceRelated:: [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
--- requires: (0<=i,j<length disj)
--- ensures: length res=length disj
-replaceRelated disj (i,j) =
-  let relI = map (\i -> fromJust (disj!!i)) [i,j] in
-  hull (Or relI) >>= \hulled ->
-  let disjI = updateList disj i (Just hulled) in
-  let disjIJ = updateList disjI j Nothing in
-  return disjIJ
-  
-comb2Hull:: Formula -> Formula -> FS Formula
-comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
-
-comb2Widen:: Formula -> Formula -> FS Formula
-comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
-
-----------------------------------
 --------Affinity Matrix-----------
 ----------------------------------
 type AffinMx = Array (Int,Int) Int
@@ -316,7 +317,7 @@ chooseElem heur mat =
   let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> if val>=amax then ((i,j),val) else ((mi,mj),amax)) firstMax (assocs mat) in
   case heur of
     SimInteractiveHeur -> 
-      putStrFS ("MAX elem is: " ++ show (fst maxe)) >>
+      putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
       putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
       return (getIndices str (fst maxe))
     _ -> return (fst maxe)
@@ -324,7 +325,7 @@ chooseElem heur mat =
 getIndices:: String -> (Int,Int) -> (Int,Int)
 getIndices str givenmax = 
   if length str >= 5 && str!!0 == '(' && isDigit (str!!1) && str!!2 == ',' && isDigit (str!!3) && str!!4 == ')' then
-    (digitToInt (str!!1), digitToInt (str!!3))
+    (digitToInt (str!!1)-1, digitToInt (str!!3)-1)
   else givenmax
 
 showAffinMx:: AffinMx -> String
