@@ -10,7 +10,6 @@ module ImpConfig(
   Heur(..),
   FixFlags,
   defaultFlags,
-  whatHull,
   noExistentialsInDisjuncts,
   useFixpoint2k  
 ) where
@@ -35,6 +34,11 @@ data Flags = Flags {
   prederivation:: Prederivation, -- ^Kind of prederivation. Default is PostPD.
   postcondition:: Postcondition, -- ^Whether to accumulate preconditions in the computed postcondition. Default is True.
   traceIndividualErrors:: Bool,  -- ^Trace individual errors for Dual Analysis.
+  whatHull:: Hull, -- ^What least upper bound operator: Hull or ConvexHull. Default is Hull.
+  showDebugMSG:: Int ,
+{- | 0 -> do not show any fixpoint messages
+     1 -> show only loss-of-precision messages
+     2 -> show loss-of-precision and hull/widening messages -}
   outputFile:: String
 } deriving Show
 
@@ -50,11 +54,12 @@ defaultFlags = Flags {
   prederivation = PostPD,
   postcondition = StrongPost, 
   traceIndividualErrors = False,
+  whatHull = Hull,
+  showDebugMSG = 0,
   outputFile = "a"
 }
 
 
-whatHull = ConvexHull 
 useFixpoint2k = True
 noExistentialsInDisjuncts = True
 

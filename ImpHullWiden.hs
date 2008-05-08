@@ -8,12 +8,11 @@ module ImpHullWiden(
   countDisjuncts, -- |Given F in DNF-form (e.g. result of simplify), returns the number of disjuncts from F.
   getDisjuncts,   -- |Given F in DNF-form (e.g. result of simplify), returns a list with the disjuncts from F.
   Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
-  DisjFormula,    -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
-  showDebugMSG
+  DisjFormula     -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
 ) where
-import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS)
+import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags)
 import ImpAST
-import ImpConfig(noExistentialsInDisjuncts,Heur(..),FixFlags)
+import ImpConfig(noExistentialsInDisjuncts,showDebugMSG,Heur(..),FixFlags)
 import ImpFormula(simplify,hull,subset)
 import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
@@ -22,12 +21,6 @@ import Data.Char(digitToInt,isDigit)
 import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when)
-
-{- | 0 -> do not show any messages
-     1 -> show only loss-of-precision messages
-     2 -> show more messages -}
-showDebugMSG:: Int
-showDebugMSG = 1
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 
@@ -39,6 +32,7 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 widen heur (xs,ys) = 
+  getFlags >>= \flags -> 
   when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
                                             ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
   mapM hullExistentials xs >>= \xsNoEx ->
@@ -48,7 +42,7 @@ widen heur (xs,ys) =
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
-  when (showDebugMSG >= 2) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
+  when (showDebugMSG flags >= 2) (putStrFS("    Pairs of disjuncts to widen: "++show ijs)) >>
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   addOmegaStr ("# WidenOUT:=" ++ showSet(Or res)) >> 
   return res
@@ -84,8 +78,9 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
+  getFlags >>= \flags -> 
   chooseElem heur affinMx >>= \(i,j) ->
-  when (showDebugMSG>=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
+  when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -220,6 +215,7 @@ combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
 -- requires: m>=1
 -- ensures: length(res)=m
 combSelHull (m,heur) disj fbase = 
+  getFlags >>= \flags -> 
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m then return disj
   else case m of
@@ -227,7 +223,7 @@ combSelHull (m,heur) disj fbase =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      when (showDebugMSG>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
+      when (showDebugMSG flags>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
@@ -268,11 +264,12 @@ computeHalfCol heur mat (m,n) i j disj =
 
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
+  getFlags >>= \flags -> 
   chooseElem heur affinMx >>= \(i,j) ->
-  when (showDebugMSG>=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
-  when (showDebugMSG>=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx) >> putStrFS ("Chosen elem is: " ++ show (i,j))) >>
+  when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
-  when (showDebugMSG>=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
+  when (showDebugMSG flags >=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
                                ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
   else 
@@ -503,8 +500,9 @@ countConjuncts formula = case formula of
 
 hullExistentials:: Formula -> FS Formula
 hullExistentials disj = 
+  getFlags >>= \flags -> 
   if (noExistentialsInDisjuncts==True) && (countExis disj > 0) then 
-    when (showDebugMSG>=1) (putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
+    when (showDebugMSG flags >=1) (putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
     hull disj
   else return disj
 

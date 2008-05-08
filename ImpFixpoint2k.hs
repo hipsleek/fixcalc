@@ -15,9 +15,9 @@ module ImpFixpoint2k(
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(useSelectiveHull,widenEarly,Heur(..),fixFlags,FixFlags)
+import ImpConfig(useSelectiveHull,widenEarly,showDebugMSG,Heur(..),fixFlags,FixFlags)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula,showDebugMSG )
+import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import List((\\),nub)
@@ -68,6 +68,7 @@ bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- for the least-fixed point of CAbst and the number of iterations in which the result is obtained.
 -- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
+  getFlags >>= \flags -> 
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
     subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
@@ -76,7 +77,7 @@ bottomUp2k recpost (m,heur) initFormula =
   subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
   pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
-  when (showDebugMSG>=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
+  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4 >>= \res ->
   return res
@@ -149,13 +150,14 @@ topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- This computation is also named top-down fixpoint and is a generalization of the U+ transitive closure 
 -- operator computed by Omega Calculator (see PEPM'00 paper for more details).
 topDown2k recpost (m,heur) postFromBU = 
+  getFlags >>= \flags -> 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("#\tG1:="++showRelation oneStep) >>
   compose g1 oneStep >>= \gcomp ->
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
---  when (showDebugMSG>=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
+--  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts g2) undefined >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 

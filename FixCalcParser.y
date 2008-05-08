@@ -1,7 +1,7 @@
 {
 module FixCalcParser where
 import ImpAST
-import ImpConfig(defaultFlags,Heur(..))
+import ImpConfig(defaultFlags,Flags(..),Heur(..))
 import ImpFixpoint2k(bottomUp2k,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
 import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
@@ -335,11 +335,11 @@ minus_update ((Const i):us) = (Const (- i)):(minus_update us)
 minus_update ((Coef v i):us) = (Coef v (- i)):(minus_update us) 
 
 --returning type varies depending on the grammar's start symbol
-parse :: String -> IO ()
-parse s = 
+parse :: String -> Flags -> IO ()
+parse s flags = 
   let listFunc = runP s parseCalc in
   let parseFuncFS = foldM (\env -> \func -> func env) emptyRelEnv listFunc in 
-  runFS (initialState defaultFlags) parseFuncFS >>= \lastenv -> return ()
+  runFS (initialState flags) parseFuncFS >>= \lastenv -> return ()
 
 type RelEnv = [(Lit,Value)]
 data Value = F Formula
