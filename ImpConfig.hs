@@ -54,7 +54,7 @@ defaultFlags = Flags {
 }
 
 
-whatHull = Hull 
+whatHull = ConvexHull 
 useFixpoint2k = True
 noExistentialsInDisjuncts = True
 

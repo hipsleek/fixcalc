@@ -177,7 +177,7 @@ Rhs:
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
   | lit intersection lit
-        {\env -> putStrFS("# "++ $1 ++ " intersection " ++ $3 ++ ";") >>
+        {\env -> putStrFS($1 ++ " intersection " ++ $3 ++ ";") >>
                  case (lookupVar $1 env,lookupVar $3 env) of
                    (Just (F f1),Just (F f2)) ->
                       simplify (And [f1,f2]) >>= \f3 -> 
@@ -185,7 +185,7 @@ Rhs:
                    (_,_) -> error ("Argument of intersection is not a valid formula\n")
          }
   | hull lit
-        {\env -> putStrFS("# hull " ++ $2 ++ ";") >>
+        {\env -> putStrFS("hull " ++ $2 ++ ";") >>
                  case (lookupVar $2 env) of
                    Just (F f1) -> hull f1 >>= \f2 -> 
                       return (F f2)
