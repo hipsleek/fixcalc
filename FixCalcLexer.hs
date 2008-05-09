@@ -16,8 +16,9 @@ data Tk=
 	| TkEOF
 	| TkRec
 	| TkString String
-	| TkKwFixtest | TkKwWiden | TkKwSubset | TkKwBottomup | TkKwTopdown | TkKwSelhull | TkKwWidenppl
-	| TkKwIntersection | TkKwPairwisecheck | TkKwHull | TkKwFixtestinv
+	| TkKwWiden | TkKwSubset | TkKwBottomup | TkKwTopdown | TkKwSelhull | TkKwWidenppl
+	| TkKwIntersection | TkKwPairwisecheck | TkKwHull | TkKwFixtestpost | TkKwFixtestinv
+	| TkKwManualhull
 
 lexer :: (Tk -> P a) -> P a
 lexer cont = getInput >>= 
@@ -63,7 +64,6 @@ lexer' ('T':'r':'u':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkTrue xs
 lexer' ('F':'a':'l':'s':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkFalse xs
 lexer' ('e':'x':'i':'s':'t':'s':xs) | not $ isAlphaNum (head xs) = returnPI TkExists xs
 lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkForall xs
-lexer' ('f':'i':'x':'t':'e':'s':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwFixtest xs
 lexer' ('w':'i':'d':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWiden xs
 lexer' ('w':'i':'d':'e':'n':'p':'p':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWidenppl xs
 lexer' ('s':'u':'b':'s':'e':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSubset xs
@@ -73,7 +73,9 @@ lexer' ('s':'e':'l':'h':'u':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI 
 lexer' ('i':'n':'t':'e':'r':'s':'e':'c':'t':'i':'o':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwIntersection xs
 lexer' ('P':'a':'i':'r':'w':'i':'s':'e':'C':'h':'e':'c':'k':xs) | not $ isAlphaNum (head xs) = returnPI TkKwPairwisecheck xs
 lexer' ('h':'u':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwHull xs
+lexer' ('f':'i':'x':'t':'e':'s':'t':'P':'o':'s':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwFixtestpost xs
 lexer' ('f':'i':'x':'t':'e':'s':'t':'I':'n':'v':xs) | not $ isAlphaNum (head xs) = returnPI TkKwFixtestinv xs
+lexer' ('m':'a':'n':'u':'a':'l':'h':'u':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwManualhull xs
 lexer' ('\"':xs) = lexString "" xs
 
 lexer' all@(x:xs)

@@ -8,6 +8,8 @@ import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
 ------------------------------------------
+import Data.List(nub,elemIndex)
+import Data.Maybe(fromJust)
 import Monad(foldM)
 }
 
@@ -43,15 +45,16 @@ import Monad(foldM)
 	forall{TkForall}
 	prime {TkPrime}
 	rec   {TkRec}
-  fixtest {TkKwFixtest}
   widen   {TkKwWiden}
   subset  {TkKwSubset}
   bottomup{TkKwBottomup}
   topdown {TkKwTopdown}
   selhull {TkKwSelhull}
+  manualhull {TkKwManualhull}
   intersection {TkKwIntersection}
   pairwisecheck {TkKwPairwisecheck}
   hull    {TkKwHull}
+  fixtestpost {TkKwFixtestpost}
   fixtestinv {TkKwFixtestinv}
 
 %left '||'
@@ -61,21 +64,44 @@ import Monad(foldM)
 %left '+' '-'
 %left NEG
 
-%name parseCalc LInputItem
+%name parseCalc LCommand
 %%
 
-LInputItem:: {[RelEnv -> FS RelEnv]}
-LInputItem: 
-  InputItem LInputItem       {$1:$2}      
+LCommand:: {[RelEnv -> FS RelEnv]}
+LCommand: 
+  Command LCommand       {$1:$2}      
   | {- empty -}              {[]}
 
-InputItem::{RelEnv -> FS RelEnv}
-InputItem:
-    lit ':=' Rhs ';'                                    
+Command::{RelEnv -> FS RelEnv}
+Command:
+    lit ':=' ParseFormula ';'                                    
         {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
                  $3 env >>= \rhs -> 
                  case rhs of {R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
                  return (extendRelEnv env ($1,renamedRHS))}
+  | ParseFormula ';'                                           
+        {\env -> $1 env >>= \rhs -> case rhs of
+                   (F f) -> 
+                      simplify f >>= \fsimpl ->
+                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
+                   (R recpost) -> 
+                      putStrFS ("\n" ++ show recpost ++ "\n") >> return env
+        }
+  | fixtestpost '(' lit ',' lit ')' ';'
+        {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
+                 case (lookupVar $3 env,lookupVar $5 env) of
+                   (Just (R recpost),Just (F f)) ->
+                      fixTestBU recpost f >>= \fixok -> 
+                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
+                   (_,_) -> error ("Arguments of fixtest are incorrect")}
+  | fixtestinv '(' lit ',' lit ')' ';'
+        {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
+                 case (lookupVar $3 env,lookupVar $5 env) of
+                   (Just (R recpost),Just (F f)) ->
+                      getOneStep recpost fTrue >>= \oneStep ->
+                      fixTestTD oneStep f >>= \fixok -> 
+                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
+                   (_,_) -> error ("Arguments of fixtestInv are incorrect")}
   | lit subset lit ';'                                
         {\env -> putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
                  case (lookupVar $1 env,lookupVar $3 env) of
@@ -85,44 +111,13 @@ InputItem:
                       return env
                    (_,_) -> error ("Argument of subset is not a valid formula\n")
          }
-  | lit ';'                                           
-        {\env -> putStrFS ("# "++ $1 ++";") >>
-                 case lookupVar $1 env of
-                   Just (F f) -> 
-                      simplify f >>= \fsimpl ->
-                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
-                   Just (R recpost) -> 
-                      putStrFS ("\n" ++ show recpost ++ "\n") >> return env
-                   Nothing -> error ("Variable not declared - "++$1++"\n")
-        }
-  | fixtest '(' lit ',' lit ')' ';'
-        {\env -> putStrFS("# fixtest("++ $3 ++ "," ++ $5 ++ ");") >> 
-                 case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (R recpost),Just (F f)) ->
-                      fixTestBU recpost f >>= \fixok -> 
-                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
-                   (_,_) -> error ("Arguments of fixtest are incorrect")}
-  | pairwisecheck lit ';'                                           
-        {\env -> putStrFS ("# PairwiseCheck "++ $2 ++";") >>
-                 case lookupVar $2 env of
-                   Just (F f) -> 
-                      pairwiseCheck f >>= \fsimpl ->
-                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
-                   _ -> error ("Argument of pairwisecheck is not a valid formula "++$2++"\n")
-        }
-  | fixtestinv '(' lit ',' lit ')' ';'
-        {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
-                 case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (R recpost),Just (F f)) ->
-                      getOneStep recpost fTrue >>= \oneStep ->
-                      fixTestTD oneStep f >>= \fixok -> 
-                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
-                   (_,_) -> error ("Arguments of fixtestInv are incorrect")}
                      
-
-Rhs::{RelEnv -> FS Value}
-Rhs:
-    '{' '[' LPorUSizeVar ']' ':' Formula '}'      
+ParseFormula::{RelEnv -> FS Value}
+ParseFormula:
+    lit
+                  {\env -> case lookupVar $1 env of {Just value -> return value;
+                                                     Nothing -> error ("Variable not declared - "++$1++"\n")}}
+  | '{' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFS ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
@@ -165,6 +160,20 @@ Rhs:
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
+  | manualhull '(' lit ',' '[' LInt ']' ')'
+        {\env -> putStrFS ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
+                 case lookupVar $3 env of
+                    Just (F f) -> 
+                      let disj = getDisjuncts f in
+                      if length disj == length $6 then
+                        let grouped = groupDisjuncts (zip disj $6) (nub $6) (replicate (length (nub $6)) fFalse) in
+                        mapM (\x -> hull x) grouped >>= \hulled ->
+                        return (F (fOr hulled))
+                      else
+                        error ("Length of the list " ++ show $6 ++ " is different than the number of disjuncts in formula.")
+                    _ -> error ("First argument of manualhull is not a formula.")
+                      
+        }
   | widen '(' lit ',' lit ',' lit ')' 
         {\env -> putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
@@ -191,6 +200,18 @@ Rhs:
                       return (F f2)
                    _ -> error ("Argument of hull is not a valid formula\n")
          }
+  | pairwisecheck lit
+        {\env -> putStrFS ("PairwiseCheck "++ $2) >>
+                 case lookupVar $2 env of
+                   Just (F f) -> 
+                      pairwiseCheck f >>= \fsimpl ->
+                      return (F fsimpl)
+                   _ -> error ("Argument of pairwisecheck is not a valid formula "++$2++"\n")
+        }
+
+LInt::{[Int]}
+LInt: intNum {[$1]}
+  | intNum ',' LInt {$1:$3}
 
 Formula: QFormula  {$1}
   | '(' Formula ')' {$2}
@@ -356,4 +377,17 @@ lookupVar lit [] = Nothing
 lookupVar lit env@((v,f):rest) | (lit == v) = Just f
   | otherwise = lookupVar lit rest
 
+groupDisjuncts:: [(Formula,Int)] -> [Int] -> [Formula] -> [Formula]
+groupDisjuncts [] uniqueIds partialFormulae = partialFormulae
+groupDisjuncts ((d,groupId):disj) uniqueIds partialFormulae =
+  let ix = fromJust (elemIndex groupId uniqueIds) in
+  let newPartialFormulae = updateList partialFormulae ix (Or [partialFormulae!!ix,d]) in
+  groupDisjuncts disj uniqueIds newPartialFormulae
+  
+--updateList:: [a] -> (Int,a) -> [a]
+--updateList xs (i,upd) = updateList1 xs (i,upd) 0
+--  where
+--  updateList1 xs (i,upd) j = 
+--    if (i==j) then upd:(tail xs)
+--    else updateList1 (tail xs) (i,upd) (j+1)
 }
