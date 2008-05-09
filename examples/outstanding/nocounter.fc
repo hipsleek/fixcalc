@@ -2,7 +2,7 @@
 #  if (x<=0) then { x }
 #  else { fcnt(x-2) }
 #}
-
+ 
 fcnt:={[x] -> [res] -> [x]: exists(PRMx: x<=0 && res=x || x>0 && exists(x1: x1=x-2 && fcnt(x1,res)))};
 
 #SelHull makes the correct choice. F2W is a precise fixpoint: (-1<=res<=0 && x >= 1) || (0 >= x && x = res))

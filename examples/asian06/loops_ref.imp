@@ -2,9 +2,8 @@
 
 ---------------------------------------------------------
 ----Basic examples:
---INF: (x'<=x && x'<=0)
---DISJ:(x<=0 && x'=x) || (x>0 && x'=0) (precise! with first widening: widen(F2,F3))
---DISJ:(x<=0 && x'=x) || (x'=0) (imprecise! with first widening: widen(F1,F2))
+--CONJ: (x'<=x && x'<=0)
+--DISJ:(x<=0 && x'=x) || (x>0 && x'=0)
 --INV: (0<=x^<x)
 void mnD1(ref int x) {
   if (x>0) then {
@@ -19,7 +18,7 @@ void loop_mnD1(int x){
   }}
 }
 
---INF: (res<=0 && res<=x)
+--CONJ:(res<=0 && res<=x)
 --DISJ:(x<=0 && res=x) || (x>0 && res=0)
 int mnD2(int x) {
   if (x>0) then {
@@ -28,7 +27,7 @@ int mnD2(int x) {
 } 
 
 
---INF: (1>=x-x'>=0)
+--CONJ:(1>=x-x'>=0)
 --DISJ:(x<=0 && x'=x) || (x>0 && x-x'=1)
 void mnD3(ref int x) {
   if (x>0) then {
@@ -159,25 +158,3 @@ Int f(Int x) {
   if (x=0) then { 0 }
   else { 2+f(x) }
 }
-
---needs a counter? (see email)
---DISJ-PREVIOUS_IMPL(with selHull): (res=x && res<=0 || x>=1)
---TD-PREVIOUS_IMPL: (x'>=-1 && x-x'>=2)
---DISJ-EXPECTED: (x<=0 & res=x \/ x>=1 & -1<=res<=0)
---DISJ: (x<=0 && res=x) || (-1<=res<=0 && x>=res+2) (stronger than DISJ-EXPECTED)
---CONJ: (res<=x && res<=0)
---INV: (-1<=x^<x-1)
-Int fcnt(Int x) {
-  if (x<=0) then { x }
-  else { fcnt(x-2) }
-}
-
---with counter
---TD-PREVIOUS_IMPL: (x-x'=2(cnt-cnt') && cnt-cnt'>=1 && x+1>=2(cnt-cnt'))
---DISJ-EXPECTED: (x<=0 & res=x \/ x>=1 & -1<=res<=0 & ex k. k>=0 & res+2k=x)
---DISJ: (x<=0 && res=x || -1<=res<=0 && x>=res+2)
---CONJ: (res<=x && res<=0)
-Int fcnt2(Int x,Int cnt) {
-  if (x<=0) then { x }
-  else { fcnt2(x-2,cnt-1) }
-} 
