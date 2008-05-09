@@ -7,8 +7,11 @@ Files:
 - ImpFixpoint2k.hs
 - FixCalc.txt
 ===================
-#keywords: subset, bottomup, selhull, manualhull, widen, fixtestPost, fixtestInv, SimHeur, HausHeur
-#Sample
+Keywords: 
+bottomup, topdown, selhull, manualhull, widen, fixtestPost, fixtestInv, SimHeur, HausHeur
+subset, intersection, hull, PairwiseCheck
+
+Sample:
 
 changeM:={[s,n,i,h] -> [res] -> [s,n,i,h]: (i=h || changeM(s,n,i,h,res))};
 F1:={[s,n,i,h,res]: 0=1};
