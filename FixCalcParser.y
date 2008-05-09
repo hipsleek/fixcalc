@@ -75,49 +75,56 @@ LCommand:
 Command::{RelEnv -> FS RelEnv}
 Command:
     lit ':=' ParseFormula ';'                                    
-        {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
-                 $3 env >>= \rhs -> 
-                 case rhs of {R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
-                 return (extendRelEnv env ($1,renamedRHS))}
+    {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
+             $3 env >>= \rhs -> 
+             case rhs of {
+               R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
+               F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
+             return (extendRelEnv env ($1,renamedRHS))}
   | ParseFormula ';'                                           
-        {\env -> $1 env >>= \rhs -> case rhs of
-                   (F f) -> 
-                      simplify f >>= \fsimpl ->
-                      putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
-                   (R recpost) -> 
-                      putStrFS ("\n" ++ show recpost ++ "\n") >> return env
-        }
+    {\env -> $1 env >>= \rhs -> case rhs of
+               (F f) -> 
+                  simplify f >>= \fsimpl ->
+                  putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
+               (R recpost) -> 
+                  putStrFS ("\n" ++ show recpost ++ "\n") >> return env
+    }
   | fixtestpost '(' lit ',' lit ')' ';'
-        {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
-                 case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (R recpost),Just (F f)) ->
-                      fixTestBU recpost f >>= \fixok -> 
-                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
-                   (_,_) -> error ("Arguments of fixtest are incorrect")}
+    {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
+             case (lookupVar $3 env,lookupVar $5 env) of
+               (Just (R recpost),Just (F f)) ->
+                  fixTestBU recpost f >>= \fixok -> 
+                  putStrFS("\n" ++ show fixok ++ "\n") >> return env
+               (_,_) -> error ("Arguments of fixtest are incorrect")}
   | fixtestinv '(' lit ',' lit ')' ';'
-        {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
-                 case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (R recpost),Just (F f)) ->
-                      getOneStep recpost fTrue >>= \oneStep ->
-                      fixTestTD oneStep f >>= \fixok -> 
-                      putStrFS("\n" ++ show fixok ++ "\n") >> return env
-                   (_,_) -> error ("Arguments of fixtestInv are incorrect")}
+    {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
+             case (lookupVar $3 env,lookupVar $5 env) of
+               (Just (R recpost),Just (F f)) ->
+                  getOneStep recpost fTrue >>= \oneStep ->
+                  fixTestTD oneStep f >>= \fixok -> 
+                  putStrFS("\n" ++ show fixok ++ "\n") >> return env
+               (_,_) -> error ("Arguments of fixtestInv are incorrect")}
   | lit subset lit ';'                                
-        {\env -> putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
-                 case (lookupVar $1 env,lookupVar $3 env) of
-                   (Just (F f1),Just (F f2)) ->
-                      subset f1 f2 >>= \subok -> 
-                      putStrFS("\n" ++ show subok ++ "\n") >> 
-                      return env
-                   (_,_) -> error ("Argument of subset is not a valid formula\n")
-         }
+    {\env -> putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
+             case (lookupVar $1 env,lookupVar $3 env) of
+               (Just (F f1),Just (F f2)) ->
+                  subset f1 f2 >>= \subok -> 
+                  putStrFS("\n" ++ show subok ++ "\n") >> 
+                  return env
+               (_,_) -> error ("Argument of subset is not a valid formula\n")
+     }
+  | lit ';'
+    {\env -> putStrFS("# "++ $1 ++ ";") >>
+             case lookupVar $1 env of 
+               Just (R recpost) -> putStrFS("\n" ++ show recpost ++ "\n") >> return env
+               Just (F f) -> putStrFS("\n" ++ show f ++ "\n") >> return env
+               Nothing -> error ("Variable not declared - "++$1++"\n")
+    }
+
                      
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
-    lit
-                  {\env -> case lookupVar $1 env of {Just value -> return value;
-                                                     Nothing -> error ("Variable not declared - "++$1++"\n")}}
-  | '{' '[' LPorUSizeVar ']' ':' Formula '}'      
+    '{' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFS ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
