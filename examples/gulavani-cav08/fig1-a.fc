@@ -23,10 +23,13 @@ i1=i+1 &&
  || (x>=y && Px=x && Pi=i && Pz=z)
 )}; # replace x>z by a "*" 
 
-Fix:=bottomup(loop2,2,SimHeur);Fix; 
+FixB2:=bottomup(loop2,2,SimHeur);FixB2; 
+FixB3:=bottomup(loop2,3,SimHeur);FixB3; 
 
-Fix3 subset Fix;
-Fix subset Fix3; #Both Fix2 and Fix3 are incomparable with Fix
+Fix3 subset FixB3;
+FixB3 subset Fix3; #Both Fix2 and Fix3 are incomparable with Fix
 
-fixtestPost(loop2,Fix);
+fixtestPost(loop2,FixB3);
+FixB3 subset FixB2;
+FixB2 subset FixB3;
 
