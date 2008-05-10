@@ -1,0 +1,33 @@
+# Simplified constraint-abstraction from example p1 from Gulavani's paper in CAV'08 (without conditional on variable z).
+
+loop:={[x,i,z,y]->[Px,Pi,Pz] -> []: exists( i1,x1,z1:
+i1=i+1 &&
+(x<y && ((z>x && x1=x+1 && z1=z) || (z<=x && x1=x && z1=z+1)) 
+   && loop(x1,i1,z1,y,Px,Pi,Pz))
+ || (x>=y && Px=x && Pi=i && Pz=z)
+)};
+
+F0:={[]:0=1};
+one:=loop(F0);
+one;
+
+Fix1:=bottomup(loop,1,SimHeur);Fix1;
+Fix2:=bottomup(loop,2,SimHeur);Fix2; # Fix2 is more precise than Fix1
+
+loop2:={[x,i,z,y]->[Px,Pi,Pz] -> []: exists( i1,x1,z1:
+i1=i+1 &&
+(x<y && ((x1=x+1 && z1=z) || (x1=x && z1=z+1)) 
+   && loop2(x1,i1,z1,y,Px,Pi,Pz))
+ || (x>=y && Px=x && Pi=i && Pz=z)
+)};
+
+Fix3:=bottomup(loop2,2,SimHeur);Fix3; # Fix2 is more precise than Fix1
+
+Fix2 subset Fix3;
+Fix3 subset Fix2;
+
+t3:=loop2(Fix3);
+t2:=loop(Fix2);
+t3 subset Fix3;
+t2 subset Fix2;
+Fix2;Fix3;
