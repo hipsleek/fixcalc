@@ -7,7 +7,14 @@ i1=i+1 &&
  || (x>=y && Px=x && Pi=i && Pz=z)
 )};
 
-Fix2:=bottomup(loop,2,SimHeur);Fix2; # Fix2 is more precise than Fix1
+Fix2:=bottomup(loop,2,SimHeur);Fix2; 
+Fix3:=bottomup(loop,3,SimHeur);Fix3; #Fix3 is more precise than Fix2
+Fix2 subset Fix3;
+Fix3 subset Fix2;
+
+fixtestPost(loop,Fix2);
+fixtestPost(loop,Fix3);
+
 
 loop2:={[x,i,z,y]->[Px,Pi,Pz] -> []: exists( i1,x1,z1:
 i1=i+1 &&
@@ -16,11 +23,10 @@ i1=i+1 &&
  || (x>=y && Px=x && Pi=i && Pz=z)
 )}; # replace x>z by a "*" 
 
-Fix3:=bottomup(loop2,2,SimHeur);Fix3; 
+Fix:=bottomup(loop2,2,SimHeur);Fix; 
 
-Fix2 subset Fix3;
-Fix3 subset Fix2;
+Fix3 subset Fix;
+Fix subset Fix3; #Both Fix2 and Fix3 are incomparable with Fix
 
-fixtestPost(loop,Fix2);
-fixtestPost(loop,Fix3);
+fixtestPost(loop2,Fix);
 
