@@ -45,6 +45,7 @@ data AnnoType = PrimInt {anno:: Maybe Anno}
   | PrimFloat {anno:: Maybe Anno}
   | ArrayType {elemType::AnnoType, indxTypes::[AnnoType]}
   | TopType {anno:: Maybe Anno}
+
 type Anno = String
 -------Exp-------------------------
 data Exp = KTrue
@@ -86,9 +87,6 @@ cond (x1:x2:xs) = head xs
 -- Types for 3Contexts version
 
 -------Formula---------------------
-data CAbst = CAbst Lit [QSizeVar] Formula 
--- ^This CAbst type was used in the old fixpoint procedure. It is deprecated, 
--- since it requires retrieving what are the size variables passed by val or passed by ref from the corresponding MethDecl.
 data RecPost = RecPost Lit Formula ([QSizeVar],[QSizeVar],[QSizeVar])
 -- ^This is the type that corresponds to a constraint abstraction.
 -- Its arguments are: name body (inputs,outputs,imperByValue).
@@ -105,7 +103,6 @@ data Formula = And [Formula]
   | AppRecPost Lit [QSizeVar]
 -- deprecated Constructors: do not use them anymore
   | Forall [QSizeVar] Formula
-  | AppCAbst Lit [QSizeVar] [QSizeVar]
   | Union [Formula]
   | FormulaBogus
   deriving Eq
@@ -249,7 +246,6 @@ fqsv f = nub $ case f of
       inside \\ otherSVs
   GEq ups -> fqsvU ups 
   EqK ups -> fqsvU ups 
-  AppCAbst lit otherSVs resultSVs -> otherSVs `union` resultSVs
   AppRecPost lit insouts -> insouts
   FormulaBogus -> []
   _ -> error ("fqsv: unexpected argument: " ++ show f)
@@ -401,17 +397,17 @@ instance ShowImpp MethDecl where
     let ((passby,t,fname):args) = methParams m in
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
-    "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
-    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
-    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
+--    "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
+--    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
+--    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
 -- printing NEVER/MUST/MAY is expensive. For benchmark evaluation is disabled:
-      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
-      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
-      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
+--      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
+--      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
+--      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
     passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ 
---    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ 
---    "),\n  {" ++ showImpp (methPres m) ++ "},\n  {" ++ showImpp (methUpsis m) ++ "}," ++ 
-    "\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
+    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ "),\n  {" ++ showImpp (methPres m) ++ 
+    "},\n  {" ++ showImpp (methUpsis m) ++ "},\n  (" ++ showImpp (methInv m) ++ 
+    "),\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 instance ShowImpp PrimDecl where
   showImpp p = 
@@ -552,7 +548,6 @@ instance ShowImpp Formula where
       let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map showImpp lhs_terms) in
       let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map showImpp rhs_terms_pos) in
       lhs ++ " = " ++ rhs
-  showImpp f@(AppCAbst lit vars resVars) = error $ "AppCAbst should not appear in Impp form" ++ show f
   showImpp f@(AppRecPost lit insouts) = error $ "RecPost should not appear in Impp form" ++ show f
   showImpp (FormulaBogus) = "--bogus--"
 
@@ -593,10 +588,6 @@ showImppMethForChecking m =
         "},\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 -------Show Formula----------------
-instance Show CAbst where
-  show (CAbst fname ins formula) = 
-    fname ++ "<" ++ concatSepBy "," (map show ins) ++ "> = (" ++ show formula ++ ")"
-
 instance Show RecPost where
   show (RecPost fname formula (ins,outs,byVal)) = 
     fname ++ ":={[" ++ concatSepBy "," (map show ins) ++ "] -> [" ++ concatSepBy "," (map show outs) ++ "] -> [" ++ concatSepBy "," (map show byVal) ++ "]: (" ++ show formula ++ ")};\n"
@@ -637,7 +628,6 @@ instance Show Formula where
         let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map show lhs_terms) in
         let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map show rhs_terms_pos) in
         lhs ++ " = " ++ rhs
-    show (AppCAbst lit vars resVars) = lit ++ "(" ++ concatSepBy "," (map show (vars `union` resVars)) ++ ")"
     show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map show insouts) ++ ")"
     show (FormulaBogus) = "--bogus--"
 
@@ -700,12 +690,7 @@ printProgImpi:: Prog -> FS ()
 printProgImpi prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".impi" in
-	let io = 
---	      let upsis = getUpsisFromProg prog in
---	      putStrLn ("## " ++ show (snd upsis) ++ " runtime tests. " ++ (fst upsis)) >>
-	      writeFile outFile (showImpp prog)
-	  in
-	  unsafePerformIO io `seq` return ()
+  (unsafePerformIO $ writeFile outFile (showImpp prog)) `seq` return ()
 
 printProgC:: Prog -> FS()
 printProgC prog = 

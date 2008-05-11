@@ -144,7 +144,6 @@ impToOmF (EqK ups) = Omega.Eq (map impToOmU ups)
 impToOmF (GEq ups) = Omega.Geq (map impToOmU ups)
 impToOmF (Exists qsvs f) = Omega.And [Omega.exists_vars_in_formula (map (\q -> show q) qsvs) (impToOmF f)]
 impToOmF (Forall qsvs f) = Omega.And [Omega.forall_vars_in_formula (map (\q -> show q) qsvs) (impToOmF f)]
-impToOmF f@(AppCAbst name _ _) = error $ "Formula to be passed to Omega contains an AppCAbst:\n"++show f
 impToOmF f@(AppRecPost name _) = error $ "Formula to be passed to Omega contains an AppRecPost:\n"++show f
 
 impToOmU:: Update -> Omega.Update

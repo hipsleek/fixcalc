@@ -92,8 +92,8 @@ Void loop_i_1(Int j, Int i, Int n, Float[Int] a, Float[Int] b)
 {
   if (i<n) 
 	then {
-		    float t1 := subF(a,mul(201,j)+i); --better for PostPD: BUfixpoint will be able to infer upper bound for i
---		    float t1 := subF(a,mul201(j)+i); 
+--		    float t1 := subF(a,mul(201,j)+i); --better for PostPD: BUfixpoint will be able to infer upper bound for i
+		    float t1 := subF(a,mul201(j)+i); 
 		    float temp := plusFF(subF(b,i),t1);
 		    assignF(b,i,temp);
 		    loop_i_1(j,i+1,n,a,b)
@@ -110,7 +110,6 @@ Void init_arrFF(Float[Int] a, Int i, Int j, Float val)
 		    init_arrFF(a,i+1,j,val)
 	     }
 }
-
 
 int dgefa(float [int] a, int i1, int n, int [int] ipvt)
 {
@@ -546,12 +545,10 @@ void dmxpy_mainloop2(int i, int j, int n1, float [int] y, float [int] x, float [
 float loop15 (int n, int i, int j, float [int] x, float [int] m, float s)
 { if (n<=15)
 	then { 
-		float tn := subF(m,mul(201,j-n)+i);
---		float tn := subF(m,mul201(j-n)+i);
+--		float tn := subF(m,mul(201,j-n)+i);
+		float tn := subF(m,mul201(j-n)+i);
 		float t1 := mulFF(subF(x,j-n),tn); 
 	        loop15(n+1,i,j,x,m,plusFF(s,t1))
 	}
 	else {s}
 }
-
-

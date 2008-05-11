@@ -108,10 +108,8 @@ Int<c> mul(Int<a>a,Int<b> b)
 Int<c> mul2(Int<a>a)
 	where (c=2a && a=a'),{},{}
 
---Int<c> mul201(Int<a>a)
---	where (a=a' && c=201a),{},{}
 Int<c> mul201(Int<a>a)
-	where (a=a' ),{},{}
+	where (a=a' && c=201a),{},{}
 
 Int<c> div2(Int<a>a) -- returns (a divided by 2)
 	where (2c<=a<=2c+1 && a=a'),{},{}

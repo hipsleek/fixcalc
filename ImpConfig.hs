@@ -11,11 +11,11 @@ module ImpConfig(
   FixFlags,
   defaultFlags,
   noExistentialsInDisjuncts,
-  useFixpoint2k  
+  simulateOldFixpoint
 ) where
 
 data Hull = Hull | ConvexHull deriving Show
-data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD deriving (Show,Eq)
+data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD | DualPD deriving (Show,Eq)
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
 type FixFlags = (Int,Heur)
 data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur | SimInteractiveHeur deriving (Show,Eq)
@@ -37,8 +37,7 @@ data Flags = Flags {
 ---- derive 2 stronger preconditions that need specialization for recursive functions
 ---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
-  useAnnotatedFixpoint:: Bool, -- ^Use the annotated fixpoint where it is provided. Default is False.
-  useSelectiveHull:: Bool, -- Old by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
+  useSelectiveHull:: Bool, -- ^Used by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
   widenEarly:: Bool -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
 } deriving Show
 
@@ -48,18 +47,16 @@ defaultFlags = Flags {
   isIndirectionIntArray = False,
   outputFile = "a",
   showDebugMSG = 0,
-  prederivation = PostPD,
+  prederivation = DualPD,
   postcondition = StrongPost, 
   traceIndividualErrors = False,
   fixFlags = (5,SimilarityHeur),
   whatHull = Hull,
   separateFstFromRec = False,
-  useAnnotatedFixpoint = True, 
   useSelectiveHull = False,
   widenEarly = True
 }
 
-
-useFixpoint2k = True
 noExistentialsInDisjuncts = True
-
+simulateOldFixpoint = False 
+-- ^The disjunctive fixpoint procedure implemented before ASIAN'06 (no affinity, only separate base from recursive).

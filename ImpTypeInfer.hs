@@ -4,14 +4,13 @@
    
    The functions mkChk and mkChkRec decide whether a check is safe, unsafe or partially-safe.
 -}
-module ImpTypeInfer(typeInferProg) where
+module ImpTypeInfer(methAdjacencies,typeInferSccs) where
 import Fresh
 import ImpAST
 import ImpConfig
 import ImpFormula
-import ImpFixpoint(fixpoint)
 import ImpFixpoint2k(fixpoint2k)
-import ImpOutInfer(outInferSccs,RecFlags)
+import ImpOutInfer(RecFlags)
 import ImpTypeCommon
 import MyPrelude
 -----------------
@@ -20,17 +19,6 @@ import List(union,unzip4,(\\),nub)
 import Maybe(catMaybes,fromJust)
 import Monad(when)
 
-typeInferProg:: Prog -> FS Prog
-typeInferProg prog@(Prog _ prims meths) = 
-  let sccs = stronglyConnComp (methAdjacencies meths) in
-    addOmegaStr "Starting inference..." >>
-    getCPUTimeFS >>= \time1 -> 
-  outInferSccs prog sccs >>= \infProg -> 
---  typeInferSccs prog sccs >>= \infProg -> 
-    getCPUTimeFS >>= \time2 ->
---    putStrFS ("Array-bounds inference...done in " ++ showDiffTimes time2 time1) >> 
-    addOmegaStr "Inference is finished..." >>
-  return infProg
 
 typeInferSccs:: Prog -> [SCC Node] -> FS Prog
 typeInferSccs prog [] = return prog
@@ -45,13 +33,13 @@ typeInferScc prog scc =
       putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
       typeInferMethDeclNonRec prog mDecl >>= \updProg -> 
       getCPUTimeFS >>= \time2 ->
-      putStrFS ("###Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1++"###") >> 
+      putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
       return updProg
     CyclicSCC mDecls ->
       if (length mDecls /= 1) then error "Mutual recursion is not implemented"
       else
         let mDecl = (head mDecls) in
-        putStrFS ("###Inferring " ++ methName mDecl ++ "...###") >> getCPUTimeFS >>= \time1 ->
+        putStrFS ("Inferring " ++ methName mDecl ++ "...") >> getCPUTimeFS >>= \time1 ->
         typeInferMethDeclRec prog mDecl >>= \updProg -> 
         getCPUTimeFS >>= \time2 ->
         putStrFS ("Inferring " ++ methName mDecl ++ "...done in " ++ showDiffTimes time2 time1) >> 
@@ -61,7 +49,7 @@ typeInferMethDeclRec:: Prog -> MethDecl -> FS Prog
 typeInferMethDeclRec prog m =
   getFlags >>= \flags ->  
   let ((passbyM,t,fname):args) = methParams m in
-  addOmegaStr ("Inference for recursive " ++ fname) >>
+  addOmegaStr ("# Inference for recursive " ++ fname) >>
   setsForParamPassing (Meth m) >>= \(inputs,outputs,res,qsvByRef,qsvByVal) ->
   let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
 --phase 1
@@ -73,18 +61,13 @@ typeInferMethDeclRec prog m =
       mapM (debugApply rho) delta >>= \deltap ->
       let delta1 = map (\ctx -> Exists (primeTheseQSizeVars qsvByVal) ctx) deltap in
       let delta2 = case postcondition flags of { WeakPost -> weak delta1; StrongPost -> strong delta1} in
-      let recCAbst = CAbst fname (inputs `union` res) delta2 in
       let recPost = RecPost fname delta2 (inputs,outputs,qsvByVal) in
-        (if useFixpoint2k then fixpoint2k m recPost else fixpoint m recCAbst) >>= \(fixedPost,fixedInv) ->
-        (if useFixpoint2k then applyRecToPrimOnInvariant fixedInv else return fixedInv) >>= \inv ->
--- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed
-        let noXPost = if useFixpoint2k then fixedPost
-                      else fAnd [fExists (primeTheseQSizeVars qsvByVal) fixedPost,noChange qsvByVal] 
-                      in
+        fixpoint2k m recPost >>= \(fixedPost,fixedInv) ->
+        applyRecToPrimOnInvariant fixedInv >>= \inv ->
         let preFromPost = if prederivation flags == PostPD 
                           then [(["lPost"],fExists outputs fixedPost)]
                           else [] in
-        let fixedM = m{methPost=(triple noXPost),methInv=inv,methPres=preFromPost} in
+        let fixedM = m{methPost=(triple fixedPost),methInv=inv,methPres=preFromPost} in
         let fixedProg = updateMethDecl prog fixedM in
           let deltaInit1 = fAnd (deltaInit:snd (unzip preFromPost)) in -- preFromPost is assumed to be true!
           typeInferExp fixedProg (methBody fixedM) fname inputs gamma (triple deltaInit1) (2,[fname]) >>= \(_,_,newPres,newUpsis) ->
@@ -93,7 +76,7 @@ typeInferMethDeclRec prog m =
 typeInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
 typeInferMethDeclNonRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
-  addOmegaStr ("Inference for " ++ fname) >>
+  addOmegaStr ("# Inference for " ++ fname) >>
   setsForParamPassing (Meth m) >>= \(v,outputs,_,qsvByRef,qsvByVal) ->
   let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
   typeInferExp prog (methBody m) fname v gamma (triple deltaInit) (0,[]) >>= \(tp,delta,newPres,newUpsis) ->
@@ -102,23 +85,20 @@ typeInferMethDeclNonRec prog m =
     Nothing -> error $ "incompatible types\nfound "++showImpp tp++ "\nrequired: "++showImpp t++"\n "++showImpp m
     Just rho -> 
           mapM (debugApply rho) delta >>= \deltap ->
-          let delta1 = if useFixpoint2k 
-                       then map (\ctx -> fExists (primeTheseQSizeVars qsvByVal) ctx) deltap
-                       else map (\ctx -> fAnd [fExists (primeTheseQSizeVars qsvByVal) ctx,noChange qsvByVal]) deltap 
-                       in
+          let delta1 = map (\ctx -> fExists (primeTheseQSizeVars qsvByVal) ctx) deltap in
           mapM simplify delta1 >>= \delta2 -> 
           getFlags >>= \flags -> 
           if prederivation flags == PostPD then 
             let preFromPost = [(["lPost"],fExists outputs (strong delta2))] in
           	ctxImplication [] (snd (head preFromPost)) fFalse >>= \impliesF -> 
           	when impliesF (putStrFS ("## Definite error in function "++fname)) >> 
-            let fixedM = m{methPost=delta2,methPres=preFromPost,methUpsis=[]} in
+            let fixedM = m{methPost=delta2,methInv=fTrue,methPres=preFromPost,methUpsis=[]} in
             let fixedProg = updateMethDecl prog fixedM in
             let deltaInit1 = fAnd (deltaInit:snd (unzip preFromPost)) in -- preFromPost is assumed to be true!
             typeInferExp fixedProg (methBody fixedM) fname v gamma (triple deltaInit1) (0,[]) >>= \(tp,delta,newPres,newUpsis) ->
             return (updateMethDecl fixedProg fixedM{methUpsis=newUpsis})
           else 
-            return (updateMethDecl prog m{methPost=delta2,methPres=newPres,methUpsis=newUpsis})
+            return (updateMethDecl prog m{methPost=delta2,methInv=fTrue,methPres=newPres,methUpsis=newUpsis})
 
 -- Program -> Exp -> Method_name -> Variables_to_Quantify -> Type_Environment -> RecFlags
 -- -> (Type_for_exp,Context,Preconditions,RuntimeExps)
@@ -295,7 +275,7 @@ typeInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v
           let gammap = extendTypeEnv gamma (lit,ty) in
           impFromTyEnv gammap >>= \u ->
           let delta1p = map (\context -> fAnd[context,sndComp]) fstComp in
-            addOmegaStr ("=========\nDuring inference: declaration of array " ++ lit ++ "\n=========") >>
+            addOmegaStr ("# During inference: declaration of array " ++ lit) >>
             initialTransFromTyEnv gamma >>= \invFromGamma ->
             mkChks v u delta1 invFromGamma checks >>= \(phisp,errs) ->
               fsvTy tp >>= \x ->
@@ -314,7 +294,7 @@ typeInferExp prog exp@(ExpBlock varDecls e1) mn v gamma delta recFlags =
 -------Call------------------------
 typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent) 
   mn v gamma delta (wPhase,sccFs) =
-  addOmegaStr ("=========\nDuring inference: call to " ++ fName ++ "\n=========") >>
+  addOmegaStr ("# During inference: call to " ++ fName) >>
   let getArgsTypes = \argIdent -> 
         case argIdent of
           ExpVar lit -> case lookupVar lit gamma of{Just ty -> ty;Nothing -> error $ "undefined variable " ++ lit ++ " in function " ++ mn ++ "\n "++showImppTabbed exp 1}
@@ -330,10 +310,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
           Nothing -> error $ "call to undefined function " ++ fName ++ "\n " ++ showImppTabbed exp 1
           Just (Meth m) -> 
             setsForParamPassing (fromJust calleeDef) >>= \(_,_,_,_,qsvByVal) ->
-            let delta = if useFixpoint2k  --for fixpoint2k: add noX(qsvByVal) to method postcondition
-                        then map (\ctx -> fAnd [ctx,noChange qsvByVal]) (methPost m)
-                        else (methPost m) 
-            in
+            let delta = map (\ctx -> fAnd [ctx,noChange qsvByVal]) (methPost m) in
             return (fst3(unzip3(methParams m)),snd3(unzip3(methParams m)),delta,methPres m)
           Just (Prim p) -> 
             let strongPost = And ((primPost p):(map (\(lbl,f) -> f) (primPres p))) in
@@ -367,10 +344,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
             let methForSets = (case (fromJust calleeDef) of {Meth m -> m;_->error ""}){methParams=zp} in
             setsForParamPassing (Meth methForSets) >>= \(inputs,outputs,res,_,qsvByVal) ->
             let insouts = inputs `union` outputs in
--- NOT TRUE: If assignments to pass-by-value parameters are disallowed in the method body: adding explicit noChange is not needed
-            let delta1 = if useFixpoint2k 
-                         then (And [noChange qsvByVal,AppRecPost fName insouts])
-                         else (And [noChange qsvByVal,AppCAbst fName inputs res]) in
+            let delta1 = (And [noChange qsvByVal,AppRecPost fName insouts]) in
             mapM (\context -> composition w context delta1) delta >>= \delta2 ->
             return $ (typ,delta2,[],[]) -- when wPhase is 1, pres and upsis are not collected
           else
@@ -418,23 +392,23 @@ mkChk:: [QSizeVar] -> [QSizeVar] -> [Formula] -> Formula -> LabelledFormula -> F
 mkChk v u [deltaS,deltaW,deltaC] typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then 
-          addOmegaStr (showImpp lbl) >>
-          addOmegaStr ("Total redundant check?") >> ctxImplication u deltaS phi >>= \impliesT ->
+          addOmegaStr ("# Is " ++ showImpp lbl ++ " a total redundant check?") >> 
+          ctxImplication u deltaS phi >>= \impliesT ->
           if impliesT then 
             return (Nothing,Nothing)
           else return (Nothing,Just lbl)
       else
-  addOmegaStr (showImpp lbl) >>
-  addOmegaStr ("Total redundant check?") >> ctxImplication u deltaS phi >>= \impliesT ->
+  addOmegaStr ("# Is " ++ showImpp lbl ++ " a total redundant check?") >> 
+  ctxImplication u deltaS phi >>= \impliesT ->
   if impliesT then return (Nothing,Nothing)
   else 
     mapM hull [deltaS,deltaW,deltaC] >>= \[deltaSH,deltaWH,deltaCH] ->
     let toGistWith = case prederivation flags of { WeakPD -> typeInv; StrongPD -> deltaSH; SelectivePD -> deltaCH} in
     let ctx = case postcondition flags of {WeakPost -> deltaWH; StrongPost -> deltaSH} in
-    addOmegaStr ("gist PHI given CTX ") >> ctxSimplify v u ctx phi toGistWith >>= \simple ->
-  	addOmegaStr ("gisted PHI subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
+    addOmegaStr ("# gist PHI given CTX ") >> ctxSimplify v u ctx phi toGistWith >>= \simple ->
+  	addOmegaStr ("# gisted PHI subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
     if impliesF then return (Nothing,Just lbl)
-    else addOmegaStr ("propagate gisted PHI") >> return (Just (lbl,simple),Nothing)
+    else addOmegaStr ("# propagate gisted PHI") >> return (Just (lbl,simple),Nothing)
 
 -------MkChkRec--------------------
 mkChksRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> [Formula] -> Formula -> Formula -> [LabelledFormula] -> FS ([LabelledFormula],[QLabel])
@@ -447,18 +421,18 @@ mkChkRec:: [QSizeVar] -> [QSizeVar] -> [QSizeVar] -> [AnnoType] -> [Formula] -> 
 mkChkRec v u uRec typs [deltaS,deltaW,deltaC] inv typeInv (lbl,phi) = 
   getFlags >>= \flags ->  
       if prederivation flags == PostPD then -- prederivation using necessary preconditions
-          addOmegaStr (showImpp lbl) >>
           equateNonImpToPrim typs >>= \nonImpToPrim ->
           let ctxRec = fExists v (fAnd [deltaS,nonImpToPrim]) in
-          addOmegaStr ("Total redundant check?") >> ctxImplication uRec ctxRec phi >>= \impliesT ->
+          addOmegaStr ("# Is " ++ showImpp lbl ++ " a total redundant check?") >> 
+          ctxImplication uRec ctxRec phi >>= \impliesT ->
           if impliesT then 
             return (Nothing,Nothing)
           else return (Nothing,Just lbl)
       else
-  addOmegaStr (showImpp lbl) >>
   equateNonImpToPrim typs >>= \nonImpToPrim ->
   let ctxRec = fExists v (fAnd [deltaS,nonImpToPrim]) in
-  addOmegaStr ("Total redundant check?") >> ctxImplication uRec ctxRec phi >>= \impliesT ->
+  addOmegaStr ("# Is " ++ showImpp lbl ++ " a total redundant check?") >> 
+  ctxImplication uRec ctxRec phi >>= \impliesT ->
   if impliesT then return (Nothing,Nothing)
   else
     mapM hull [deltaS,deltaW,deltaC] >>= \[deltaSH,deltaWH,deltaCH] ->
@@ -466,48 +440,48 @@ mkChkRec v u uRec typs [deltaS,deltaW,deltaC] inv typeInv (lbl,phi) =
     let ctxRecW = fAnd [inv,fExists v (fAnd [deltaWH,nonImpToPrim])] in
     let ctxRecC = fAnd [inv,fExists v (fAnd [deltaCH,nonImpToPrim])] in
     mapM simplify [ctxRecS,ctxRecW,ctxRecC] >>= \[ctxRecS,ctxRecW,ctxRecC] ->
-    addOmegaStr ("pR_cR = gist PHI_REC given CTX_REC") >> 
+    addOmegaStr ("# pR_cR = gist PHI_REC given CTX_REC") >> 
     let toGistWith = case prederivation flags of { WeakPD -> typeInv; StrongPD -> ctxRecS; SelectivePD -> ctxRecC} in
     let ctxRec = case postcondition flags of { WeakPost -> ctxRecW; StrongPost -> ctxRecS} in
     ctxSimplify v uRec ctxRec phi toGistWith >>= \simpleRecWithRec ->
-    addOmegaStr ("test the precondition: pR_cR && ctxFst => chk") >> 
+    addOmegaStr ("# test the precondition: pR_cR && ctxFst => chk") >> 
     ctxImplication u (And [simpleRecWithRec,deltaSH]) phi >>= \phiUseful ->
     if phiUseful then
       let simple = simpleRecWithRec in
-    	addOmegaStr ("pR_cR subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
+    	addOmegaStr ("# pR_cR subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
       if impliesF then return (Nothing,Just lbl)
-      else addOmegaStr ("propagate pR_cR") >> return (Just (lbl,simple),Nothing)
+      else addOmegaStr ("# propagate pR_cR") >> return (Just (lbl,simple),Nothing)
     else
       if separateFstFromRec flags then
-        addOmegaStr ("pF_cF = gist PHI_FST given CTX_FST ") >> 
+        addOmegaStr ("# pF_cF = gist PHI_FST given CTX_FST ") >> 
         let toGistWith = case prederivation flags of { WeakPD -> typeInv; StrongPD -> deltaSH; SelectivePD -> deltaCH} in
         let delta = case postcondition flags of { WeakPost -> deltaWH; StrongPost -> deltaSH } in
         ctxSimplify v u delta phi toGistWith >>= \simpleFstWithFst ->
-        addOmegaStr ("test the precondition: (pF_cF && pR_cR) && ctxFst => chk") >> 
+        addOmegaStr ("# test the precondition: (pF_cF && pR_cR) && ctxFst => chk") >> 
         ctxImplication u (And [simpleFstWithFst,simpleRecWithRec,deltaSH]) phi >>= \phiUseful ->
         if phiUseful then --even if phiUseful is True, specialization may be needed to type check the recursive function
           let simple = fAnd [simpleFstWithFst,simpleRecWithRec] in
-        	addOmegaStr ("(pF_cF && pR_cR) subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
+        	addOmegaStr ("# (pF_cF && pR_cR) subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
           if impliesF then return (Nothing,Just lbl)
-          else addOmegaStr ("propagate (pF_cF && pR_cR)") >> return (Just (lbl,simple),Nothing)
+          else addOmegaStr ("# propagate (pF_cF && pR_cR)") >> return (Just (lbl,simple),Nothing)
         else
-          addOmegaStr ("derived precondition does not type-check; so I propagate false")>> 
+          addOmegaStr ("# derived precondition does not type-check; so I propagate false")>> 
           return (Nothing, Just lbl)
       else
-        addOmegaStr ("pF_tI = gist PHI_FST given TYPE_INV ") >> 
+        addOmegaStr ("# pF_tI = gist PHI_FST given TYPE_INV ") >> 
         let toGistWith = typeInv in
         let delta = case postcondition flags of { WeakPost -> deltaWH; StrongPost -> deltaSH } in
         ctxSimplify v u delta phi toGistWith >>= \simpleFstWithSta ->
-        addOmegaStr ("test the precondition: (pF_tI && pR_cR) && ctxFst => chk") >> 
+        addOmegaStr ("# test the precondition: (pF_tI && pR_cR) && ctxFst => chk") >> 
         ctxImplication u (And [simpleFstWithSta,simpleRecWithRec,deltaSH]) phi >>= \phiUseful ->
         if phiUseful then
           let simple = fAnd [simpleFstWithSta,simpleRecWithRec] in
-        	addOmegaStr ("(pF_tI && pR_cR) subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
+        	addOmegaStr ("# (pF_tI && pR_cR) subset False?") >> ctxImplication [] simple fFalse >>= \impliesF ->
           if impliesF then return (Nothing,Just lbl)
           else
-              addOmegaStr ("propagate (pF_tI && pR_cR)") >> return (Just (lbl,simple),Nothing)
+              addOmegaStr ("# propagate (pF_tI && pR_cR)") >> return (Just (lbl,simple),Nothing)
         else
-          addOmegaStr ("derived precondition does not type-check; so I propagate false")>> 
+          addOmegaStr ("# derived precondition does not type-check; so I propagate false")>> 
           return (Nothing, Just lbl)
 
 -------Meth SCC--------------------

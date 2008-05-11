@@ -7,7 +7,7 @@ module ImpTypeChecker(typeCheckProg) where
 import Fresh(runFS,FS(),initialState,fresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS,
     incSafePrimChecks,incUnsafePrimChecks,getSafePrimChecks,getUnsafePrimChecks,incUnsafeUserChecks,getSafeUserChecks,getUnsafeUserChecks)
 import ImpAST 
-import ImpConfig(Flags,useFixpoint2k,Postcondition(..),postcondition)
+import ImpConfig(Flags,Postcondition(..),postcondition)
 import ImpFormula
 import ImpTypeCommon(setsForParamPassing,equate,freshTy,genLabelArr,initArrFormula,
    TypeEnv,extendTypeEnv,lookupVar,impFromTyEnv,impFromTy,initialTransFromTyEnv,initialTransFromTy)
@@ -20,24 +20,24 @@ import Maybe(fromJust)
 typeCheckProg:: Prog -> FS Prog
 typeCheckProg dsgProg@(Prog _ dsgPrims dsgMeths) = 
   getCPUTimeFS >>= \time1 ->
-  addOmegaStr "Starting checking..." >>
+  addOmegaStr "# Starting checking..." >>
   mapM (typeCheckMethDecl dsgProg) dsgMeths >>
   mapM (typeCheckPrimDecl dsgProg) dsgPrims >>
-  addOmegaStr "Checking is finished..." >>
+  addOmegaStr "# Checking is finished..." >>
 --    printProgImpp dsgProg >>
   getCPUTimeFS >>= \time2 ->
   getSafePrimChecks >>= \safePrim -> getUnsafePrimChecks >>= \unsafePrim -> getUnsafeUserChecks >>= \unsafeUser -> 
   let totalPrim = safePrim+unsafePrim in
   let unsafe = unsafePrim+unsafeUser in
-  putStrFS ("(TotalPrim, SafePrim, Unsafe) = (" ++ show totalPrim ++", "++show safePrim++", "++show unsafe++")") >>
-  putStrFS ("Array-bounds checking...done in " ++ showDiffTimes time2 time1) >> 
+--  putStrFS ("(TotalPrim, SafePrim, Unsafe) = (" ++ show totalPrim ++", "++show safePrim++", "++show unsafe++")") >>
+  putStrFS ("Pre/Post checking...done in " ++ showDiffTimes time2 time1) >> 
   return dsgProg
 
 -------Meth-Declare----------------
 typeCheckMethDecl:: Prog -> MethDecl -> FS ()
 typeCheckMethDecl prog m@MethDecl{methPres=pres,methPost=(post:_),methBody=eb} =
   let ((_,t,fname):args) = methParams m in
-  addOmegaStr ("Checking for " ++ fname) >>
+  addOmegaStr ("# Checking for " ++ fname) >>
   (setsForParamPassing (Meth m)) >>= \(v,_,w,_,qsvByVal) ->
   let fqsvFormulae = fqsv post `union` concatMap (\(lbl,pre) -> fqsv pre) pres in
   let qsvTypes = w `union` v in
@@ -55,14 +55,12 @@ typeCheckMethDecl prog m@MethDecl{methPres=pres,methPost=(post:_),methBody=eb} =
       Nothing -> error $ "incompatible types\nfound "++showImpp tp++ "\nrequired: "++showImpp t++"\n "++showImpp m
       Just rho ->
             debugApply rho delta2 >>= \delta2p ->
-            let infPost = if useFixpoint2k
-                          then fExists (primeTheseQSizeVars qsvByVal) delta2p
-                          else fAnd [fExists (primeTheseQSizeVars qsvByVal) delta2p,psi] in
+            let infPost = fExists (primeTheseQSizeVars qsvByVal) delta2p in
 ----check resulting postcondition
-            addOmegaStr ("Postcondition check ") >>
+            addOmegaStr ("# Postcondition check ") >>
             safeChk [] infPost (False,"","","") (["POST",fname],post) >>= \satisfied ->
             if not satisfied then 
-              putStrFS ("ERROR: inferred postcondition does not imply the given one for function " ++ fname)
+              putStrFS ("ERROR: postcondition possibly not established for function " ++ fname)
             else return ()
 ----check resulting postcondition
 
@@ -232,7 +230,7 @@ typeCheckExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn g
           let gammap = extendTypeEnv gamma (lit,ty) in
           impFromTyEnv gammap >>= \u ->
           let delta1p = fAnd[fstComp,sndComp] in
-            addOmegaStr ("=========\nDuring checking: declaration of array " ++ lit ++ "\n=========") >>
+            addOmegaStr ("# During checking: declaration of array " ++ lit) >>
             safeChks u delta1 (True,showImppTabbed (LblArrVarDecl lbl ty indxs lit exp1) 1,mn,"arraydecl") checks >>
               fsvTy tp >>= \x ->
               fsvTy ty >>= \svty -> impFromTy ty >>= \isvty ->
@@ -248,7 +246,7 @@ typeCheckExp prog (ExpError) mn gamma delta =
   return (TopType{anno=Nothing},fFalse)
 -------Call------------------------
 typeCheckExp (Prog _ prims meths) exp@(LblMethCall lbl fName argsIdent) mn gamma delta =
-  addOmegaStr ("=========\nDuring checking: call to " ++ fName++"\n=========") >>
+  addOmegaStr ("# During checking: call to " ++ fName) >>
   let getArgsTypes = \argIdent -> 
         case argIdent of
           ExpVar lit -> case lookupVar lit gamma of{Just ty -> ty;Nothing -> error $ "undefined variable " ++ lit ++ "\n "++showImppTabbed exp 1++"\n in function " ++ mn}
@@ -263,9 +261,7 @@ typeCheckExp (Prog _ prims meths) exp@(LblMethCall lbl fName argsIdent) mn gamma
             Nothing -> error $ "call to undefined function " ++ fName ++"\n "++showImppTabbed exp 1
             Just (Meth m) -> 
               setsForParamPassing (fromJust calleeDef) >>= \(_,_,_,_,qsvByVal) ->
-              let delta = if useFixpoint2k  --for fixpoint2k: add noX(qsvByVal) to method postcondition
-                          then map (\ctx -> fAnd [ctx,noChange qsvByVal]) (methPost m)
-                          else (methPost m) in
+              let delta = map (\ctx -> fAnd [ctx,noChange qsvByVal]) (methPost m) in
               return (methParams m,strong $ delta,methPres m)
             Just (Prim p) -> 
               getFlags >>= \flags -> 
@@ -301,17 +297,17 @@ safeChk u delta (showError,str1,str2,str3) lblChk =
 	let (qlbl,chk) = (fst lblChk,snd lblChk) in
   let lbl = last qlbl in
   let lblstr = showImpp qlbl in
-	addOmegaStr lblstr >> addOmegaStr ("CTX subset PHI?") >>
+	addOmegaStr ("# Check for " ++ lblstr ++ ": CTX subset PHI?") >>
   ctxImplication u delta chk >>= \isok ->
   case (not isok,showError) of 
     (True,True) -> --UNSAFE
       if (lbl == "lPost") then
-        putStrFS ("ERROR: possible unsafe precondition (" ++ lblstr ++ ") at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
+        putStrFS ("ERROR: precondition (" ++ lblstr ++ ") is not satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
         incUnsafeUserChecks >>
         return isok
       else
       if ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) then
-        putStrFS ("ERROR: possible unsafe precondition (" ++ lblstr ++ ") at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
+        putStrFS ("ERROR: precondition (" ++ lblstr ++ ") is not satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
         incUnsafePrimChecks >>
         return isok
       else
@@ -319,7 +315,7 @@ safeChk u delta (showError,str1,str2,str3) lblChk =
         return isok
     (False,True) -> --SAFE
       if ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) then
---        putStrFS ("OK: safe precondition (" ++ lblstr ++ ") at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
+--        putStrFS ("OK: precondition (" ++ lblstr ++ ") is satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
         incSafePrimChecks >>
         return isok
       else

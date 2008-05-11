@@ -27,10 +27,10 @@ Obj_main=Main.o
 
 SRCS = ImpMain.hs ImpParser.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	FixCalcLexer.hs FixCalcMain.hs FixCalcParser.hs \
-	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
+	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint2k.hs \
 	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs
 OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
-	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint.o ImpFixpoint2k.o \
+	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint2k.o \
 	ImpConfig.o ImpOutInfer.o ImpHullWiden.o ImpSTypeChecker.o
 .SUFFIXES : .o .hs .hi .lhs .hc .s
 
@@ -63,7 +63,7 @@ install: fixcalc
 doc: $(SRCS)
 	haddock -h -o doc --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
 	ImpMain.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
-	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint.hs ImpFixpoint2k.hs \
+	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint2k.hs \
 	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs ImpTypeInfer.hs
 
 #####FixCalc
@@ -148,17 +148,8 @@ ImpTypeCommon.o : ImpAST.hi
 ImpSugar.o : ImpSugar.hs
 ImpSugar.o : MyPrelude.hi
 ImpSugar.o : ImpTypeCommon.hi
-ImpSugar.o : ImpConfig.hi
 ImpSugar.o : Fresh.hi
 ImpSugar.o : ImpAST.hi
-ImpFixpoint.o : ImpFixpoint.hs
-ImpFixpoint.o : MyPrelude.hi
-ImpFixpoint.o : InSolver.hi
-ImpFixpoint.o : ImpTypeCommon.hi
-ImpFixpoint.o : ImpFormula.hi
-ImpFixpoint.o : ImpConfig.hi
-ImpFixpoint.o : ImpAST.hi
-ImpFixpoint.o : Fresh.hi
 ImpHullWiden.o : ImpHullWiden.hs
 ImpHullWiden.o : MyPrelude.hi
 ImpHullWiden.o : ImpFormula.hi
@@ -184,7 +175,6 @@ ImpOutInfer.o : ImpOutInfer.hs
 ImpOutInfer.o : MyPrelude.hi
 ImpOutInfer.o : ImpTypeCommon.hi
 ImpOutInfer.o : ImpFixpoint2k.hi
-ImpOutInfer.o : ImpFixpoint.hi
 ImpOutInfer.o : ImpFormula.hi
 ImpOutInfer.o : ImpConfig.hi
 ImpOutInfer.o : ImpAST.hi
@@ -194,7 +184,6 @@ ImpTypeInfer.o : MyPrelude.hi
 ImpTypeInfer.o : ImpTypeCommon.hi
 ImpTypeInfer.o : ImpOutInfer.hi
 ImpTypeInfer.o : ImpFixpoint2k.hi
-ImpTypeInfer.o : ImpFixpoint.hi
 ImpTypeInfer.o : ImpFormula.hi
 ImpTypeInfer.o : ImpConfig.hi
 ImpTypeInfer.o : ImpAST.hi
@@ -215,6 +204,7 @@ ImpTypeChecker.o : ImpAST.hi
 ImpTypeChecker.o : Fresh.hi
 FixCalcMain.o : FixCalcMain.hs
 FixCalcMain.o : MyPrelude.hi
+FixCalcMain.o : ImpConfig.hi
 FixCalcMain.o : FixCalcParser.hi
 ImpParser.o : ImpParser.hs
 ImpParser.o : MyPrelude.hi

@@ -45,5 +45,6 @@ Int lookup(Float[Int] a,Float k,Int i,Int j)
 
 Int getmid(Int i,Int j) { 
 -- postcondition of div2 is tricky: OK fixpoint infers a useless post for lookup
-  div2(i+j) 
+  div2(i+j)
+--  getmidPOS(i,j) 
 }

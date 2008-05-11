@@ -15,7 +15,7 @@ module ImpFixpoint2k(
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(useSelectiveHull,widenEarly,showDebugMSG,Heur(..),fixFlags,FixFlags)
+import ImpConfig(useSelectiveHull,widenEarly,showDebugMSG,Heur(..),fixFlags,FixFlags,simulateOldFixpoint)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
@@ -71,9 +71,8 @@ bottomUp2k recpost (m,heur) initFormula =
   getFlags >>= \flags -> 
   subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
-    subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
-    addOmegaStr ("# Fx:="++showSet f2) >>
-    addOmegaStr ("# F2:="++showSet f2r) >>
+  subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
+  addOmegaStr ("# F2:="++showSet f2r) >>
   subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
   pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
@@ -152,10 +151,10 @@ topDown2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 topDown2k recpost (m,heur) postFromBU = 
   getFlags >>= \flags -> 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
-  addOmegaStr ("#\tG1:="++showRelation oneStep) >>
+  addOmegaStr ("# G1:="++showRelation oneStep) >>
   compose g1 oneStep >>= \gcomp ->
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
-  addOmegaStr ("#\tG2:="++showRelation (ins,recs,g2)) >>
+  addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
 --  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts g2) undefined >>= \disjG2 ->
@@ -167,7 +166,7 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
   else
     compose (Or gcrt) oneStep >>= \gcomp ->
     simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
-    addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
+    addOmegaStr ("# G" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
     combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefined >>= \gnext ->
     widen heur (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
@@ -236,9 +235,6 @@ getRecCtxs recs io postFromBU formula = case formula of
 -- Below procedures use RecPost (instead of CAbst) as well as the rewritten fixpoint methods.
 -- They should give same result as the old fixpoint
 -- flags that can be used: widenEarly, selHull
-simulateOldFixpoint = False
-
--- old version of the fixpoint procedure
 fixpoint:: MethDecl -> RecPost -> FS (Formula,Formula)
 fixpoint m recPost@(RecPost mn f (i,o,_)) =
 ---- BU fixpoint for non-simplified RecPost
@@ -410,7 +406,7 @@ replaceBackAppRecPost replPair formula = case formula of
     Or $ map (replaceBackAppRecPost replPair) fs
   Exists exQsvs f -> Exists exQsvs (replaceBackAppRecPost replPair f)
   GEq ups -> formula
-  EqK ups -> -- any ups contain a marker? replace it back with AppCAbst
+  EqK ups -> -- any ups contain a marker? replace it back with AppRecPost
     let apps = catMaybes $ map (\(qsv,f) -> if qsv `elem` fqsv (EqK ups) then Just f else Nothing) replPair in
     case length apps of
       0 -> formula
@@ -523,7 +519,6 @@ testRecPost recpost@(RecPost mn f oth) =
     AppRecPost mn insouts -> (True,[])
     Not f -> error ("unexpected argument: "++show formula)
     Forall qsvs f -> error ("unexpected argument: "++show formula)
-    AppCAbst mn _ _ -> error ("unexpected argument: "++show formula)
     Union fs -> error ("unexpected argument: "++show formula)
     FormulaBogus -> error ("unexpected argument: "++show formula)
 
@@ -538,3 +533,65 @@ template formula = case formula of
   AppRecPost mn insouts ->
   _ -> error ("unexpected argument: "++show formula)
 -}
+
+-------Bottom-up fixpoint----------------------------------    
+--        CAbst -> initArr := {[s,i,j]: exists(s',i',j':
+--           (i>j) or (0<=i<s & i<=j & initArr(s',i',j') & s=s' & i'=i+1 & j'=j))}; 
+--        
+--        f1 := subrec CAbst False
+--        f2 := subrec CAbst f1
+--        f3 := subrec CAbst f2
+--        (fNonRec,f3Rec) := selHull f3 f1
+--        
+--        f4 := subrec CAbst f3
+--        (fNonRec,f4Rec) := selHull f4 f1
+--        f3WRec := widen f3Rec f4Rec
+--        f3W := fNonRec OR f3WRec
+--        f4' := subrec CAbst f3W
+--        f3W;f4'; f4' subset f3W;
+--
+-- iter(CAbst,f1,fNonRec,f4,f4Rec)       
+--        f5 := subrec CAbst f4
+--        (fNonRec,f5Rec) := selHull f5 f1
+--        f4WRec := widen f4Rec f5Rec
+--        f4W := fNonRec OR f4WRec
+--        f5' := subrec CAbst f4W
+--        f4W;f5'; f5' subset f4W;
+-----------------------------------------------------------    
+-------Top-down fixpoint-----------------------------------    
+--        G := REC(i,i') - collect from the CAbst, contexts corresponding to recursive calls (call replaced by TRUE)
+--        G :={[s,i,j]->[s',i',j']:
+--                 ( (0<=i<s & i<=j) & (0<=i'<s' & i'<=j')
+--                  & i'=i+1 & s'=s & j'=j)}; 
+--        G1 := hull G;
+--        G2 := hull(G1 union (G1 compose G));
+--        G3 := hull(G2 union (G2 compose G));
+--        
+--        G4  := hull(G3 union (G3 compose G));
+--        G3w := {[s,i,j] -> [s,i',j] : 0 <= i < i' <= j, s-1};#widen G3 G4
+--        G4' := hull(G3w union (G3w compose G));
+--        G3w;G4'; G4' subset G3w; 
+-- iter(G,G4)       
+--        G5  := hull(G4 union (G4 compose G));
+--        G4w := widen G4 G5;
+--        G5' := hull(G4w union (G4w compose G));
+--        G4w;G5'; G5' subset G4w;
+--        
+--        #####2 series - more precise because Gs are not hulled - larger formulae
+--        
+--        G := REC(i,i') - collect from the CAbst, contexts corresponding to recursive calls (call replaced by TRUE)
+--        G1 := G;
+--        H1 := hull G;
+--        
+--        G2 := G1 compose G;
+--        H2 := hull(H1 union G2);
+--        
+--        G3 := G2 compose G;
+--        H3 := hull(H2 union G3);
+-- iter(G,G3,H3)       
+--        G4 := G3 compose G;
+--        H4 := hull(H3 union G4);
+--        H3w:={[s,i,j] -> [s,i',j] : 0 <= i < i' <= s-1, j}; # H3w := widen H3 H4
+--        H4' := hull(H3w union G4);
+--        H3w;H4'; H4' subset H3w; 
+-----------------------------------------------------------        

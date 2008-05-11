@@ -40,12 +40,24 @@ specializeE (Prog incls prims meths) varsigma (exp@(LblMethCall (Just lblCall) i
                 then Just rExp
                 else Nothing) (primTests p) in
             if (null ep) then return exp
-            else return $ (makeIf rho exp ep)
+            else 
+              prepareSubst rho [] >>= \preparedRho ->
+              return (makeIf preparedRho exp ep)
       Just (Meth m) -> 
         if [lblCall,"lPost"] `elem` (primAll varsigma) then
             let runtimeTest = (LblMethCall (Just "l_") "runtimePost" []) in
             return (makeIf [] exp [runtimeTest])
         else return exp
+  where
+  -- Function similar to ImpFormula.prepareSubst (specialized for substitution of Exp values).
+  prepareSubst:: [(Exp,Exp)] -> [(Exp,Exp)] -> FS [(Exp,Exp)]
+  prepareSubst [] putToEnd = return putToEnd
+  prepareSubst ((s1,s2):ss) putToEnd =
+    fresh >>= \fsh ->
+    let fshExp = (ExpVar fsh) in
+    prepareSubst ss ((fshExp,s2):putToEnd) >>= \preparedSS ->
+    return ((s1,fshExp):preparedSS)
+  
 -------Traverse - No Change--------
 specializeE prog varsigma e = case e of 
   AssignVar id exp -> 

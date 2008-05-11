@@ -5,7 +5,7 @@
 module ImpSTypeChecker(sTypeCheck) where
 import ImpAST
 import ImpConfig(isIndirectionIntArray)
-import Fresh(FS,fresh,getFlags,putStrFS)
+import Fresh(FS,fresh,getFlags)
 import ImpFormula(sameBaseTy)
 import ImpTypeCommon(TypeEnv,extendTypeEnv,lookupVar,freshTy)
 import MyPrelude(snd3,concatSepBy)

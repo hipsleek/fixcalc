@@ -82,7 +82,11 @@ ctxImplication u delta phi =
   let rhoPhi = apply (zip s sp) phi in
   let relDelta = (fqsv delta,[],delta) in
   let relPhi = (fqsv rhoPhi,[],rhoPhi) in
-   		impSubset relDelta relPhi
+  addOmegaStr ("CTX:=" ++ showSet delta) >>
+  addOmegaStr ("PHI:=" ++ show (map show (fqsv delta),rhoPhi)) >>
+	impSubset relDelta relPhi >>= \result ->
+  addOmegaStr ("CTX subset PHI; # Omega returns " ++ show result) >>
+  return result
 
 -- phi should not contain primed qsvs 
 ctxSimplify::[QSizeVar] -> [QSizeVar] -> Formula -> Formula -> Formula -> FS Formula
@@ -246,11 +250,6 @@ apply (s:ss) f = apply ss (applyOne (fst s,snd s) f)
         else Forall otherSVs (applyOne (fromSV,toSV) formula)
     GEq updates -> GEq (map (\u -> applyOneToUpdate (fromSV,toSV) u) updates)
     EqK updates -> EqK (map (\u -> applyOneToUpdate (fromSV,toSV) u) updates)
-    AppCAbst lit otherSVs resultSVs -> 
-      if null (otherSVs `intersect` resultSVs) then
-        AppCAbst lit (map (\otherSV -> if otherSV==fromSV then toSV else otherSV) otherSVs)
-                     (map (\resultSV -> if resultSV==fromSV then toSV else resultSV) resultSVs)
-      else error $ "applyOne: malformed AppCAbst: same QSVs for arguments and results\n"++show f
     AppRecPost lit insouts -> 
         AppRecPost lit (map (\insout -> if insout==fromSV then toSV else insout) insouts)
     _ -> error ("applyOne: unexpected argument:" ++ showSet f)

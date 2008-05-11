@@ -421,7 +421,7 @@ outInferExp prog exp@(ExpBlock [LblArrVarDecl lbl ty indxs lit exp1] exp2) mn v 
           let gammap = extendTypeEnv gamma (lit,ty) in
           impFromTyEnv gammap >>= \u ->
           let outcomes1p = outAnd fstComp sndComp in 
-            addOmegaStr ("=========\nDuring inference: declaration of array " ++ lit ++ "\n=========") >>
+            addOmegaStr ("# During inference: declaration of array " ++ lit) >>
             initialTransFromTyEnv gamma >>= \invFromGamma ->
               fsvTy tp >>= \x ->
               fsvTy ty >>= \svty -> 
