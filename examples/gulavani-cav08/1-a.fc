@@ -64,4 +64,6 @@ loopC:={[x,i,z,y]->[Px,Pi,Pz] -> []: exists( i1,x1,z1:
 fixC3:=bottomup(loopC,3,SimHeur);fixC3; 
 fixC3 subset Ideal;  # more precise after transformatin
 Ideal subset fixC3;
+fixC3 subset Fix3;  
+fixC3 subset FixB3;
 
