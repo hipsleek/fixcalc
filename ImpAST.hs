@@ -19,14 +19,19 @@ data PrimDecl = PrimDecl {
 -- | A declaration of a method is represented with (Arguments, Postcondition, PreconditionS, Runtime-checkS, Invariant, Body).
 data MethDecl = MethDecl {
   methParams:: [(PassBy,AnnoType,Lit)],
-  methPost:: [Formula],
-  methPres:: [LabelledFormula],
-  methUpsis:: [QLabel],
-  methInv:: Formula,
-  methOut:: [Outcome], -- ^2 outcomes: [OK: F1, ERR: F2]
-  methOutBugs:: [LabelledFormula], -- ^3 formulae on input: [NEVER_BUG: F1, MUST_BUG: F2, MAY_BUG: F3]
-  methErrs:: [LabelledFormula], -- ^individual error conditions
-  methBody:: Exp
+  methBody:: Exp,
+  methPost:: [Formula],           -- ^Method postcondition
+  methPres:: [LabelledFormula],   -- ^Method preconditions
+  methUpsis:: [QLabel],           -- ^Labels for checks that need to be specialized. Computed in ImpTypeInfer and used in ImpSugar.
+  methInv:: Formula,              -- ^Transition invariant. Computed and used in ImpTypeInfer and ImpOutInfer.
+  methOK:: Formula,               -- ^OK outcome (equivalent to methPost). Computed and used in ImpOutInfer.
+  methERRs  :: [LabelledFormula], -- ^ERR outcomes. Computed and used in ImpOutInfer.
+  methNEVER :: Formula,           -- ^Never-bug condition (equivalent to methPres).
+  methMUSTs :: [LabelledFormula], -- ^Must-bug conditions.
+  methMAY   :: Formula            -- ^May-bug condition.
+--  methOut:: [Outcome],  -- ^2 outcomes: [OK: F1, ERR: F2]
+--  methOutBugs:: [LabelledFormula], -- ^3 formulae on input: [NEVER_BUG: F1, MUST_BUG: F2, MAY_BUG: F3]
+--  methErrs:: [LabelledFormula] -- ^individual error conditions
 }
 
 data Callable = Prim PrimDecl
@@ -91,7 +96,6 @@ data RecPost = RecPost Lit Formula ([QSizeVar],[QSizeVar],[QSizeVar])
 -- ^This is the type that corresponds to a constraint abstraction.
 -- Its arguments are: name body (inputs,outputs,imperByValue).
 -- The meaning: (fExists (primeTheseSizeVars imperByValue) body) && noChange(imperByValue).
-data FormulaDecl = FormulaDecl Lit [QSizeVar] Formula
 
 type Relation = ([QSizeVar],[QSizeVar],Formula)
 data Formula = And [Formula]
@@ -397,17 +401,16 @@ instance ShowImpp MethDecl where
     let ((passby,t,fname):args) = methParams m in
     let passbyStr = if passby==PassByRef then "ref " else "" in
     let strArgs = concatArgs args in
---    "{-\nOK:="++showSet (getOKOutcome (methOut m)) ++ "\n" ++
---    "individualERRs:={"++showImpp (methErrs m)++"}\n"++
---    "ERR:="++showSet (getERROutcome (methOut m)) ++ "\n-}\n" ++
+    "{-\nOK:="++showSet (methOK m) ++ "\n" ++
+    "ERRs:={" ++ showImpp (methERRs m)++"}\n"++
 -- printing NEVER/MUST/MAY is expensive. For benchmark evaluation is disabled:
---      "NEVER_BUG:="++showSet (snd((methOutBugs m)!!0)) ++ "\n" ++
---      "MUST_BUG:="++showSet (snd((methOutBugs m)!!1)) ++ "\n" ++
---      "MAY_BUG:="++showSet (snd((methOutBugs m)!!2)) ++ "\n" ++
+    "NEVER_BUG:=" ++showSet (methNEVER m) ++ "\n" ++
+    "MUST_BUGs:={"++showImpp (methMUSTs m) ++ "}\n" ++
+    "MAY_BUG:="   ++showSet (methMAY m) ++ "\n-}\n" ++
     passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ 
-    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ "),\n  {" ++ showImpp (methPres m) ++ 
-    "},\n  {" ++ showImpp (methUpsis m) ++ "},\n  (" ++ showImpp (methInv m) ++ 
-    "),\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
+    "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ "),\n  {" ++ showImpp (methPres m) ++ "}" ++
+--    ",\n  {" ++ showImpp (methUpsis m) ++ "},\n  (" ++ showImpp (methInv m) ++ ")," ++
+    "\n{" ++ showImppTabbed (methBody m) 1 ++ "}\n\n"
 
 instance ShowImpp PrimDecl where
   showImpp p = 
@@ -578,7 +581,7 @@ getUpsisFromProg (Prog _ _ meths) =
           let upsis = methUpsis m in
           let no = length upsis in
             ("{" ++ (methName m ++ ": " ++ concatSepBy "," (map showImpp upsis)) ++ "}",no)
-
+            
 showImppMethForChecking:: MethDecl -> String
 showImppMethForChecking m = 
   let ((passby,t,fname):args) = methParams m in
@@ -683,8 +686,7 @@ printProgImpt:: Prog -> FS ()
 printProgImpt prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".impt" in
-	(unsafePerformIO $ writeFile outFile (showImpp prog))
-		`seq` return ()
+	(unsafePerformIO $ writeFile outFile (showImpp prog)) `seq` return ()
 
 printProgImpi:: Prog -> FS ()
 printProgImpi prog = 
@@ -696,12 +698,10 @@ printProgC:: Prog -> FS()
 printProgC prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".c" in
-	(unsafePerformIO $ writeFile outFile (showC prog))
-		`seq` return ()
+	(unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
 
 printProgCAll:: Prog -> FS()
 printProgCAll prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".all.c" in
-	(unsafePerformIO $ writeFile outFile (showC prog))
-		`seq` return ()
+	(unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()

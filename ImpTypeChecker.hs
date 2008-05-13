@@ -15,6 +15,7 @@ import MyPrelude
 -----------------
 import List(union,(\\),nub)
 import Maybe(fromJust)
+import Monad(when)
 
 -------TypeChecking----------------
 typeCheckProg:: Prog -> FS Prog
@@ -144,7 +145,7 @@ typeCheckExp prog exp@(If nonDet (ExpVar lit) exp1 exp2) mn gamma delta =
         let qb = (SizeVar b,Primed) in
 -- Hai improvemed his type checker using a simplification of the delta-context at this point.
 -- For IMP, this generates significant less checking time only for LU (50% - from 195s to 84s)
--- Point? 
+-- Point to do simplification? 
         simplify delta >>= \delta ->
         let deltab1 = fAnd [delta,EqK [Coef qb (-1),Const 1]] in
         let deltab0 = fAnd [delta,EqK [Coef qb 1]] in 
@@ -281,7 +282,7 @@ typeCheckExp (Prog _ prims meths) exp@(LblMethCall lbl fName argsIdent) mn gamma
                       Nothing -> error $ "incompatible types\nfound "++showImpp tp++ "\nrequired: "++showImpp t++"\n "++showImppTabbed exp 1;}
               ) zipped >>= \rho -> 
         debugApply rho deltam >>= \rhoDeltam ->
--- Point? 
+-- Point to do simplification? 
         simplify delta >>= \delta ->
         mapM (\(lbl,f) -> debugApply rho f >>= \rhoF -> return (lbl,rhoF)) phim >>= \rhoPhim ->
         safeChks u delta (True,showImppTabbed exp 1,mn,fName) rhoPhim >>
@@ -293,40 +294,25 @@ typeCheckExp prog ExpBogus mn gamma delta =
   error $ "ExpBogus: variable declaration without initialization??\n in function: " ++ mn
 
 safeChk:: [QSizeVar] -> Formula -> (Bool,String,String,String) -> LabelledFormula -> FS Bool
-safeChk u delta (showError,str1,str2,str3) lblChk = 
+safeChk u delta (isPreCheck,str1,str2,str3) lblChk = 
 	let (qlbl,chk) = (fst lblChk,snd lblChk) in
   let lbl = last qlbl in
   let lblstr = showImpp qlbl in
 	addOmegaStr ("# Check for " ++ lblstr ++ ": CTX subset PHI?") >>
   ctxImplication u delta chk >>= \isok ->
-  case (not isok,showError) of 
+  case (not isok,isPreCheck) of 
     (True,True) -> --UNSAFE
-      if (lbl == "lPost") then
-        putStrFS ("ERROR: precondition (" ++ lblstr ++ ") is not satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
-        incUnsafeUserChecks >>
-        return isok
-      else
-      if ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) then
-        putStrFS ("ERROR: precondition (" ++ lblstr ++ ") is not satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
-        incUnsafePrimChecks >>
-        return isok
-      else
-        putStrFS ("NOT-COUNTED-UNSAFE: " ++ lblstr) >> -- ERROR: possible unsafe precondition (" ++ lbl ++ ") at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
-        return isok
+      putStrFS ("ERROR: precondition (" ++ lblstr ++ ") is not satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
+      when (lbl == "lPost" || lbl == "NEVER_BUG") incUnsafeUserChecks >>
+      when ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) incUnsafePrimChecks >>
+      return isok
     (False,True) -> --SAFE
-      if ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) then
---        putStrFS ("OK: precondition (" ++ lblstr ++ ") is satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
-        incSafePrimChecks >>
-        return isok
-      else
-      if (lbl == "lPost") then return isok
-      else
-        putStrFS ("NOT-COUNTED-SAFE: " ++ lblstr) >> --OK: safe precondition (" ++ lblstr ++ ") at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
-        return isok
-    (_,False) -> return isok
+--        putStrFS ("precondition (" ++ lblstr ++ ") is satisfied at call site " ++ str1 ++ " (CTX_" ++ str2 ++ " => PRE_" ++ str3 ++")") >>
+      when ((head lbl == 'L') || (head lbl == 'H') || (head lbl == 'D')) incSafePrimChecks >>
+      return isok
+    (_,False) -> -- for a postcondition, error message is shown in the caller
+      return isok
 
 safeChks:: [QSizeVar] -> Formula -> (Bool,String,String,String) -> [LabelledFormula] -> FS Bool
 safeChks u delta strs lblChks = mapM (safeChk u delta strs) lblChks >>= \oks -> return (and oks)
   
-
-

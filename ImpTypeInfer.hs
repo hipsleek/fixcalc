@@ -4,7 +4,7 @@
    
    The functions mkChk and mkChkRec decide whether a check is safe, unsafe or partially-safe.
 -}
-module ImpTypeInfer(methAdjacencies,typeInferSccs) where
+module ImpTypeInfer(methAdjacencies,externalMethods,typeInferSccs) where
 import Fresh
 import ImpAST
 import ImpConfig
@@ -14,7 +14,8 @@ import ImpOutInfer(RecFlags)
 import ImpTypeCommon
 import MyPrelude
 -----------------
-import Data.Graph(SCC(..),stronglyConnComp)
+import Data.Array(assocs)
+import Data.Graph(SCC(..),stronglyConnComp,graphFromEdges,indegree)
 import List(union,unzip4,(\\),nub)
 import Maybe(catMaybes,fromJust)
 import Monad(when)
@@ -90,8 +91,6 @@ typeInferMethDeclNonRec prog m =
           getFlags >>= \flags -> 
           if prederivation flags == PostPD then 
             let preFromPost = [(["lPost"],fExists outputs (strong delta2))] in
-          	ctxImplication [] (snd (head preFromPost)) fFalse >>= \impliesF -> 
-          	when impliesF (putStrFS ("## Definite error in function "++fname)) >> 
             let fixedM = m{methPost=delta2,methInv=fTrue,methPres=preFromPost,methUpsis=[]} in
             let fixedProg = updateMethDecl prog fixedM in
             let deltaInit1 = fAnd (deltaInit:snd (unzip preFromPost)) in -- preFromPost is assumed to be true!
@@ -220,7 +219,6 @@ typeInferExp prog exp@(ExpBlock [VarDecl ty lit exp1] exp2) mn v gamma delta rec
   typeInferExp prog exp1 mn v gamma delta recFlags >>= \(ty1,delta1,phis1,upsis1) ->
   impFromTyEnv gamma >>= \u ->
   initialTransFromTy ty >>= \psi ->
---  equate (ty1,ty) (Unprimed,Unprimed) >>= \subst ->
   equate (ty1,ty) (Unprimed,Primed) >>= \subst ->
   case subst of
     Nothing -> error $ "incompatible types\nfound: " ++ showImpp ty1 ++ "\nrequired: " ++ showImpp ty ++ "\n "++ showImppTabbed exp 1
@@ -331,7 +329,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
     let isRecCall = fName `elem` sccFs in 
     case wPhase of
       0 -> -- caller (current funtion) is a non-recursive function
--- Point? 
+-- Point to do simplification? 
           mapM simplify delta >>= \delta ->
           initialTransFromTyEnv gamma >>= \invFromGamma ->
           mkChks v u delta invFromGamma rhoPhim >>= \(phis,upsis) ->
@@ -369,7 +367,7 @@ typeInferExp (Prog _ prims meths) exp@(LblMethCall (Just lbl) fName argsIdent)
               mapM (\(context1,context2) -> composition w context1 context2) (zip delta rhoDeltam) >>= \delta2 ->
               return $ (typ,delta2,[],newUpsis) 
           else --derive preFst and preRec
--- Point? 
+-- Point to do simplification? 
               mapM simplify delta >>= \delta ->
               initialTransFromTyEnv gamma >>= \invFromGamma ->
               mkChksRec v u uRec realTys delta crtInv invFromGamma rhoPhim >>= \(phis,upsis) ->
@@ -497,6 +495,14 @@ callees:: [(MethDecl,Key)] -> (MethDecl,Key) -> [Key]
 callees kmeths (m,k) =
   catMaybes $ map (getKeyForMeth kmeths) (getCalleesFromExp (methBody m))
 
+getKeyForMeth:: [(MethDecl,Key)] -> Lit -> Maybe Key
+getKeyForMeth kmeths lit = 
+  let keys = catMaybes $ map (\(m,k) -> if getNameForMethDecl m == lit then Just k else Nothing) kmeths in
+  case length keys of
+    0 -> Nothing
+    1 -> Just (head keys)
+    _ -> error $ "More than one function defined with name: " ++ lit 
+
 getCalleesFromExp:: Exp -> [Lit]
 getCalleesFromExp exp = case exp of
   LblMethCall lbl id exps -> id : (concatMap getCalleesFromExp exps)
@@ -510,18 +516,37 @@ getCalleesFromDecl:: VarDecl -> [Lit]
 getCalleesFromDecl varDecl = case varDecl of
   VarDecl ty lit exp -> getCalleesFromExp exp
   LblArrVarDecl lbl ty indxs lit exp -> getCalleesFromExp exp
-
-getKeyForMeth:: [(MethDecl,Key)] -> Lit -> Maybe Key
-getKeyForMeth kmeths lit = 
-  let keys = catMaybes $ map (\(m,k) -> if getNameForMethDecl m == lit then Just k else Nothing) kmeths in
-  case length keys of
-    0 -> Nothing
-    1 -> Just (head keys)
-    _ -> error $ "More than one function defined with name: " ++ lit 
     
 getNameForMethDecl:: MethDecl -> Lit
 getNameForMethDecl m =
   let ((_,_,fname):_) = methParams m in fname
+
+externalMethods:: Prog -> [MethDecl]
+-- ^Returns those "external" methods that are not called from inside the given program.
+externalMethods (Prog _ _ meths) = 
+  let graph = (fst3 (graphFromEdges (methAdjacenciesWithoutRec meths))) in
+  let ext = filter (\(ix,degree) -> degree == 0) (assocs (indegree graph)) in 
+  -- putStrFS ("External functions: " ++ concatMap (\(ix,degree) -> methName (meths !! ix)) ext) >>
+  map (\(ix,degree) -> (meths !! ix)) ext
+
+methAdjacenciesWithoutRec:: [Node] -> [(Node, Key, [Key])]
+-- ^Same function as methAdjacencies, but does not count recursive calls.
+methAdjacenciesWithoutRec meths  = 
+  let sccMeths = zip meths (enumFrom 0) in
+    zip3 meths (enumFrom 0) (map (calleesWithoutRec sccMeths) sccMeths)
+  where
+  calleesWithoutRec kmeths (m,k) =
+    catMaybes $ map (getKeyForMeth kmeths) (fromExp (methName m) (methBody m))
+  fromExp mname exp = case exp of
+    LblMethCall lbl id exps -> let headd = if id==mname then [] else [id] in headd ++ (concatMap (fromExp mname) exps)
+    AssignVar id exp -> fromExp mname exp
+    If nonDet test exp1 exp2 -> concatMap (fromExp mname) [test,exp1,exp2]
+    Seq exp1 exp2 -> concatMap (fromExp mname) [exp1,exp2]
+    ExpBlock varDecls exp -> (concatMap (fromDecl mname) varDecls) ++ fromExp mname exp
+    _ -> []
+  fromDecl mname varDecl = case varDecl of
+    VarDecl ty lit exp -> fromExp mname exp
+    LblArrVarDecl lbl ty indxs lit exp -> fromExp mname exp
 
 -- for debug: textual represetntation of SCCs
 printSCCs:: [SCC Node] -> String

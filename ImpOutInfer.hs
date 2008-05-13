@@ -1,5 +1,5 @@
 {- |Does the outcome inference. It uses the call-graph computation from "ImpTypeInfer". -}
-module ImpOutInfer(outInferSccs,RecFlags) where
+module ImpOutInfer(outInferSccs,RecFlags,getFalsePresFromProg,getNonTruePres,getTrueMustBugs) where
 import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(traceIndividualErrors)
@@ -9,9 +9,9 @@ import ImpTypeCommon
 import MyPrelude
 -----------------
 import Data.Graph(SCC(..),stronglyConnComp)
-import List(union,unzip4,(\\),nub)
+import List(union,unzip4,(\\),nub,delete)
 import Maybe(catMaybes,fromJust)
-import Monad(when)
+import Monad(when,filterM)
 
 type RecFlags = (Int,[Lit]) 
 {- ^RecFlags represents a pair of (whatPhase, nameOfRecFs).
@@ -20,6 +20,8 @@ type RecFlags = (Int,[Lit])
   
   3 - collect cAbst for OK outcome; 4 - collect ERR-template (requires OK outcome)
 -}
+data FormulaDecl = FormulaDecl Lit [QSizeVar] Formula
+-- ^Given FormulaDecl l_14 [x,y] (x<y), an application like l_14(a,b) resolves to (x<y)[x |-> a, y |-> b] and then to (a<b).
 
 ------------------------
 ----OUTCOMES------------
@@ -91,110 +93,80 @@ outInferMethDeclRec prog m =
   rename tp t >>= \(Just rho) -> 
   outdebugApply rho out >>= \outp -> 
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-      invFromTyEnv gamma >>= \typeInv ->
-      let recPostOK = RecPost fname (getOKOutcome out1) (inputs,outputs,qsvByVal) in
-      fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
-      gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
-      let fixOKProg = updateMethDecl prog m{methOut=[OK gistedOK,ERR FormulaBogus]} in
--------------------Use TransInv
-          outInferExp fixOKProg (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (4,[fname]) >>= \(tp,out,errs) ->
-          outdebugApply rho out >>= \outp -> 
-          let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-          impFromTyEnv gamma >>= \u ->
-          nonimpFromTyEnv gamma >>= \nonimp -> 
-          applyRecToPrimOnInvariant fixedInvOK >>= \primInv ->
-          let inv = fExists (primeTheseQSizeVars nonimp) primInv in
-          composition u deltaInit inv >>= \deltaTransInv ->
-{- this commented code was moved to getERRConditions:
----- each ERR separately
-          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
-                            EqK [Const 0,Const 1] -> return ([lbl],f)
-                            _ ->
-                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
-                              replaceAllWithFalse replF >>= \fstf ->
-                              gistCtxGivenInv fstf typeInv >>= \gfstf ->
-                              --putStrFS("fstERR"++lbl++":="++showSet gfstf) >>
-                              composition u deltaTransInv gfstf >>= \recf ->                              
-                              gistCtxGivenInv recf typeInv >>= \grecf ->
-                              --putStrFS("recERR"++lbl++":="++showSet grecf) >>
-                              return ([lbl],Or [gfstf,grecf])) errs >>= \newMethErrs ->
-          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
----- all ERRs at once
-          replaceAllWithFormula (getERROutcome out1) errs >>= \replF ->
-          simplify replF >>= \fstf ->
-          -- putStrFS("fstERR:="++showSet fstf) >>
-          composition u deltaTransInv fstf >>= \recf ->
-          simplify recf >>= \grecf ->
-          -- putStrFS("recERR:="++showSet grecf) >>
-          let newMethErrs = [(["ERR"],Or [fstf,grecf])] in
-          let gistedERR = Or [fstf,grecf] in 
--}
-    getERRConditions (Just (deltaTransInv,u)) typeInv (getERROutcome out1) errs >>= \(gistedERR,methErrs) ->
-    addLOOPCondition (fname,outputs,typeInv) [OK gistedOK,ERR gistedERR] methErrs >>= \(gistedOut,newMethErrs) ->
+  invFromTyEnv gamma >>= \typeInv ->
+  let recPostOK = RecPost fname (getOKOutcome out1) (inputs,outputs,qsvByVal) in
+  fixpoint2k m recPostOK  >>= \(fixedPostOK,fixedInvOK) ->
+  gistCtxGivenInv fixedPostOK typeInv >>= \gistedOK ->
+  let fixOKProg = updateMethDecl prog m{methOK=gistedOK} in
+-------------------Use TransInv to compute ERR outcomes
+  outInferExp fixOKProg (methBody m) fname inputs gamma [OK deltaInit,ERR fFalse] (4,[fname]) >>= \(tp,out,errs) ->
+  outdebugApply rho out >>= \outp -> 
+  let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
+  impFromTyEnv gamma >>= \u ->
+  nonimpFromTyEnv gamma >>= \nonimp -> 
+  applyRecToPrimOnInvariant fixedInvOK >>= \primInv ->
+  let inv = fExists (primeTheseQSizeVars nonimp) primInv in
+  composition u deltaInit inv >>= \deltaTransInv ->
+  getERRConditions (Just (deltaTransInv,u)) typeInv (getERROutcome out1) errs >>= \(oneErrNoLoop,individualErrsNoLoop) ->
+  addLOOPCondition (fname,outputs,typeInv) [OK gistedOK,ERR oneErrNoLoop] individualErrsNoLoop >>= \(_,individualErrs) ->
 ------prederivation
-                simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
-                simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
-                simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
-                let lpre1 = (["NEVER_BUG"],pre1) in
-                let lpre2 = (["MUST_BUG"],pre2) in
-                let lpre3 = (["MAY_BUG"],pre3) in
-                return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
+  prederivation (fExists outputs gistedOK) individualErrs >>= \(never,must,may) ->
+  let newm=m{methPost=triple gistedOK,methPres=[(["NEVER_BUG"],never)],
+             methInv=inv,methUpsis=[],
+             methOK=gistedOK,methERRs=individualErrs,
+             methNEVER=never,methMUSTs=must,methMAY=may} in
+  return (updateMethDecl prog newm)
+  where
+  addLOOPCondition:: (String,[QSizeVar],Formula) -> [Outcome] -> [LabelledFormula] -> FS (Formula,[LabelledFormula])
+  addLOOPCondition (fname,outputs,typeInv) [OK fOK,ERR fERR] errs = 
+    let fLOOP = fNot (Or [fExists outputs fOK,fERR]) in
+    gistCtxGivenInv fLOOP typeInv >>= \simplF ->
+    subset simplF fFalse >>= \isFalse ->
+    if isFalse then return (fERR,errs)
+    else
+      putStrFS ("Found non-termination: " ++ fname++"_LOOP:="++showSet simplF) >>
+      return ( Or [fERR,simplF] , errs ++ [([fname++"_LOOP"],simplF)])
+
+prederivation:: Formula -> [LabelledFormula] -> FS (Formula,[LabelledFormula],Formula)
+prederivation ok errs =
+  getFlags >>= \flags -> 
+  if traceIndividualErrors flags then 
+    let err = fOr (map snd errs) in simplify (And [ok,fNot err]) >>= \never ->
+    mapM (\(lbl,f) -> let resterrs = map snd (delete (lbl,f) errs) in 
+          simplify (fAnd [fNot (fOr (ok:resterrs)),f]) >>= \g -> return (lbl,g) ) errs >>= \must ->
+    let onemust = fOr (map snd must) in simplify (fNot (fOr [never,onemust])) >>= \may ->
+    -- remove False from must
+    filterM (\(lbl,f) -> subset f fFalse >>= \isFalse -> return (not isFalse)) must >>= \mustNotFalse ->
+    return (never,mustNotFalse,may)
+  else
+    let oneErr = snd (head errs) in
+    simplify (And [ok,fNot oneErr]) >>= \never ->
+    simplify (And[oneErr,fNot ok]) >>= \pre2 ->
+    simplify (And[oneErr,ok]) >>= \may ->
+    let must = [(["MUST_BUG"],pre2)] in
+    return (never,must,may)
 
 outInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
 outInferMethDeclNonRec prog m =
   let ((passbyM,t,fname):args) = methParams m in
   setsForParamPassing (Meth m) >>= \(v,outputs,_,qsvByRef,qsvByVal) ->
   let gamma = map (\(_,tyi,vi) -> (vi,tyi)) args in initialTransFromTyEnv gamma >>= \deltaInit ->
-  outInferExp prog (methBody m) fname v gamma [OK deltaInit, ERR fFalse] (0,[]) >>= \(tp,out,errF) ->
+  outInferExp prog (methBody m) fname v gamma [OK deltaInit, ERR fFalse] (0,[]) >>= \(tp,out,errs) ->
   rename tp t >>= \(Just rho) ->
   outdebugApply rho out >>= \outp ->
   let out1 = outExists (primeTheseQSizeVars qsvByVal) outp in
-          invFromTyEnv gamma >>= \typeInv ->
-          gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
-{- this commented code was moved to getERRConditions:
----- each ERR separately
-          mapM (\fdecl@(FormulaDecl lbl qsvs f) -> case f of 
-                            EqK [Const 0,Const 1] -> return ([lbl],f)
-                            _ ->
-                              replaceLblWithFormula (getERROutcome out1) fdecl >>= \replF ->
-                              replaceAllWithFalse replF >>= \replAllF ->
-                              gistCtxGivenInv replAllF typeInv >>= \f ->
-                              --putStrFS("ERR"++lbl++":="++showSet f) >>
-                              return ([lbl],f)) errF >>= \newMethErrs ->
-          gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethErrs)) typeInv >>= \gistedERR ->
----- all ERRs at once
-          replaceAllWithFormula (getERROutcome out1) errF >>= \replF ->
-          simplify replF >>= \f ->
-          -- putStrFS("ERR:="++showSet f) >>
-          let newMethErrs = [(["ERR"],f)] in
-          let gistedERR = f in
--}
-    getERRConditions Nothing typeInv (getERROutcome out1) errF >>= \(gistedERR,newMethErrs) ->
-    let gistedOut = [OK gistedOK,ERR gistedERR] in
+  invFromTyEnv gamma >>= \typeInv ->
+  gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
+  getERRConditions Nothing typeInv (getERROutcome out1) errs >>= \(_,individualErrs) ->
 ------prederivation
-          simplify (And [fExists outputs (getOKOutcome gistedOut),fNot (getERROutcome gistedOut)]) >>= \pre1 ->
-          simplify (And[getERROutcome gistedOut,fNot(fExists outputs (getOKOutcome  gistedOut))]) >>= \pre2 ->
-          simplify (And[getERROutcome gistedOut,fExists outputs (getOKOutcome  gistedOut)]) >>= \pre3 ->
-          let lpre1 = (["NEVER_BUG"],pre1) in
-          let lpre2 = (["MUST_BUG"],pre2) in
-          let lpre3 = (["MAY_BUG"],pre3) in
-          -- when (methName m=="main") (putStrFS ("Set of ERRs["++show (length newMethErrs)++"]:= {" ++ showImpp newMethErrs++"};")) >> 
-          let notFalse = (filter (\(lbl,f) -> case f of {EqK [Const 0,Const 1] -> False;_ -> True}) newMethErrs) in
-          -- when (methName m=="main") (putStrFS ("Set of ERRs not False["++show (length notFalse)++"]:= {"++ showImpp notFalse++"};")) >> 
-          return (updateMethDecl prog m{methOut=gistedOut,methErrs=newMethErrs,methOutBugs=[lpre1,lpre2,lpre3]})
--- ================================
-addLOOPCondition:: (String,[QSizeVar],Formula) -> [Outcome] -> [LabelledFormula] -> FS ([Outcome],[LabelledFormula])
-addLOOPCondition (fname,outputs,typeInv) [OK fOK,ERR fERR] errs = 
-  let fLOOP = fNot (Or [fExists outputs fOK,fERR]) in
-  gistCtxGivenInv fLOOP typeInv >>= \simplF ->
-  equivalent simplF fFalse >>= \areEquiv ->
-  if areEquiv then return ([OK fOK,ERR fERR],errs)
-  else
-    putStrFS ("Found non-termination: " ++ fname++"_LOOP:="++showSet simplF) >>
-    let newout = [OK fOK,ERR (Or [fERR,simplF])] in
-    let newerrs = errs ++ [([fname++"_LOOP"],simplF)] in
-    return (newout,newerrs)
+  prederivation (fExists outputs gistedOK) individualErrs >>= \(never,must,may) ->
+  let newm=m{methPost=triple gistedOK,methPres=[(["NEVER_BUG"],never)],
+             methInv=fTrue,methUpsis=[],
+             methOK=gistedOK,methERRs=individualErrs,
+             methNEVER=never,methMUSTs=must,methMAY=may} in
+  return (updateMethDecl prog newm)
 
+-- | It plugs errs inside a constraint abstraction (errOutcome) to obtain ERR outcomes.
 getERRConditions:: Maybe (Formula,[QSizeVar]) -> Formula -> Formula -> [FormulaDecl] -> FS (Formula,[LabelledFormula])
 getERRConditions mRecFlags typeInv errOutcome errs = 
   getFlags >>= \flags -> 
@@ -213,9 +185,7 @@ getERRConditions mRecFlags typeInv errOutcome errs =
   else
     replaceAllWithFormula errOutcome errs >>= \replF ->
     weakenWithRec mRecFlags Nothing typeInv replF >>= \f ->
-    let newMethERRIndividual = [(["ERR"],f)] in
-    let newMethERRGlobal = f in
-    return (newMethERRGlobal,newMethERRIndividual)
+    return (f,[(["ERR"],f)])
 
 -- | Given f, returns f || (TransInv compose_{u} f).
 weakenWithRec:: Maybe (Formula,[QSizeVar]) -> Maybe String -> Formula -> Formula -> FS Formula
@@ -233,7 +203,7 @@ weakenWithRec mRecFlags mlbl typeInv fstF =
       gistCtxGivenInv recF typeInv >>= \simplRecF ->
       --putStrFS("recERR"++lbl++":="++showSet simplRecF) >>
       return (Or [simplFstF,simplRecF])
--- ================================
+
 replaceAllWithFormula:: Formula -> [FormulaDecl] -> FS Formula
 replaceAllWithFormula formula [] = return formula
 replaceAllWithFormula formula (f:fs) = 
@@ -246,7 +216,6 @@ replaceLblWithFormula:: Formula -> FormulaDecl -> FS Formula
 replaceLblWithFormula formula fdecl@(FormulaDecl lbl formalQsvs formalf) = case formula of 
   And fs -> mapM (\f -> replaceLblWithFormula f fdecl) fs >>= \repls -> return (And repls)
   Or fs -> mapM (\f -> replaceLblWithFormula f fdecl) fs >>= \repls -> return (Or repls)
---  Not f -> replaceLblWithFormula f (thislbl,thisf) >>= \repl -> return (Not repl)
   Exists qsvs f -> replaceLblWithFormula f fdecl >>= \repl -> return (Exists qsvs repl)
   GEq us -> return formula
   EqK us -> return formula
@@ -259,13 +228,13 @@ replaceAllWithFalse:: Formula -> FS Formula
 replaceAllWithFalse formula = case formula of
   And fs -> mapM replaceAllWithFalse fs >>= \repls -> return (And repls)
   Or fs -> mapM replaceAllWithFalse fs >>= \repls -> return (Or repls)
---  Not f -> replaceAllWithFalse f >>= \repl -> return (Not repl)
   Exists qsvs f -> replaceAllWithFalse f >>= \repl -> return (Exists qsvs repl)
   GEq us -> return formula
   EqK us -> return formula
   AppRecPost mn insouts -> return fFalse
   _ -> error ("unexpected argument: "++show formula)
 
+-- ================================
 outInferExp:: Prog -> Exp -> Lit -> [QSizeVar] -> TypeEnv -> [Outcome] -> RecFlags 
   -> FS (AnnoType,[Outcome],[FormulaDecl])
 -------KTrue-----------------------
@@ -327,7 +296,7 @@ outInferExp prog exp@(If False (ExpVar lit) exp1 exp2) mn v gamma outcomes recFl
   let bty = (case lookupVar lit gamma of Just ty@PrimBool{} -> ty) in
   case bty of
       PrimBool{anno=Just b} ->
--- Point?
+-- Point to do simplification? 
         outsimplify outcomes >>= \outcomesSimpl -> 
         let qb = (SizeVar b,Primed) in
         let outcomesb1 = outAnd outcomesSimpl (EqK [Coef qb (-1),Const 1])  in
@@ -443,9 +412,9 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just crtlbl) fName argsIdent)
     (case calleeDef of
           Just (Meth m) -> 
             setsForParamPassing (fromJust calleeDef) >>= \(_,_,_,_,qsvByVal) ->
-            let outOK = getOKOutcome $ outAnd (methOut m) (noChange qsvByVal) in
-            let outERR = fOr (map (\(lbl,f) -> AppRecPost (concat (crtlbl:lbl)) (fqsv f)) (methErrs m)) in 
-            let errFormulae = map (\(lbl,f) -> FormulaDecl (concat (crtlbl:lbl)) (fqsv f) f) (methErrs m) in --retrieve methErrs
+            let outOK = And [methOK m , (noChange qsvByVal)] in
+            let outERR = fOr (map (\(lbl,f) -> AppRecPost (concat (crtlbl:lbl)) (fqsv f)) (methERRs m)) in 
+            let errFormulae = map (\(lbl,f) -> FormulaDecl (concat (crtlbl:lbl)) (fqsv f) f) (methERRs m) in --retrieve methErrs
             return (fst3(unzip3(methParams m)),snd3(unzip3(methParams m)),[OK outOK, ERR outERR],errFormulae)
           Just (Prim p) -> 
             let strongPost = And ((primPost p):(map (\(lbl,f) -> f) (primPres p))) in
@@ -487,3 +456,15 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just crtlbl) fName argsIdent)
             outdebugApply rho outm >>= \rhooutm ->
             outoutcomposition w out rhooutm >>= \out2 ->
             return $ (typ,out2,errF) 
+
+-- |Returns a list of preconditions that are False. If the list is empty, then each inferred precondition is satisfiable.
+getFalsePresFromProg (Prog _ _ meths) =
+  concatMapM (\m -> filterM (\(lbl,pre) -> subset pre fFalse) (methPres m)) meths
+
+-- |Returns a list of preconditions that are non-true. If the list is empty, then the program is proven safe.
+getNonTruePres meths = 
+  concatMapM (\m -> filterM (\(lbl,pre) -> subset fTrue pre >>= \isValid -> return (not isValid)) (methPres m)) meths
+
+-- |Returns a list of must-bugs that are true. If the list is non-empty, then the program has a must-bug.
+getTrueMustBugs meths = 
+  concatMapM (\m -> filterM (\(lbl,pre) -> subset fTrue pre) (methMUSTs m)) meths

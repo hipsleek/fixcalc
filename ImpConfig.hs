@@ -8,6 +8,7 @@ module ImpConfig(
   Prederivation(..),
   Postcondition(..),
   Heur(..),
+  PrintInfo(..),
   FixFlags,
   defaultFlags,
   noExistentialsInDisjuncts,
@@ -19,6 +20,7 @@ data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD | DualPD deriving 
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
 type FixFlags = (Int,Heur)
 data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur | SimInteractiveHeur deriving (Show,Eq)
+data PrintInfo = NoInfo | AllInfo | FunctionInfo String deriving (Show,Eq)
 
 data Flags = Flags {
   noInference:: Bool,
@@ -32,13 +34,14 @@ data Flags = Flags {
   prederivation:: Prederivation, -- ^Kind of prederivation. Default is PostPD.
   postcondition:: Postcondition, -- ^Whether to accumulate preconditions in the computed postcondition. Default is True.
   traceIndividualErrors:: Bool,  -- ^Trace individual errors for Dual Analysis.
-  fixFlags:: FixFlags, -- ^Number of disjuncts (m) and heuristic function to compute disjunct affinity. Default is (5, Similarity).
-  whatHull:: Hull, -- ^What least upper bound operator: Hull or ConvexHull. Default is Hull.
+  printInfo:: PrintInfo,         -- ^Print all safety/bug conditions for none/all/function-name.
+  fixFlags:: FixFlags,           -- ^Number of disjuncts (m) and heuristic function to compute disjunct affinity. Default is (5, Similarity).
+  whatHull:: Hull,               -- ^What least upper bound operator: Hull or ConvexHull. Default is Hull.
 ---- derive 2 stronger preconditions that need specialization for recursive functions
 ---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
-  useSelectiveHull:: Bool, -- ^Used by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
-  widenEarly:: Bool -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
+  useSelectiveHull:: Bool,       -- ^Used by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
+  widenEarly:: Bool              -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
 } deriving Show
 
 defaultFlags = Flags { 
@@ -50,6 +53,7 @@ defaultFlags = Flags {
   prederivation = DualPD,
   postcondition = StrongPost, 
   traceIndividualErrors = False,
+  printInfo = NoInfo,
   fixFlags = (5,SimilarityHeur),
   whatHull = Hull,
   separateFstFromRec = False,
