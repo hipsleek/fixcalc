@@ -1,7 +1,7 @@
 -- #ignore-exports
 module Main(main) where
 import Fresh(initialState,runFS,putStrFS,getFlags,FS(..),getCPUTimeFS,addOmegaStr)
-import ImpAST(Prog(..),printProgImpi,printProgC,printProgImpt,getUpsisFromProg)
+import ImpAST(Prog(..),printProgImpi,printProgC,printProgImpt,getUpsisFromProg,methName)
 import ImpConfig(defaultFlags,Flags(..),Postcondition(..),Prederivation(..),Heur(..),Hull(..),PrintInfo(..))
 import ImpOutInfer(outInferSccs,getFalsePresFromProg,getNonTruePres,getTrueMustBugs)
 import ImpParser(parse)
@@ -52,8 +52,9 @@ compile flags prog =
           getCPUTimeFS >>= \time1 -> outInferSccs dsgProg sccs >>= \infProg -> getCPUTimeFS >>= \time2 ->
           putStrFS ("Inference...done in " ++ showDiffTimes time2 time1) >> 
           addOmegaStr "# Inference is finished...\n\n" >>
-          getNonTruePres (externalMethods infProg) >>= \nontrue ->
-          getTrueMustBugs (externalMethods infProg) >>= \true ->
+          externalMethods infProg >>= \externalMeths ->
+          getNonTruePres externalMeths >>= \nontrue ->
+          getTrueMustBugs externalMeths >>= \true ->
           if (null nontrue) then
             putStrFS ("SUCCESS: All checks in the program were proven!") >>
             return infProg
@@ -68,7 +69,8 @@ compile flags prog =
           -- Print result of inference before specialization:
           -- printProgImpi infProg >>
           let upsis = getUpsisFromProg infProg in
-          getNonTruePres (externalMethods infProg) >>= \nontrue ->
+          externalMethods infProg >>= \externalMeths ->
+          getNonTruePres externalMeths >>= \nontrue ->
           if (snd upsis == 0 && null nontrue) then 
             putStrFS ("SUCCESS: All checks in the program were proven!") >>
             return infProg

@@ -521,13 +521,13 @@ getNameForMethDecl:: MethDecl -> Lit
 getNameForMethDecl m =
   let ((_,_,fname):_) = methParams m in fname
 
-externalMethods:: Prog -> [MethDecl]
+externalMethods:: Prog -> FS [MethDecl]
 -- ^Returns those "external" methods that are not called from inside the given program.
 externalMethods (Prog _ _ meths) = 
   let graph = (fst3 (graphFromEdges (methAdjacenciesWithoutRec meths))) in
   let ext = filter (\(ix,degree) -> degree == 0) (assocs (indegree graph)) in 
-  -- putStrFS ("External functions: " ++ concatMap (\(ix,degree) -> methName (meths !! ix)) ext) >>
-  map (\(ix,degree) -> (meths !! ix)) ext
+--  putStrFS ("External functions: " ++ concatMap (\(ix,degree) -> methName (meths !! ix)) ext) >>
+  return (map (\(ix,degree) -> (meths !! ix)) ext)
 
 methAdjacenciesWithoutRec:: [Node] -> [(Node, Key, [Key])]
 -- ^Same function as methAdjacencies, but does not count recursive calls.

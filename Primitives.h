@@ -118,6 +118,11 @@ int Bsearch(arrF a,float k);
 int lookup(arrF a,float k,int i,int j);
 int getmid(int i,int j);
 
+//Bubblesort
+void bubble_sort(arrF a,int n);
+void doi(arrF a,int i,int n);
+void doj(arrF a,int i,int j,int n);
+
 //Dotprod
 float dotprod(arrF v1,arrF v2);
 float loopDP(int i,int n,arrF v1,arrF v2,float sum);
@@ -135,6 +140,11 @@ float sumRec(arrF a,int i,int j);
 
 //LU
 void loop(int j,int minMN,int M,int N,arrF2 A,arr pivot);
+int loopi_jp(int i,int j,int M,arrF2 A,float t,int r);
+void array2D_swaprow(int jp,int j,int M,arrF2 A);
+void loopii(int ii,int j,int M,int N,arrF2 A);
+void loopk(int k,int M,int j,float recp,arrF2 A);
+
 
 //SOR
 void init_arrF2(arrF2 a,int i,int j,int m,int n);

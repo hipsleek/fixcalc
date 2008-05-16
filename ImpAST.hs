@@ -321,7 +321,7 @@ instance ShowC Exp where
       KFloatNum f -> if b then pre ++ show f else show f
       KVoid -> if b then pre else ";"
       ExpError -> "printf(\"ABC failed.\\n\");exit(1)"
-      ExpBogus -> "NO INITIALIZATION"
+      ExpBogus -> "NOT INITIALIZED"
       ExpVar id -> if b then pre ++ id else id
       AssignVar id exp -> id ++ "=" ++ showCTabbedRet exp addRet cnt
       LblMethCall lbl id args -> 
@@ -485,7 +485,7 @@ instance ShowImpp Exp where
       KFloatNum f -> show f
       KVoid -> "Void"
       ExpError -> "error"
-      ExpBogus -> "NO INITIALIZATION"
+      ExpBogus -> "NOT INITIALIZED"
       ExpVar id -> id
       AssignVar id exp -> id ++ ":=" ++ showImppTabbed exp cnt
       LblMethCall maybeLbl id args -> let lbl = case maybeLbl of {Just lbl->lbl;Nothing->"NO_LBL"} in
@@ -552,7 +552,7 @@ instance ShowImpp Formula where
       let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map showImpp rhs_terms_pos) in
       lhs ++ " = " ++ rhs
   showImpp f@(AppRecPost lit insouts) = error $ "RecPost should not appear in Impp form" ++ show f
-  showImpp (FormulaBogus) = "--bogus--"
+  showImpp (FormulaBogus) = " NOT INITIALIZED "
 
 instance ShowImpp Update where
   showImpp (Const i) = show i
@@ -632,7 +632,7 @@ instance Show Formula where
         let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map show rhs_terms_pos) in
         lhs ++ " = " ++ rhs
     show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map show insouts) ++ ")"
-    show (FormulaBogus) = "--bogus--"
+    show (FormulaBogus) = " NOT INITIALIZED "
 
 instance Show Update where
     show (Const i) = show i
