@@ -1,9 +1,9 @@
 # Constraint-abstraction from figure 1a from Gulavani's paper in CAV'08
 
 
-loop:={[x,y]->[Px,Py]->[]: exists(x1,y2:
-     (x<=50 && y1=y+1 || x>50 && y1=y-1) 
-     && (y1<0 && Px=x && Py=y  || y1>=0 && x1=x+1 && loop(x1,y1,Px,Py))
+loop:={[x,y]->[Px,Py]->[]: exists(x1,y1:
+     ((x<=50 && y1=y+1) || (x>50 && y1=y-1)) 
+     && ((y1<0 && Px=x && Py=y1)  || (y1>=0 && x1=x+1 && loop(x1,y1,Px,Py)))
 	)};
 
 Fix2:=bottomup(loop,2,SimHeur);Fix2; 
@@ -40,7 +40,7 @@ fm:={[x,y]->[Px,Py] -> []: exists(x1,y1:
 (((y >= 1 && x >= 51) && y + x = Px && 0 = Py + 1) || ((0 >= y && Px >= 51) && Px = x && y = Py + 1))
   )
   || (x<=50 && y1=y+1 &&
-       (y1<0 && Px=x && Py=y  || y1>=0 && x1=x+1 && fm(x1,y1,Px,Py)))
+       (y1<0 && Px=x && Py=y1  || y1>=0 && x1=x+1 && fm(x1,y1,Px,Py)))
   )};
 
 Fix2m:=bottomup(fm,2,SimHeur);Fix2m; 
@@ -51,9 +51,15 @@ Fix3m subset Fix2m; # Fix3m is more precise
 Fix4m subset Fix3m; # Fix3m is more precise
 Fix3m subset Fix4m;
 
+Fix4m subset Fix2;
+Fix2 subset Fix4m;
+
+fixtestPost(loop,Fix4m);
+
 # (Px >= 1 + x && 0 >= 1 + Py && Px >= 0) || (x >= y + 49 && Px >= x && 0 >= 1 + Py && 2 >= y && Px >= 51) || (50 >= x && 0 >= 2 + y && x = Px && y = Py)
 
 init := {[x,y,Px,Px]:x=0 && y=0};
+#C := Fix2 intersection init;
 C := Fix4m intersection init;
 final:={[x,y,Px,Py]:Py=-1 && Px=102};
 final;
