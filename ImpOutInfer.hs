@@ -1,8 +1,8 @@
 {- |Does the outcome inference. It uses the call-graph computation from "ImpTypeInfer". -}
-module ImpOutInfer(outInferSccs,RecFlags,getFalsePresFromProg,getNonTruePres,getTrueMustBugs) where
+module ImpOutInfer(outInferSccs,RecFlags,getNonTruePres) where
 import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(traceIndividualErrors)
+import ImpConfig(traceIndividualErrors,computeAll)
 import ImpFormula
 import ImpFixpoint2k(fixpoint2k)
 import ImpTypeCommon
@@ -110,7 +110,7 @@ outInferMethDeclRec prog m =
   getERRConditions (Just (deltaTransInv,u)) typeInv (getERROutcome out1) errs >>= \(oneErrNoLoop,individualErrsNoLoop) ->
   addLOOPCondition (fname,outputs,typeInv) [OK gistedOK,ERR oneErrNoLoop] individualErrsNoLoop >>= \(_,individualErrs) ->
 ------prederivation
-  prederivation (fExists outputs gistedOK) individualErrs >>= \(never,must,may) ->
+  prederivation (methExternal m) (fExists outputs gistedOK) individualErrs typeInv >>= \(never,must,may) ->
   let newm=m{methPost=triple gistedOK,methPres=[(["NEVER_BUG"],never)],
              methInv=inv,methUpsis=[],
              methOK=gistedOK,methERRs=individualErrs,
@@ -127,23 +127,34 @@ outInferMethDeclRec prog m =
       putStrFS ("Found non-termination: " ++ fname++"_LOOP:="++showSet simplF) >>
       return ( Or [fERR,simplF] , errs ++ [([fname++"_LOOP"],simplF)])
 
-prederivation:: Formula -> [LabelledFormula] -> FS (Formula,[LabelledFormula],Formula)
-prederivation ok errs =
+prederivation:: Bool -> Formula -> [LabelledFormula] -> Formula -> FS (Formula,[LabelledFormula],LabelledFormula)
+prederivation isExternal ok errs typeInv =
   getFlags >>= \flags -> 
   if traceIndividualErrors flags then 
-    let err = fOr (map snd errs) in simplify (And [ok,fNot err]) >>= \never ->
+    let err = fOr (map snd errs) in gistCtxGivenInv (And [ok,fNot err]) typeInv >>= \never ->
+    if (not (computeAll flags) && not isExternal) then 
+      -- avoid the computation of must and may conditions
+      return (never,[],([],FormulaBogus))
+    else 
     mapM (\(lbl,f) -> let resterrs = map snd (delete (lbl,f) errs) in 
-          simplify (fAnd [fNot (fOr (ok:resterrs)),f]) >>= \g -> return (lbl,g) ) errs >>= \must ->
-    let onemust = fOr (map snd must) in simplify (fNot (fOr [never,onemust])) >>= \may ->
+          gistCtxGivenInv (fAnd [fNot (fOr (ok:resterrs)),f]) typeInv >>= \g -> return (lbl,g) ) errs >>= \must ->
     -- remove False from must
     filterM (\(lbl,f) -> subset f fFalse >>= \isFalse -> return (not isFalse)) must >>= \mustNotFalse ->
-    return (never,mustNotFalse,may)
+    let onemust = fOr (map snd must) in gistCtxGivenInv (fNot (fOr [never,onemust])) typeInv >>= \may ->
+    -- when (ERRi /\ (OK \/ \/ERRj) is satisfiable then label i is part of the may_bug
+    mapM (\(lbl,f) -> 
+                let othererrs = fOr (map snd (delete (lbl,f) errs)) in
+                subset (fAnd [f,fOr[ok,othererrs]]) fFalse >>= \isUnsatisfiable ->
+                if isUnsatisfiable then return Nothing else return (Just lbl)) errs >>= \errpairs ->
+    let lbl = concatSepBy "|" (map showImpp (catMaybes errpairs)) in
+    return (never,mustNotFalse,([lbl],may))
   else
     let oneErr = snd (head errs) in
-    simplify (And [ok,fNot oneErr]) >>= \never ->
-    simplify (And[oneErr,fNot ok]) >>= \pre2 ->
-    simplify (And[oneErr,ok]) >>= \may ->
+    gistCtxGivenInv (And [ok,fNot oneErr]) typeInv >>= \never ->
+    gistCtxGivenInv (And[oneErr,fNot ok]) typeInv >>= \pre2 ->
+    gistCtxGivenInv (And[oneErr,ok]) typeInv >>= \pre3 ->
     let must = [(["MUST_BUG"],pre2)] in
+    let may = (["MAY_BUG"],pre3) in
     return (never,must,may)
 
 outInferMethDeclNonRec:: Prog -> MethDecl -> FS Prog
@@ -159,7 +170,7 @@ outInferMethDeclNonRec prog m =
   gistCtxGivenInv (getOKOutcome out1) typeInv >>= \gistedOK ->
   getERRConditions Nothing typeInv (getERROutcome out1) errs >>= \(_,individualErrs) ->
 ------prederivation
-  prederivation (fExists outputs gistedOK) individualErrs >>= \(never,must,may) ->
+  prederivation (methExternal m) (fExists outputs gistedOK) individualErrs typeInv >>= \(never,must,may) ->
   let newm=m{methPost=triple gistedOK,methPres=[(["NEVER_BUG"],never)],
              methInv=fTrue,methUpsis=[],
              methOK=gistedOK,methERRs=individualErrs,
@@ -177,8 +188,8 @@ getERRConditions mRecFlags typeInv errOutcome errs =
                         replaceLblWithFormula errOutcome fdecl >>= \replF ->
                         replaceAllWithFalse replF >>= \replAllF ->
                         weakenWithRec mRecFlags (Just lbl) typeInv replAllF >>= \f ->
-                        equivalent f fFalse >>= \areEquiv ->
-                        if areEquiv then return Nothing 
+                        subset f fFalse >>= \isUnsatisfiable ->
+                        if isUnsatisfiable then return Nothing 
                         else return (Just ([lbl],f))) errs >>= \x -> return (catMaybes x) >>= \newMethERRIndividual ->
     gistCtxGivenInv (fOr (map (\(lbl,f) -> f) newMethERRIndividual)) typeInv >>= \newMethERRGlobal ->
     return (newMethERRGlobal,newMethERRIndividual)
@@ -457,14 +468,6 @@ outInferExp (Prog _ prims meths) exp@(LblMethCall (Just crtlbl) fName argsIdent)
             outoutcomposition w out rhooutm >>= \out2 ->
             return $ (typ,out2,errF) 
 
--- |Returns a list of preconditions that are False. If the list is empty, then each inferred precondition is satisfiable.
-getFalsePresFromProg (Prog _ _ meths) =
-  concatMapM (\m -> filterM (\(lbl,pre) -> subset pre fFalse) (methPres m)) meths
-
 -- |Returns a list of preconditions that are non-true. If the list is empty, then the program is proven safe.
 getNonTruePres meths = 
   concatMapM (\m -> filterM (\(lbl,pre) -> subset fTrue pre >>= \isValid -> return (not isValid)) (methPres m)) meths
-
--- |Returns a list of must-bugs that are true. If the list is non-empty, then the program has a must-bug.
-getTrueMustBugs meths = 
-  concatMapM (\m -> filterM (\(lbl,pre) -> subset fTrue pre) (methMUSTs m)) meths

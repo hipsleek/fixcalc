@@ -4,7 +4,7 @@
    
    The functions mkChk and mkChkRec decide whether a check is safe, unsafe or partially-safe.
 -}
-module ImpTypeInfer(methAdjacencies,externalMethods,typeInferSccs) where
+module ImpTypeInfer(methAdjacencies,getExternalMethods,setExternalMethods,typeInferSccs) where
 import Fresh
 import ImpAST
 import ImpConfig
@@ -521,13 +521,25 @@ getNameForMethDecl:: MethDecl -> Lit
 getNameForMethDecl m =
   let ((_,_,fname):_) = methParams m in fname
 
-externalMethods:: Prog -> FS [MethDecl]
+getExternalMethods:: Prog -> FS [MethDecl]
 -- ^Returns those "external" methods that are not called from inside the given program.
-externalMethods (Prog _ _ meths) = 
+getExternalMethods (Prog _ _ meths) = 
+  return (filter methExternal meths)
+  
+setExternalMethods:: Prog -> FS Prog
+setExternalMethods prog@(Prog _ _ meths) = 
   let graph = (fst3 (graphFromEdges (methAdjacenciesWithoutRec meths))) in
-  let ext = filter (\(ix,degree) -> degree == 0) (assocs (indegree graph)) in 
---  putStrFS ("External functions: " ++ concatMap (\(ix,degree) -> methName (meths !! ix)) ext) >>
-  return (map (\(ix,degree) -> (meths !! ix)) ext)
+  let pairs = filter (\(ix,degree) -> degree == 0) (assocs (indegree graph)) in 
+--  putStrFS ("External methods: " ++ concatMap (\(ix,degree) -> methName (meths !! ix)) pairs) >>
+  let externalMeths = (map (\(ix,degree) -> (meths !! ix)) pairs) in
+  return (updateProg prog externalMeths)
+  where 
+  updateProg:: Prog -> [MethDecl] -> Prog
+  updateProg prog [] = prog
+  updateProg prog (extm:extms) = 
+    let newm = extm{methExternal=True} in
+    let newprog = updateMethDecl prog newm in
+    updateProg newprog extms
 
 methAdjacenciesWithoutRec:: [Node] -> [(Node, Key, [Key])]
 -- ^Same function as methAdjacencies, but does not count recursive calls.

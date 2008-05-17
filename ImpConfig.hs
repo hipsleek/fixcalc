@@ -8,7 +8,6 @@ module ImpConfig(
   Prederivation(..),
   Postcondition(..),
   Heur(..),
-  PrintInfo(..),
   FixFlags,
   defaultFlags,
   noExistentialsInDisjuncts,
@@ -20,7 +19,6 @@ data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD | DualPD deriving 
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
 type FixFlags = (Int,Heur)
 data Heur = SimilarityHeur | DifferenceHeur | HausdorffHeur | SimInteractiveHeur deriving (Show,Eq)
-data PrintInfo = NoInfo | AllInfo | FunctionInfo String deriving (Show,Eq)
 
 data Flags = Flags {
   noInference:: Bool,
@@ -34,9 +32,10 @@ data Flags = Flags {
   prederivation:: Prederivation, -- ^Kind of prederivation. Default is PostPD.
   postcondition:: Postcondition, -- ^Whether to accumulate preconditions in the computed postcondition. Default is True.
   traceIndividualErrors:: Bool,  -- ^Trace individual errors for Dual Analysis.
-  printInfo:: PrintInfo,         -- ^Print all safety/bug conditions for none/all/function-name.
+  computeAll:: Bool,             -- ^Compute all safety/bug conditions for all methods (flag:True) or only for external methods (flag:False).
   fixFlags:: FixFlags,           -- ^Number of disjuncts (m) and heuristic function to compute disjunct affinity. Default is (5, Similarity).
   whatHull:: Hull,               -- ^What least upper bound operator: Hull or ConvexHull. Default is Hull.
+  simplifyCAbst:: Bool,          -- ^Whether to simplify the constraint abstraction before fixpoint (experimental flag).
 ---- derive 2 stronger preconditions that need specialization for recursive functions
 ---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
@@ -53,9 +52,10 @@ defaultFlags = Flags {
   prederivation = DualPD,
   postcondition = StrongPost, 
   traceIndividualErrors = False,
-  printInfo = NoInfo,
+  computeAll = True,
   fixFlags = (5,SimilarityHeur),
   whatHull = Hull,
+  simplifyCAbst = False,
   separateFstFromRec = False,
   useSelectiveHull = False,
   widenEarly = True

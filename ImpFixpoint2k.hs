@@ -15,7 +15,7 @@ module ImpFixpoint2k(
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
-import ImpConfig(useSelectiveHull,widenEarly,showDebugMSG,Heur(..),fixFlags,FixFlags,simulateOldFixpoint)
+import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
@@ -38,12 +38,9 @@ fixpoint2k m recPost@(RecPost mn f (i,o,byval)) =
   if not (fst (testRecPost recPost)) then error ("assertion failed in fixpoint2k") 
   else
       getFlags >>= \flags -> let fixFlags1 = fixFlags flags in
---            addOmegaStr("CAbst:="++showSet f) >>
---            bottomUp2k recPost fixFlags1 fFalse >>= \(postNoSimpl,_) ->
---            putStrFS("OK:="++showSet postNoSimpl) >>
---      newSimplifyEntireRecPost recPost >>= \sRecPost@(RecPost _ sf _) ->
-      let sRecPost@(RecPost _ sf _) = recPost in
---            addOmegaStr("SimplCAbst:="++showSet sf) >>
+      (if simplifyCAbst flags then
+        newSimplifyEntireRecPost recPost
+      else return recPost) >>= \sRecPost@(RecPost _ sf _) ->
 ---- Bottom-Up fixpoint
       addOmegaStr ("\n# " ++ show sRecPost) >> addOmegaStr ("#\tstart bottomUp2k") >>
       getCPUTimeFS >>= \time1 -> 
@@ -362,7 +359,7 @@ newSimplifyWithAppRecPost:: Formula -> FS Formula
 -- ^simplification of a formula that may contain an AppRecPost constructor.
 -- This function is not used currently: it is unsafe, because Omega.simplify, when given a complex argument, may drop information about a marker.
 newSimplifyWithAppRecPost f =
-  putStrFS ("#####simplifyRecPost") >>
+  addOmegaStr ("#####simplifyRecPost") >>
       addOmegaStr("1BefSimpl:="++showSet f) >>
   replaceAppRecPost f >>= \(markF,markAppRecPost,markArgs) ->
       addOmegaStr("2WithMark:="++showSet markF) >>

@@ -147,12 +147,13 @@ sTypeCheckExp prog exp@(While e1 eb) mn gamma =
       let whileCall = LblMethCall Nothing freshMname whileArgs in
       let newWhileEb = ExpBlock [] (If False newE1 (Seq newEb whileCall) KVoid) in
       let newMD = MethDecl {methParams=((PassByRef,retTy,freshMname):argsAndTys),
+                            methExternal=False,
                             methPost=(triple FormulaBogus),
                             methPres=[],
                             methUpsis=[],
                             methInv=FormulaBogus,
                             methOK=FormulaBogus,methERRs=[],
-                            methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+                            methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
                             methBody=newWhileEb} in
       return (newMD:newMd1++newMdEb,whileCall,PrimVoid{anno=Nothing})
 
@@ -177,12 +178,13 @@ sTypeCheckExp prog exp@(For e1 e2 e3 eb) mn gamma =
     let forCall = LblMethCall Nothing freshMname forArgs in
     let newForEb = ExpBlock [] (If False newE2 (Seq newEb (Seq newE3 forCall)) KVoid) in
     let newMD = MethDecl {methParams=((PassByRef,retTy,freshMname):argsAndTys),
+                          methExternal=False,
                           methPost=(triple FormulaBogus),
                           methPres=[],
                           methUpsis=[],
                           methInv=FormulaBogus,
                           methOK=FormulaBogus,methERRs=[],
-                          methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+                          methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
                           methBody=newForEb} in
     return (newMD:newMd1++newMd2++newMd3++newMdEb,forCall,PrimVoid{anno=Nothing})
 

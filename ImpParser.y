@@ -140,12 +140,13 @@ MethDecl:
     Ref AnnTy lit '(' LTypedParam ')'
     where FormulaWithBkt ',' '{' LLabelledFormula '}' ',' '{' LQLabel '}' ',' FormulaWithBkt ',' EB
   {MethDecl {methParams=(($1,$2,$3):(reverse $5)),
+             methExternal=False,
              methPost=[$8,fTrue,fTrue],
              methPres=(reverse $11),
              methUpsis=(reverse $15),
              methInv=$18,
              methOK=FormulaBogus,methERRs=[],
-             methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+             methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
              methBody=$20}
   }
 -- MethDecl with 3 postconditions (StrongPost,WeakPost,CondPost) and other formulae (input file for checking)
@@ -153,35 +154,38 @@ MethDecl:
     where FormulaWithBkt ',' FormulaWithBkt ',' FormulaWithBkt ',' '{' LLabelledFormula '}' ','
      '{' LQLabel '}' ',' FormulaWithBkt ',' EB
   { MethDecl {methParams=(($1,$2,$3):(reverse $5)),
+              methExternal=False,
               methPost=[$8,$10,$12],
               methPres=(reverse $15),
               methUpsis=(reverse $19),
               methInv=$22,
               methOK=FormulaBogus,methERRs=[],
-              methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+              methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
               methBody=$24}
   }
 -- MethDecl with postcondition + precondition and no other formulae (input file for checking, easier to read)
   | Ref AnnTy lit '(' LTypedParam ')'
     where FormulaWithBkt ',' '{' LLabelledFormula '}' EB
   { MethDecl {methParams=(($1,$2,$3):(reverse $5)),
+              methExternal=False,
               methPost=[$8,fTrue,fTrue],
               methPres=(reverse $11),
               methUpsis=[],
               methInv=FormulaBogus,
               methOK=FormulaBogus,methERRs=[],
-              methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+              methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
               methBody=$13}
   }
 -- MethDecl without postcondition and other formulae (input file for inference)
   | Ref AnnTy lit '(' LTypedParam ')'EB 
   { MethDecl {methParams=(($1,$2,$3):(reverse $5)),
+              methExternal=False,
               methPost=(triple FormulaBogus),
               methPres=[],
               methUpsis=[],
               methInv=FormulaBogus,
               methOK=FormulaBogus,methERRs=[],
-              methNEVER=FormulaBogus,methMUSTs=[],methMAY=FormulaBogus,
+              methNEVER=FormulaBogus,methMUSTs=[],methMAY=([],FormulaBogus),
               methBody=$7}
   }
 

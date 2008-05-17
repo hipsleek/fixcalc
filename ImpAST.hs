@@ -16,22 +16,20 @@ data PrimDecl = PrimDecl {
   primPres:: [LabelledFormula],
   primTests:: [LabelledExp]
 }
--- | A declaration of a method is represented with (Arguments, Postcondition, PreconditionS, Runtime-checkS, Invariant, Body).
+-- | A declaration of a method is represented with (Arguments, Body, Postcondition, Preconditions, Runtime-checkc, Invariant).
 data MethDecl = MethDecl {
   methParams:: [(PassBy,AnnoType,Lit)],
-  methBody:: Exp,
-  methPost:: [Formula],           -- ^Method postcondition
-  methPres:: [LabelledFormula],   -- ^Method preconditions
-  methUpsis:: [QLabel],           -- ^Labels for checks that need to be specialized. Computed in ImpTypeInfer and used in ImpSugar.
-  methInv:: Formula,              -- ^Transition invariant. Computed and used in ImpTypeInfer and ImpOutInfer.
-  methOK:: Formula,               -- ^OK outcome (equivalent to methPost). Computed and used in ImpOutInfer.
+  methBody  :: Exp,
+  methExternal :: Bool,           -- ^Flag to indicate if the method is external (not called anywhere in the given program).
+  methPost  :: [Formula],         -- ^Method postcondition
+  methPres  :: [LabelledFormula], -- ^Method preconditions
+  methUpsis :: [QLabel],          -- ^Labels for checks that need to be specialized. Computed in ImpTypeInfer and used in ImpSugar.
+  methInv   :: Formula,           -- ^Transition invariant. Computed and used in ImpTypeInfer and ImpOutInfer.
+  methOK    :: Formula,           -- ^OK outcome (equivalent to methPost). Computed and used in ImpOutInfer.
   methERRs  :: [LabelledFormula], -- ^ERR outcomes. Computed and used in ImpOutInfer.
   methNEVER :: Formula,           -- ^Never-bug condition (equivalent to methPres).
-  methMUSTs :: [LabelledFormula], -- ^Must-bug conditions.
-  methMAY   :: Formula            -- ^May-bug condition.
---  methOut:: [Outcome],  -- ^2 outcomes: [OK: F1, ERR: F2]
---  methOutBugs:: [LabelledFormula], -- ^3 formulae on input: [NEVER_BUG: F1, MUST_BUG: F2, MAY_BUG: F3]
---  methErrs:: [LabelledFormula] -- ^individual error conditions
+  methMUSTs :: [LabelledFormula], -- ^Must-bug conditions. 
+  methMAY   :: LabelledFormula    -- ^May-bug condition.
 }
 
 data Callable = Prim PrimDecl
@@ -406,7 +404,7 @@ instance ShowImpp MethDecl where
 -- printing NEVER/MUST/MAY is expensive. For benchmark evaluation is disabled:
     "NEVER_BUG:=" ++showSet (methNEVER m) ++ "\n" ++
     "MUST_BUGs:={"++showImpp (methMUSTs m) ++ "}\n" ++
-    "MAY_BUG:="   ++showSet (methMAY m) ++ "\n-}\n" ++
+    "MAY_BUG:="   ++showImpp [methMAY m] ++ "\n-}\n" ++
     passbyStr ++ showImpp t ++ " " ++ fname ++ "(" ++ strArgs ++ ")" ++ 
     "\n  where\n  (" ++ showImpp (strong $ methPost m) ++ "),\n  {" ++ showImpp (methPres m) ++ "}" ++
 --    ",\n  {" ++ showImpp (methUpsis m) ++ "},\n  (" ++ showImpp (methInv m) ++ ")," ++
