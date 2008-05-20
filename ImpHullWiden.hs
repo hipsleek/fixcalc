@@ -41,7 +41,7 @@ combSelHull (m,heur) disj fbase =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      when (showDebugMSG flags>=2) (putStrFS ("####SelHull: start iterating with "++show (length (catMaybes disjM))
+      when (showDebugMSG flags>=2) (putStrFS ("####SelHull with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
@@ -88,8 +88,8 @@ iterateHalfMx (m,heur) disjM affinMx =
   when (showDebugMSG flags >=2) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   replaceRelated disjM (i,j) >>= \replDisjM ->
-  when (showDebugMSG flags >=2) (putStrFS ("####"++show (length (catMaybes replDisjM))++ "\n" 
-                               ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
+                               ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
   else 
     computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
@@ -168,6 +168,8 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
   getFlags >>= \flags -> 
+  when (showDebugMSG flags>=2) (putStrFS ("####Widening 2 arguments, each with "++show (length (catMaybes disjCrt)) 
+            ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) (disjCrt++disjNxt)))) >>
   when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
   when (showDebugMSG flags >=1) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>

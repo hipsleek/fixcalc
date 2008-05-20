@@ -51,7 +51,14 @@ lexer' ('-':xs) = returnPI TkMinus xs
 lexer' ('>':'=':xs) = returnPI TkGTE xs
 lexer' ('>':xs) = returnPI TkGT xs
 lexer' ('<':'=':xs) = returnPI TkLTE xs
-lexer' ('<':'>':xs) = returnPI TkNEq xs
+lexer' ('!':'=':xs) = returnPI TkNEq xs 
+{- The != operator is not implemented in my parser of Omega formulae 
+   because of complications with the , operator. 
+   As an example, the formula (1+x!=y,z+2) should reduce to 2 conjuncts, each with 2 disjuncts:
+   (1+x<=y || 1+x>=y) && (1+x<=z+2 || 1+x>=z+2).
+   Currently, the comma operator works only for formulae with <, <=, >, >=, = operators.
+   As an example 1+x<y,z+2 is translated to: (1+x<y && 1+x<z+2).
+-}
 lexer' ('<':xs) = returnPI TkLT xs
 lexer' ('*':xs) = returnPI TkMul xs
 lexer' ('/':xs) = returnPI TkDiv xs
