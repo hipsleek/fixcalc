@@ -176,11 +176,12 @@ compile flags prog =
           else 
             if (snd upsis /= 0) then 
               let str = if (snd upsis == 1) then " runtime test needed: " else " runtime tests needed: " in
-              putStrFS ("NOT ALL CHECKS WERE PROVEN.\n" ++ show (snd upsis) ++ str ++ (fst upsis)) >>
+              putStrFS ("POSSIBLE bug(s):\n" ++ show (snd upsis) ++ str ++ (fst upsis)) >>
+              when (length nontrue /=0) (putStrFS ("Preconditions not valid: " ++ show nontrue)) >>
               getCPUTimeFS >>= \time1 -> specialize infProg >>= \specializedProg -> getCPUTimeFS >>= \time2 -> 
               putStrFS ("Specialization...done in " ++ showDiffTimes time2 time1) >> return specializedProg
             else -- some preconditions are not true
-              putStrFS ("NOT ALL CHECKS WERE PROVEN.\n" ++ show nontrue) >> return infProg
+              putStrFS ("POSSIBLE bug(s):\n" ++ "Preconditions not valid: " ++ show nontrue) >> return infProg
           ) >>= \afterInferenceProg -> 
           printProgC afterInferenceProg >>
           printProgImpt afterInferenceProg >>
@@ -210,7 +211,7 @@ printDualResult flags printName m =
       if null (methMUSTs m) then -- methMUSTs are False
         return ()
       else
-        mapM (\(lbl,f) -> putStrFS ("BUG FOUND for condition MUST_BUG_" ++ showImpp lbl ++ " = " ++ show f)) (methMUSTs m) >> return ()
+        mapM (\(lbl,f) -> putStrFS ("BUG found for condition MUST_BUG_" ++ showImpp lbl ++ " = " ++ show f)) (methMUSTs m) >> return ()
     else
       if null (methMUSTs m) then -- methMUST is False
         return ()
@@ -218,11 +219,11 @@ printDualResult flags printName m =
         subset fTrue (snd (head (methMUSTs m))) >>= \isValid ->
         subset (snd (head (methMUSTs m))) fFalse >>= \isUnsatisfiable ->
         if isValid then 
-          putStrFS ("BUG(S) FOUND.")
+          putStrFS ("BUG(S) found.")
         else if isUnsatisfiable then
           return ()
         else -- methMUST is neither True nor False
-          putStrFS ("BUG(S) FOUND for MUST_BUG = " ++ show (snd (head (methMUSTs m))))
+          putStrFS ("BUG(S) found for condition MUST_BUG = " ++ show (snd (head (methMUSTs m))))
   ) >> ( -- print MAY_BUG
     let (lbl,may) = methMAY m in
     subset may fFalse >>= \isUnsatisfiable ->
@@ -230,7 +231,7 @@ printDualResult flags printName m =
       return ()
     else
       if traceIndividualErrors flags then
-        putStrFS ("Possible bug(s) for condition MAY_BUG_" ++ showImpp lbl ++ " = " ++ show may)
+        putStrFS ("POSSIBLE bug(s) for condition MAY_BUG_" ++ showImpp lbl ++ " = " ++ show may)
       else
-        putStrFS ("Possible bug(s) for condition MAY_BUG = " ++ show may))
+        putStrFS ("POSSIBLE bug(s) for condition MAY_BUG = " ++ show may))
   
