@@ -1,0 +1,17 @@
+#include "Primitives.imp"
+
+-- In our system, the assertion cannot be proven.
+
+void disj() {
+  int x:=0;
+  int y:=50;
+  while (x<100) do {
+    if (x<50) then {
+      x:=x+1
+    } else {
+      x:=x+1;
+      y:=y+1
+    }
+  };
+  assert(y=100)
+}
