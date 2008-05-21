@@ -316,8 +316,12 @@ bool<r> berror()
 Int<c> mul3(Int<a>a)
 	where (c=3a && a=a'),{},{}
 
-void assert(bool<flag> flag)
-  where (flag'=flag),{L: (flag=1)},{}
-  
 float sqrt(float s) 
   where (0=0),{},{}
+
+void assert(bool<flag> flag)
+  where (flag'=flag),{L: (flag=1)},{}
+
+void assume(bool<flag> flag)
+  where (flag'=flag),{LOOP: (flag=1)},{} 
+-- The primitive assume is similar to assert. The difference is that it will go into a loop rather than fail.
