@@ -54,7 +54,7 @@ imp : $(OBJS) ImpParser.y
 	ghc -o $@ $(HC_OPTS) -lstdc++ $(OBJS) $(LIBS) $(OMEGA_LIBS) $(RAZVAN_LIBS)
 
 clean:
-	rm -f *.hi *.o *~ imp ImpParser.hs *.info a.omega a.all.c a.c a.out a.impi a.impt a.omega-err a.pre oc.out fixcalc FixCalcParser.hs
+	rm -f *.hi *.o *~ imp ImpParser.hs *.info a.omega a.all.c a.c a.out a.impi a.impt a.omega-err a.pre oc.out fixcalc FixCalcParser.hs log
 	
 install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
