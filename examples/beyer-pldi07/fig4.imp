@@ -1,6 +1,7 @@
 #include "Primitives.imp"
 
-{-- Example from fig4 of Beyer-PLDI07. In our system, the assertion cannot be proven.
+{-- Example from fig4 of Beyer-PLDI07. 
+-- In our system, the assertion cannot be proven.
 void disj() {
   int x:=0;
   int y:=50;
@@ -33,7 +34,7 @@ void disjIdeal() {
 -}
 
 -- Disjunctive path program, derived as in Beyer's paper.
--- In our system the assertion cannot be proven.
+-- In our system the assertion cannot be proven (since we don't have the loop initial state).
 -- However, I speculate that a global analysis would have no problem to prove the assertion (y<=100).
 void disjDPP() {
   int x:=0;
