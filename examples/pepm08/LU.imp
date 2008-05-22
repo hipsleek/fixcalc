@@ -11,6 +11,7 @@ void main()
 
   printArrF2(A);
   LU_factor(dim,dim,A,pivot);
+  LU_copy_matrix(dim,dim,A,A); -- this method is not used in the original LU.c file
   printArrF2(A);
   printStats()
 }
