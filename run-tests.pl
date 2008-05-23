@@ -15,53 +15,53 @@ $module_path = '/home/popeeaco/personal/research/bugs-code';
 #results can be: POSSIBLE|SAFETY|BUG
 %runs = (
     "asian06" =>[
-            ["examples/pepm08/bsearch","POSSIBLE","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/bubblesort","SAFETY","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/copyseq","SAFETY","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/dotprod","SAFETY","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/initarr","SAFETY","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/intro","POSSIBLE","+infer -o:con1 PostStrong -m:1"],
-            ["examples/pepm08/intro2","POSSIBLE","+infer -o:con1 PostStrong -m:1"],
-            ["examples/pepm08/mergesort","SAFETY","+infer -o:con1 PostStrong -m:4"],
-            ["examples/pepm08/mvm","SAFETY","+infer +indir -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/queens","POSSIBLE","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/quicksort","POSSIBLE","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/sentinel","POSSIBLE","+infer -o:con1 PostStrong -m:1"],
-            ["examples/pepm08/sumvec","SAFETY","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/swaparr","SAFETY","+infer -o:con1 PostStrong -m:1"],
-            ["examples/pepm08/FFT","POSSIBLE","+infer -o:con1 PostStrong -m:3"],
-            ["examples/pepm08/linpack","POSSIBLE","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/LU","POSSIBLE","+infer -o:con1 PostStrong -m:2"],
-            ["examples/pepm08/SOR","SAFETY","+infer -o:con1 PostStrong -m:4"]
+            ["examples/pepm08/bsearch","POSSIBLE","+infer PostStrong -m:2"],
+            ["examples/pepm08/bubblesort","SAFETY","+infer PostStrong -m:2"],
+            ["examples/pepm08/copyseq","SAFETY","+infer PostStrong -m:2"],
+            ["examples/pepm08/dotprod","SAFETY","+infer PostStrong -m:2"],
+            ["examples/pepm08/initarr","SAFETY","+infer PostStrong -m:2"],
+            ["examples/pepm08/intro","POSSIBLE","+infer PostStrong -m:1"],
+            ["examples/pepm08/intro2","POSSIBLE","+infer PostStrong -m:1"],
+            ["examples/pepm08/mergesort","SAFETY","+infer PostStrong -m:4"],
+            ["examples/pepm08/mvm","SAFETY","+infer +indir PostStrong -m:2"],
+            ["examples/pepm08/queens","POSSIBLE","+infer PostStrong -m:2"],
+            ["examples/pepm08/quicksort","POSSIBLE","+infer PostStrong -m:2"],
+            ["examples/pepm08/sentinel","POSSIBLE","+infer PostStrong -m:1"],
+            ["examples/pepm08/sumvec","SAFETY","+infer PostStrong -m:2"],
+            ["examples/pepm08/swaparr","SAFETY","+infer PostStrong -m:1"],
+            ["examples/pepm08/FFT","POSSIBLE","+infer PostStrong -m:3"],
+            ["examples/pepm08/linpack","POSSIBLE","+infer PostStrong -m:2"],
+            ["examples/pepm08/LU","POSSIBLE","+infer PostStrong -m:2"],
+            ["examples/pepm08/SOR","SAFETY","+infer PostStrong -m:4"]
             ],
     "pepm08" =>[
-            ["examples/pepm08/bsearch","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/bubblesort","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/copyseq","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/dotprod","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/initarr","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/intro","POSSIBLE","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/intro2","POSSIBLE","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/mergesort","SAFETY","+infer -o:con1 StrongWeak -m:1"],
-            ["examples/pepm08/mvm","SAFETY","+infer +indir -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/queens","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/quicksort","SAFETY","+infer -o:con1 StrongStrong -m:2"],
-            ["examples/pepm08/sentinel","POSSIBLE","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/sumvec","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/swaparr","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/FFT","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/linpack","POSSIBLE","+infer -o:con1 StrongWeak -m:2"],
-            ["examples/pepm08/LU","SAFETY","+infer -o:con1 StrongStrong -m:1"],
-            ["examples/pepm08/SOR","SAFETY","+infer -o:con1 StrongStrong -m:1"]
+            ["examples/pepm08/bsearch","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/bubblesort","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/copyseq","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/dotprod","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/initarr","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/intro","POSSIBLE","+infer StrongStrong -m:1"],
+            ["examples/pepm08/intro2","POSSIBLE","+infer StrongStrong -m:1"],
+            ["examples/pepm08/mergesort","SAFETY","+infer StrongWeak -m:1"],
+            ["examples/pepm08/mvm","SAFETY","+infer +indir StrongStrong -m:1"],
+            ["examples/pepm08/queens","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/quicksort","SAFETY","+infer StrongStrong -m:2"],
+            ["examples/pepm08/sentinel","POSSIBLE","+infer StrongStrong -m:1"],
+            ["examples/pepm08/sumvec","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/swaparr","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/FFT","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/linpack","POSSIBLE","+infer StrongWeak -m:2"],
+            ["examples/pepm08/LU","SAFETY","+infer StrongStrong -m:1"],
+            ["examples/pepm08/SOR","SAFETY","+infer StrongStrong -m:1"]
             ],
     "gulavani-fse06" =>[
-            ["examples/gulavani-fse06/fse.fig1","SAFETYBUG","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig3","SAFETY","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig4","BUG","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig6","SAFETY","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig7","SAFETYBUG","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig8","SAFETY","+infer -o:con1 DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig9","BUG","+infer -o:con1 DualStrong -m:2"]],
+            ["examples/gulavani-fse06/fse.fig1","SAFETYBUG","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig3","SAFETY","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig4","BUG","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig6","SAFETY","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig7","SAFETYBUG","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig8","SAFETY","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig9","BUG","+infer DualStrong -m:2"]],
 );    
 
 %result = ("SAFETY"=>0,"POSSIBLE"=>0,"BUG"=>0,"UNEXPECTED"=>0); 
@@ -139,17 +139,16 @@ if ($exhaustive) {
     print LOGFILE "\tBUG: $result{'BUG'}\n \tUNEXPECTED: $result{'UNEXPECTED'}\n";
 }
 close(LOGFILE);
-`rm con1.*`;
 print "Total time: $ptime seconds\n";
 exit(0);
 
 sub check_one_file{
-  $output = `cd $module_path ;./imp $_[0] +infer +check -o:con1 $_[2] -m:$_[1] 2>&1`;   
+  $output = `cd $module_path ;./imp $_[0] +infer +check $_[2] -m:$_[1] 2>&1`;   
   ver_out($_[2],$_[1],$output);
-  $output1 = `cd $module_path ;./imp $_[0] +infer +check -club:ConvexHull -o:con1 $_[2] -m:$_[1] 2>&1`;   
+  $output1 = `cd $module_path ;./imp $_[0] +infer +check -club:ConvexHull $_[2] -m:$_[1] 2>&1`;   
   print LOGFILE "\n ConvexHull";
   ver_out($_[2],$_[1],$output);
-  $output2 = `cd $module_path ;./imp $_[0] +infer +check -simplifyCAbst -o:con1 $_[2] -m:$_[1] 2>&1`;   
+  $output2 = `cd $module_path ;./imp $_[0] +infer +check -simplifyCAbst $_[2] -m:$_[1] 2>&1`;   
   print LOGFILE "\n simplifyCAbst";
   ver_out($_[2],$_[1],$output);
   $output = `cd $module_path ;./imp con1.impt -infer +check 2>&1`;  
