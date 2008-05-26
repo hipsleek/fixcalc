@@ -1,5 +1,6 @@
 #include "Primitives.imp"
 
+-- In our system, program safety can be proven (for m=1).
 void foo() {
   int x0 := randInt();
   int x1 := randInt();

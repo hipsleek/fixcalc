@@ -1,5 +1,6 @@
 #include "Primitives.imp"
 
+-- In our system, precise conditions are identified for NEVER_BUG and MUST_BUG (for m=1).
 void foo(int a) {
   int i:=0;
   int c:=0;

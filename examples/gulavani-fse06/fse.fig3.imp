@@ -1,5 +1,6 @@
 #include "Primitives.imp"
 
+-- In our system, program safety can be proven (for m=1).
 void foo(int y) {
   int x:=randInt();
   int lock := 0; --0 means U
