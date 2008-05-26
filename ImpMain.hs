@@ -51,10 +51,10 @@ processCmdLine cmdLine =
 showHelpMessage = 
   putStrLn "Usage: imp file [options]" >>
   putStrLn "\nGeneral options:" >>
-  putStrLn "  +infer -check\t\t Infer the input file and output the result in *.impi file." >>
-  putStrLn "  +infer +check\t\t Infer the input file and type-check the result." >>
-  putStrLn "  -infer +check\t\t Type-check the input file (written in impt format)." >>
-  putStrLn "  +indir\t\t Enable array indirection." >>
+  putStrLn "  +infer -check\t\t Infer the input file and output the result in *.impt file." >>
+  putStrLn "  +infer +check\t\t Infer the input file and type-check the result from inference." >>
+  putStrLn "  -infer +check\t\t Type-check the input file annotated with pre/post (impt format)." >>
+  putStrLn "  +indir\t\t Enable array contents analysis (experimental flag)." >>
   putStrLn "  -o:<file>\t\t Place the output in <file.impt>, <file.c> and <file.omega>." >>
   putStrLn "  -v:<level>\t\t Be verbose, where <level> is the verbosity level (0, 1 or 2)." >>
   putStrLn "   0\t\t\t Do not show any fixpoint messages." >>
