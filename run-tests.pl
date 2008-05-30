@@ -57,11 +57,20 @@ $module_path = '/home/popeeaco/personal/research/bugs-code';
     "gulavani-fse06" =>[
             ["examples/gulavani-fse06/fse.fig1","SAFETYBUG","+infer DualStrong -m:1"],
             ["examples/gulavani-fse06/fse.fig3","SAFETY","+infer DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig4","BUG","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig4","BUG","+infer DualStrong -m:1 +individual"],
             ["examples/gulavani-fse06/fse.fig6","SAFETY","+infer DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig7","SAFETYBUG","+infer DualStrong -m:1"],
+            ["examples/gulavani-fse06/fse.fig7","SAFETYBUG","+infer DualStrong -m:1 +individual"],
             ["examples/gulavani-fse06/fse.fig8","SAFETY","+infer DualStrong -m:1"],
-            ["examples/gulavani-fse06/fse.fig9","BUG","+infer DualStrong -m:2"]],
+            ["examples/gulavani-fse06/fse.fig9","BUG","+infer DualStrong -m:2 +individual"]],
+    "fse08" => [
+            ["examples/fse08/errbubblesort","BUG","+infer DualStrong -m:2 +simplifyCAbst +individual"],
+            ["examples/fse08/errinitarr","BUG","+infer DualStrong -m:2 +individual"],
+            ["examples/fse08/errquicksort","BUG","+infer DualStrong -m:2 +individual"],
+            ["examples/fse08/errsentinel","BUG","+infer DualStrong -m:2 +individual"],
+            ["examples/fse08/OK_SpamAssassin","BUG","+infer DualStrong -m:2 +individual"],
+            ["examples/fse08/OK_samba","BUG","+infer DualStrong -m:1 +individual"],
+            ["examples/fse08/CORRECTED_SpamAssassin","POSSIBLE","+infer DualStrong -m:2"],
+            ["examples/fse08/CORRECTED_samba","SAFETY","+infer DualStrong -m:1"]]
 );    
 
 %result = ("SAFETY"=>0,"POSSIBLE"=>0,"BUG"=>0,"UNEXPECTED"=>0); 
