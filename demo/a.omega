@@ -1,0 +1,56 @@
+# F1:={[i,j]:i >= 1 + j};
+# F2:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i))};
+# F3:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# F4:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# Widen1IN:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# Widen2IN:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# WidenOUT:={[i,j,s]:((i >= 0 && j >= i && s >= 1 + j && s >= 1 + i && j >= 0 && s >= 1 + j && s >= j) || (i >= 1 + j && i >= j))};
+#	Obtained postcondition?
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# Widen1IN:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# Widen2IN:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# WidenOUT:={[i,j,s]:((i >= 0 && j >= i && s >= 1 + j && s >= 1 + i && j >= 0 && s >= 1 + j && s >= j) || (i >= 1 + j && i >= j))};
+#	Obtained postcondition?
+# F1:={[i,j]:i >= 1 + j};
+# F2:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i))};
+# F3:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullOUT:={[i,j]:(i + 1 >= j)};
+# F4:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + i))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + i))};
+# SelhullOUT:={[i,j]:(i + 2 >= j)};
+# Widen1IN:={[i,j]:(i + 1 >= j)};
+# Widen2IN:={[i,j]:(i + 2 >= j)};
+# WidenOUT:={[]:(0 = 0)};
+#	Obtained postcondition?
+# F1:={[i,j]:i >= 1 + j};
+# F2:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i))};
+# F3:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# F4:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# Widen1IN:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# Widen2IN:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# WidenOUT:={[i,j,s]:((i >= 0 && j >= i && s >= 1 + j && s >= 1 + i && j >= 0 && s >= 1 + j && s >= j) || (i >= 1 + j && i >= j))};
+#	Obtained postcondition?
+# F1:={[i,j]:i >= 1 + j};
+# F2:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i))};
+# F3:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || ((i >= 0 && s >= 2 + i) && i + 1 = j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# F4:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullIN:={[i,j,s]:(i >= 1 + j || ((j >= 0 && s >= 1 + j) && j = i) || (((i >= 0 && i + 2 >= j) && j >= 1 + i) && s >= 1 + j))};
+# SelhullOUT:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# Widen1IN:={[i,j,s]:(i >= 1 + j || (((i + 1 >= j && i >= 0) && j >= i) && s >= 1 + j))};
+# Widen2IN:={[i,j,s]:(i >= 1 + j || (((i >= 0 && i + 2 >= j) && j >= i) && s >= 1 + j))};
+# WidenOUT:={[i,j,s]:((i >= 0 && j >= i && s >= 1 + j && s >= 1 + i && j >= 0 && s >= 1 + j && s >= j) || (i >= 1 + j && i >= j))};
+#	Obtained postcondition?
