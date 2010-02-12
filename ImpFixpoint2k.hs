@@ -299,11 +299,11 @@ combSelHullBase:: DisjFormula -> Formula -> FS DisjFormula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 -- ensures: (length res)=2
 combSelHullBase disj base = 
-  classify disj base >>= \(nonRec,rec) ->
+  classify disj base >>= \(nonRec,rec1) ->
   -- it should not happen that length nonRec==0 or length rec==0
   -- but it happens! for bsearch,mergesort,FFT
   (case length nonRec of {0 -> return fTrue; 1 -> return (head nonRec); _ -> combHull nonRec}) >>= \nonRecH ->
-  (case length rec of {0 -> return fTrue; 1 -> return (head rec); _ -> combHull rec}) >>= \recH ->
+  (case length rec1 of {0 -> return fTrue; 1 -> return (head rec1); _ -> combHull rec1}) >>= \recH ->
   return [recH,nonRecH]
   where
   classify:: DisjFormula -> Formula -> FS (DisjFormula,DisjFormula)

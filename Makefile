@@ -10,7 +10,7 @@ BASEDIR=/usr/local/omega
 
 # Without Haskell profiling information
 RAZVAN_DIR_HS=../omega_stub/lib.hs
-HC_OPTS = -package lang -fglasgow-exts -fallow-overlapping-instances -i$(RAZVAN_DIR_HS)
+HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(RAZVAN_DIR_HS)
 
 RAZVAN_DIR_C=../omega_stub/lib
 RAZVAN_DIR_SRC_HS=../omega_stub/src.hs

@@ -83,7 +83,7 @@ ctxImplication u delta phi =
   let relDelta = (fqsv delta,[],delta) in
   let relPhi = (fqsv rhoPhi,[],rhoPhi) in
   addOmegaStr ("CTX:=" ++ showSet delta) >>
-  addOmegaStr ("PHI:=" ++ show (map show (fqsv delta),rhoPhi)) >>
+  addOmegaStr ("PHI:=" ++ show (map showTest3 (fqsv delta),rhoPhi)) >>
 	impSubset relDelta relPhi >>= \result ->
   addOmegaStr ("CTX subset PHI; # Omega returns " ++ show result) >>
   return result

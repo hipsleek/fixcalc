@@ -117,14 +117,16 @@ data Update = Const Int
 type QSizeVar = (SizeVar,PorU) 
 data SizeVar = SizeVar Anno
   | ArrSizeVar Anno MorM
-  deriving Eq
+  deriving (Eq,Show)
 data PorU= Primed
   | Unprimed
   | Recursive
-  deriving Eq
+  deriving (Eq,Show)
 data MorM = Min | Max 
-  deriving (Eq)
+  deriving (Eq,Show)
 
+showTest3 = \s-> show (Test3 s)
+  
 -------Functions-----------
 primName:: PrimDecl -> Lit
 primName p = thd3 (head (primParams p))
@@ -591,7 +593,7 @@ showImppMethForChecking m =
 -------Show Formula----------------
 instance Show RecPost where
   show (RecPost fname formula (ins,outs,byVal)) = 
-    fname ++ ":={[" ++ concatSepBy "," (map show ins) ++ "] -> [" ++ concatSepBy "," (map show outs) ++ "] -> [" ++ concatSepBy "," (map show byVal) ++ "]: (" ++ show formula ++ ")};\n"
+    fname ++ ":={[" ++ concatSepBy "," (map (\ s-> show (Test3 s))ins) ++ "] -> [" ++ concatSepBy "," (map (showTest3) outs) ++ "] -> [" ++ concatSepBy "," (map (showTest3) byVal) ++ "]: (" ++ show formula ++ ")};\n"
     
 instance Show Formula where
     show (And c) = 
@@ -609,8 +611,8 @@ instance Show Formula where
               (c:cs) -> show c ++ " || " ++ show_vec cs)
       in "(" ++ show_vec c ++ ")"
     show (Not c) = "(! " ++ show c ++ ")"
-    show (Exists qsvs f) = "exists (" ++ concatSepBy "," (map show qsvs) ++ " : " ++ show f ++ ")"
-    show (Forall qsvs f) = "forall (" ++ concatSepBy "," (map show qsvs) ++ " : " ++ show f ++ ")"
+    show (Exists qsvs f) = "exists (" ++ concatSepBy "," (map (showTest3) qsvs) ++ " : " ++ show f ++ ")"
+    show (Forall qsvs f) = "forall (" ++ concatSepBy "," (map (showTest3) qsvs) ++ " : " ++ show f ++ ")"
     show (GEq us) = 
       if (length us == 0) then "GEq--void--"
       else
@@ -629,17 +631,18 @@ instance Show Formula where
         let lhs = if (length lhs_terms == 0) then "0" else concatSepBy " + " (map show lhs_terms) in
         let rhs = if (length rhs_terms_pos == 0) then "0" else concatSepBy " + " (map show rhs_terms_pos) in
         lhs ++ " = " ++ rhs
-    show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map show insouts) ++ ")"
+    show (AppRecPost lit insouts) = lit ++ "(" ++ concatSepBy "," (map (showTest3) insouts) ++ ")"
     show (FormulaBogus) = " NOT INITIALIZED "
 
 instance Show Update where
     show (Const i) = show i
     show (Coef qsv i) = 
       let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "","") in
-      bef ++ show qsv ++ aft
+      bef ++ (show (Test3 qsv)) ++ aft
 
-instance Show QSizeVar where
-  show (sv,pORu) = 
+newtype Test3 = Test3 QSizeVar 	  
+instance Show Test3 where
+  show (Test3(sv,pORu)) = 
   	let pu = if pORu == Primed then "PRM" else if pORu == Recursive then "REC" else "" in
   	let str = case sv of
   			SizeVar ann -> ann
@@ -668,17 +671,20 @@ stringToQsv s =
 
 -- showSet and showRelation are used in the log (a.omega)
 -- mimic the input that Omega accepts
+newtype Test12  = Test12 ([String],Formula)
 showSet:: Formula -> String
-showSet f = let qsv = fqsv f in show (map show qsv,f)
+showSet f = let qsv = fqsv f in show (Test12 (map (showTest3) qsv,f))
+
+newtype Test13  = Test13 ([String],[String],Formula)
 
 showRelation:: Relation -> String
-showRelation (from,to,f) = show (map show from,map show to,f)
+showRelation (from,to,f) = show (Test13(map (\s-> show (Test3 s)) from,map (\s-> show (Test3 s)) to,f))
 
-instance Show ([String],Formula) where
-  show (vars,f) = "{[" ++ concatSepBy "," vars ++ "]:" ++ show f ++ "};"
+instance Show (Test12) where
+  show (Test12(vars,f)) = "{[" ++ concatSepBy "," vars ++ "]:" ++ show f ++ "};"
 
-instance Show ([String],[String],Formula) where
-  show (vars,vars',f) =  "{[" ++ concatSepBy "," vars ++ "] -> [" ++ concatSepBy "," vars' ++ "]:" ++ show f ++ "};"
+instance Show (Test13) where
+  show (Test13(vars,vars',f)) =  "{[" ++ concatSepBy "," vars ++ "] -> [" ++ concatSepBy "," vars' ++ "]:" ++ show f ++ "};"
 
 printProgImpt:: Prog -> FS ()
 printProgImpt prog = 

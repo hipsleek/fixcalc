@@ -9,7 +9,7 @@ import qualified Omega_types as Omega
 import qualified Omega_parser as Omega
 import qualified Omega_stub as Omega_stub
 -----------------------------
-import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),SizeVar(..),PorU(..),MorM(..),
+import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),Test3(..),showTest3, SizeVar(..),PorU(..),MorM(..),
     fAnd,fOr,fExists,fForall,fFalse,stringToQsv)
 import Fresh(FS(..),fresh,addOmegaStr)
 import MyPrelude
@@ -19,7 +19,7 @@ import List(union)
 
 impSimplify:: Relation -> FS Formula
 impSimplify (qsv1,[],f1) =
-  let vf1 = map show qsv1 in
+  let vf1 = map showTest3 qsv1 in
   let impF1 = canonicalF f1 in
 --    addOmegaStr (show (vf1,impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1 (Omega.Formula (impToOmF impF1)) in
@@ -31,7 +31,7 @@ impSimplify (qsv1,[],f1) =
 
 impSubset:: Relation -> Relation -> FS Bool
 impSubset (qsv1,[],f1) (qsv2,[],f2) = 
-  let vf1Uf2 = map show (qsv1 `union` qsv2) in
+  let vf1Uf2 = map showTest3 (qsv1 `union` qsv2) in
   let impF1 = canonicalF f1 in
   let impF2 = canonicalF f2 in
 --    addOmegaStr ("# Subset? ") >> 
@@ -47,7 +47,7 @@ impGist:: Relation -> Relation -> FS Formula
 impGist (qsv1,[],f1) (qsv2,[],f2) =
   impSimplify (qsv1,[],f1) >>= \f1 ->
   impSimplify (qsv2,[],f2) >>= \f2 ->
-  let vf1Uf2 = map show (qsv1 `union` qsv2) in
+  let vf1Uf2 = map (\s-> show (Test3 s)) (qsv1 `union` qsv2) in
   let impF1 = canonicalF f1 in
   let impF2 = canonicalF f2 in
 --    addOmegaStr (show (vf1Uf2,impF1)) >> addOmegaStr (show (vf1Uf2,impF2)) >> 
@@ -61,7 +61,7 @@ impGist (qsv1,[],f1) (qsv2,[],f2) =
 
 impHull:: Relation -> FS Formula
 impHull (qsv1,[],f1) =
-  let vf1 = map show qsv1 in
+  let vf1 = map showTest3 qsv1 in
   let impF1 = canonicalF f1 in
 --    addOmegaStr ("BefHull:=" ++ show (vf1,impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1 (Omega.Formula (impToOmF impF1)) in
@@ -73,7 +73,7 @@ impHull (qsv1,[],f1) =
 
 impConvexHull:: Relation -> FS Formula
 impConvexHull (qsv1,[],f1) =
-  let vf1 = map show qsv1 in
+  let vf1 = map showTest3 qsv1 in
   let impF1 = canonicalF f1 in
 --    addOmegaStr ("BefConvexHull:=" ++ show (vf1,impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1 (Omega.Formula (impToOmF impF1)) in
@@ -85,10 +85,10 @@ impConvexHull (qsv1,[],f1) =
 
 impUnion:: Relation -> Relation -> FS Formula
 impUnion (qsv1,qsv1',f1) (qsv2,qsv2',f2) = 
-  let vf1 = map show qsv1 in
-  let vf2 = map show qsv2 in
-  let vf1' = map show qsv1' in
-  let vf2' = map show qsv2' in
+  let vf1 = map showTest3 qsv1 in
+  let vf2 = map showTest3 qsv2 in
+  let vf1' = map showTest3 qsv1' in
+  let vf2' = map showTest3 qsv2' in
   let impF1 = canonicalF f1 in
   let impF2 = canonicalF f2 in
 --    addOmegaStr (show (vf1,vf1',impF1)) >> 
@@ -104,10 +104,10 @@ impUnion (qsv1,qsv1',f1) (qsv2,qsv2',f2) =
 
 impCompose:: Relation -> Relation -> FS Formula
 impCompose (qsv1,qsv1',f1) (qsv2,qsv2',f2) = 
-  let vf1 = map show qsv1 in
-  let vf2 = map show qsv2 in
-  let vf1' = map show qsv1' in
-  let vf2' = map show qsv2' in
+  let vf1 = map showTest3 qsv1 in
+  let vf2 = map showTest3 qsv2 in
+  let vf1' = map showTest3 qsv1' in
+  let vf2' = map showTest3 qsv2' in
   let impF1 = canonicalF f1 in
   let impF2 = canonicalF f2 in
 --    addOmegaStr (show (vf1,vf1',impF1)) >> 
@@ -123,8 +123,8 @@ impCompose (qsv1,qsv1',f1) (qsv2,qsv2',f2) =
 
 impPairwiseCheck:: Relation -> FS Formula
 impPairwiseCheck (qsv1,qsv1',f1) =
-  let vf1 = map show qsv1 in
-  let vf1' = map show qsv1' in
+  let vf1 = map showTest3 qsv1 in
+  let vf1' = map showTest3 qsv1' in
   let impF1 = canonicalF f1 in
 --    addOmegaStr (show (vf1,vf1',impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula (vf1 `union` vf1') (Omega.Formula (impToOmF impF1)) in
@@ -142,12 +142,12 @@ impToOmF (Or fs) = Omega.Or (map impToOmF fs)
 impToOmF (Not f) = Omega.Not (impToOmF f)
 impToOmF (EqK ups) = Omega.Eq (map impToOmU ups)
 impToOmF (GEq ups) = Omega.Geq (map impToOmU ups)
-impToOmF (Exists qsvs f) = Omega.And [Omega.exists_vars_in_formula (map (\q -> show q) qsvs) (impToOmF f)]
-impToOmF (Forall qsvs f) = Omega.And [Omega.forall_vars_in_formula (map (\q -> show q) qsvs) (impToOmF f)]
+impToOmF (Exists qsvs f) = Omega.And [Omega.exists_vars_in_formula (map showTest3 qsvs) (impToOmF f)]
+impToOmF (Forall qsvs f) = Omega.And [Omega.forall_vars_in_formula (map showTest3 qsvs) (impToOmF f)]
 impToOmF f@(AppRecPost name _) = error $ "Formula to be passed to Omega contains an AppRecPost:\n"++show f
 
 impToOmU:: Update -> Omega.Update
-impToOmU (Coef qsv i) = Omega.Coef (show qsv,nullPtr) i
+impToOmU (Coef qsv i) = Omega.Coef (showTest3 qsv,nullPtr) i
 impToOmU (Const i) = Omega.Const i
 
 canonicalF:: Formula -> Formula
