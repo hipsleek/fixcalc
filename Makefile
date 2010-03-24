@@ -12,6 +12,7 @@ BASEDIR=/usr/local/omega
 RAZVAN_DIR_HS=../omega_stub/lib.hs
 HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(RAZVAN_DIR_HS)
 
+
 RAZVAN_DIR_C=../omega_stub/lib
 RAZVAN_DIR_SRC_HS=../omega_stub/src.hs
 
