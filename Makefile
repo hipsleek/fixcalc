@@ -1,7 +1,7 @@
 # Speed and NoDebug for Omega libraries
 #BASEDIR=../omega
 # Debug version of Omega libraries
-BASEDIR=/usr/local/omega
+BASEDIR=/usr/local
 
 # With Haskell profiling information
 #RAZVAN_DIR_HS=../omega_stub/lib.prof.hs
@@ -56,7 +56,7 @@ imp : $(OBJS) ImpParser.y
 
 clean:
 	rm -f *.hi *.o *~ imp ImpParser.hs *.info a.omega a.all.c a.c a.out a.impi a.impt a.omega-err a.pre oc.out fixcalc FixCalcParser.hs log
-	
+
 install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
 	cp fixcalc ~popeeaco/public_html/cgi-bin/fixcalc/.
