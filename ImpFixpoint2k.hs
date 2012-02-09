@@ -4,6 +4,8 @@
 module ImpFixpoint2k(
   fixpoint2k, 
   bottomUp2k,   
+  bottomUp_mr,
+  bottomUp2k_gen,
   topDown2k,
   fixTestBU,
   fixTestTD,
@@ -13,14 +15,14 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
-import List((\\),nub)
+import List((\\),nub,find,zip4,zip5,zip)
 import Maybe(catMaybes)
 import Monad(when,mapAndUnzipM)
 
@@ -92,6 +94,76 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
     if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
     
+bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
+bottomUp2k_gen recpost flagsl initFormula = 
+  addOmegaStr("+++++++++++++++++++++++++++") >> 
+  addOmegaStr("New fix point iteration") >> 
+  addOmegaStr("+++++++++++++++++++++++++++") >> 
+  getFlags >>= \flags -> 
+    subrec_gen recpost initFormula >>= \f1 -> mapM (\f2 -> simplify f2) f1
+     >>= \initf1 -> mapM (\f1r -> addOmegaStr ("# F1:="++showSet f1r)) initf1 >>
+     subrec_gen recpost initf1 >>= \f1 -> mapM (\f2 -> simplify f2) f1
+     >>= \initf2 -> mapM (\f1r -> addOmegaStr ("# F2:="++showSet f1r)) initf2 >>
+     subrec_gen recpost initf2 >>= \f1 -> mapM (\f2 -> simplify f2) f1
+     >>= \initf3 -> mapM (\f1r -> addOmegaStr ("# F3:="++showSet f1r)) initf3 >>
+     mapM (\f3r -> (pairwiseCheck f3r)) initf3 
+     >>= \pwF3l -> 
+         let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip pwF3l flagsl) in
+         let zipf1 = zip4 initf1 initf3 mdisj (snd (unzip flagsl)) in 
+         -- hull
+         mapM (\(f1r,f3r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1
+           -- substitution
+           >>= \hf1 -> subrec_gen recpost (map (\x -> (Or x)) hf1) 
+           >>= \f1 -> mapM (\f2 -> simplify f2) f1
+           >>= \initf4 -> mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
+--           mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
+--           \hf2 ->
+               -- substitution
+--               subrec_gen recpost initf4
+--               >>= \f1 -> mapM (\f2 -> simplify f2) f1
+--               >>= \initf5 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf5 >>
+--               mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
+--               \hullf2 ->
+--               subrec_gen recpost initf5
+--               >>= \f1 -> mapM (\f2 -> simplify f2) f1
+--               >>= \initf6 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf4 >>
+     
+              -- hull again  
+              let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
+              let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
+              mapM (\(f1r,f6r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1
+              -- call to iter 
+              >>= \s3 -> iterBU2k_gen recpost (zip mdisj (snd (unzip flagsl))) s3 initf1 (map (\x->4) initf1) 
+               
+iterBU2k_gen:: [RecPost] -> [FixFlags] -> [DisjFormula] -> [Formula] -> [Int] -> FS [(Formula,Int)]
+iterBU2k_gen recpost flags scrtl fbasel cntl =
+  let scrt_or = map (\x -> (Or x)) scrtl in
+   subrec_gen recpost scrt_or >>= \fn -> mapM (\f -> simplify f) fn >>= \fnextl ->
+    let zipf = zip5 cntl scrtl fnextl fbasel flags in
+      mapM (\(cnt,scrt,fnext,fbase,(m,heur)) ->
+             if (cnt>maxIter) then return ([fTrue],-1)
+             else addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
+                  combSelHull (m,heur) (getDisjuncts fnext) fTrue 
+                  >>= \fnextHMany -> widen heur (scrt,fnextHMany) 
+                                     >>= \wl -> return (wl, cnt)) zipf 
+      >>= \snext_cnt ->
+      let (snextl, cntll) = unzip snext_cnt in
+      let snextl_or = map (\x -> (Or x)) snextl in
+       addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+       addOmegaStr("After widenning: " ++ (foldl (\x -> \y -> x ++" "++(show y)) "" snextl_or)) >>
+       addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+       fixTestBU_gen recpost snextl_or >>= 
+         \fixokl -> 
+          let fixok = foldl (\x -> \y -> x&&y) True fixokl in 
+          if fixok then 
+             mapM (\(snext, cnt) -> pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)) snext_cnt >>= \r -> return r
+          else 
+            addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+            addOmegaStr("Didn't reach fixpoint yet -> iterate again") >>
+            addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+            iterBU2k_gen recpost flags snextl fbasel (map (\x -> if (x /= -1) then x+1 else x) cntll)
+
+         
 -- iterates starting with scrt (downwards if scrt is Reductive point; upwards if scrt is Extensive point)
 -- iterates until maxIter (no termination criterion)
 iterate2k:: RecPost -> FixFlags -> DisjFormula -> Int -> FS (Formula,Int)
@@ -112,6 +184,89 @@ fixTestBU recpost candidate =
     addOmegaStr ("#\tObtained postcondition?") >>
     subrec recpost candidate >>= \fnext -> 
     subset fnext candidate
+
+--cris
+fixTestBU_mr:: RecPost -> RecPost-> Formula -> Formula -> FS Bool
+fixTestBU_mr recpost1 respost2 candidate1 candidate2 = 
+    addOmegaStr ("#\tObtained postcondition?") >>
+    subrec_mr recpost1 respost2 candidate1 candidate2 >>= \fnext -> 
+    subset fnext candidate1
+
+fixTestBU_gen:: [RecPost] -> [Formula] -> FS [Bool]
+fixTestBU_gen recpost candidate = 
+  subrec_gen recpost candidate >>=
+  \f -> let zipf = zip f candidate in mapM (\(f,c) -> (subset f c)) zipf
+
+--cris
+subrec_mr :: RecPost -> RecPost -> Formula -> Formula -> FS Formula
+subrec_mr (RecPost formalMN1 f1 (formalI1,formalO1,qsvByVal1)) 
+          (RecPost formalMN2 _ (formalI2,formalO2,qsvByVal2))
+          f2 f3 =
+  subrec_mr1 f1 f2 f3
+  where 
+    subrec_mr1:: Formula -> Formula -> Formula -> FS Formula
+    subrec_mr1 f g h = case f of 
+      And fs ->  mapM (\x -> subrec_mr1 x g h) fs >>= \res -> return (And res)
+      Or fs -> mapM (\x -> subrec_mr1 x g h) fs >>= \res -> return (Or res)
+      Exists vars ff -> subrec_mr1 ff g h >>= \res -> return (Exists vars res)
+      GEq us -> return f
+      EqK us -> return f
+      AppRecPost actualMN actualIO ->
+          if (formalMN1==actualMN) then
+              if not (length (formalI1++formalO1) == length actualIO) then 
+                  error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+              else
+                 let rho = zip (formalI1++formalO1) actualIO in
+                 debugApply rho g >>= \rhoG -> return $ fAnd [rhoG,noChange qsvByVal1]
+          else if (formalMN2==actualMN) then
+                   if not (length (formalI2++formalO2) == length actualIO) then
+                       error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+                   else
+                       let rho = zip (formalI2++formalO2) actualIO in
+                       debugApply rho h >>= \rhoH ->
+                           return $ fAnd [rhoH,noChange qsvByVal2]
+               else            
+                   error "subrec_mr: input error detected" 
+      _ -> error ("unexpected argument: "++show f)
+
+subrec_gen1 :: RecPost -> [RecPost] -> [Formula] -> FS Formula
+subrec_gen1 rp r g = 
+  case rp of
+   RecPost formalMN1 f (formalI,formalO,qsvByVal) ->
+    addOmegaStr("+++++++++++++++++++++++++++++") >>
+    addOmegaStr("Subst for " ++ show f ++ ":") >>
+    addOmegaStr("+++++++++++++++++++++++++++++") >>
+    subrec1 f r g
+     where 
+      subrec1:: Formula -> [RecPost] -> [Formula] -> FS Formula
+      subrec1 f r g = 
+         case f of 
+            And fs -> mapM (\x -> subrec1 x r g) fs >>= \res -> return (And res)
+            Or fs -> mapM (\x -> subrec1 x r g) fs >>= \res -> return (Or res)
+            Exists vars ff -> subrec1 ff r g >>= \res -> return (Exists vars res)
+            GEq us -> return f
+            EqK us -> return f
+            AppRecPost actualMN actualIO ->
+              let func = zip r g in
+              let func_app = find (\x -> case (fst x) of
+                                       RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2) -> (actualMN == formalMN2)
+                                       _ -> False) func in
+              case func_app of
+                Nothing -> error "subrec_gen: input error detected" 
+                Just (RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2), f3) ->
+                    if not (length (formalI2++formalO2) == length actualIO) then
+                           error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+                       else
+                           let rho = zip (formalI2++formalO2) actualIO in
+                           addOmegaStr ("before subst: " ++ show f3) >> simplify f3 >>= \f3s ->
+                           debugApply rho f3s  >>= \rhof3 -> simplify rhof3 >>= \rhof31 -> addOmegaStr ("after subst: " ++ show rhof31) >>= 
+                           \_ -> return $ (fAnd [rhof31,noChange qsvByVal2])
+            _ -> error ("unexpected argument: "++show f)
+   _ -> error "subrec_gen: input error detected"
+
+
+subrec_gen :: [RecPost] -> [Formula] -> FS [Formula]
+subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
 
 subrec :: RecPost -> Formula -> FS Formula
 -- ^Given CAbst and F, returns CAbst(F). 
@@ -267,6 +422,34 @@ bottomUp recpost =
     combHull (getDisjuncts f3r) >>= \f3H ->
     iterBUConj recpost f3r f3H 4
   
+--cris
+bottomUp_mr:: RecPost -> RecPost -> FS (Formula,Int)
+bottomUp_mr recpost1 recpost2 =
+  subrec_mr recpost1 recpost2 fFalse fFalse >>= \f1 -> simplify f1 >>= \f1r ->
+  subrec_mr recpost2 recpost1 fFalse fFalse >>= \f2 -> simplify f2 >>= \f2r ->
+  addOmegaStr ("# F1a:="++showSet f1r) >>
+  addOmegaStr ("# F1b:="++showSet f2r) >>
+  
+  subrec_mr recpost1 recpost2 f1r f2r >>= \f3 -> simplify f3 >>= \f3r -> 
+  subrec_mr recpost2 recpost1 f2r f1r >>= \f4 -> simplify f4 >>= \f4r -> 
+  addOmegaStr ("# F2a:="++showSet f3r) >>
+  addOmegaStr ("# F2b:="++showSet f4r) >>
+  
+  subrec_mr recpost1 recpost2 f3r f4r >>= \f5 -> simplify f5 >>= \f5r -> 
+  subrec_mr recpost2 recpost1 f4r f3r >>= \f6 -> simplify f6 >>= \f6r -> 
+  addOmegaStr ("# F3a:="++showSet f5r) >>
+  addOmegaStr ("# F3b:="++showSet f6r) >>
+
+  getFlags >>= \flags -> 
+--  if useSelectiveHull flags then
+--    combSelHullBase (getDisjuncts f5r) f1r >>= \s4 ->
+--    iterBU recpost1 f5r s4 f1r 4
+--  else 
+  combHull (getDisjuncts f5r) >>= \f5H -> 
+  combHull (getDisjuncts f6r) >>= \f6H -> 
+  iterBUConj_mr recpost1 recpost2 f5r f6r f5H f6H 4
+
+
 iterBU:: RecPost -> Formula -> DisjFormula -> Formula -> Int -> FS (Formula,Int)
 -- requires: elements of scrt are in conjunctive form
 iterBU recpost fcrt scrt fbase cnt =
@@ -281,6 +464,23 @@ iterBU recpost fcrt scrt fbase cnt =
       fixTestBU recpost fcrtW >>= \fixok ->
       if fixok then return (fcrtW,cnt)
       else iterBU recpost fnext snext fbase (cnt+1)  
+
+-- cris
+iterBUConj_mr:: RecPost -> RecPost -> Formula -> Formula -> Formula -> Formula -> Int -> FS (Formula,Int)
+-- requires: scrt is in conjunctive form
+iterBUConj_mr recpost1 recpost2 fcrt gcrt fcrtH gcrtH cnt =
+  if (cnt>maxIter) then return (fTrue,-1)
+  else
+    subrec_mr recpost1 recpost2 fcrt gcrt >>= \fn -> simplify fn >>= \fnext ->
+    subrec_mr recpost2 recpost1 gcrt fcrt >>= \gn -> simplify gn >>= \gnext ->
+    addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
+    combHull (getDisjuncts fnext) >>= \snext ->
+    widenOne (fcrtH,snext) >>= \fcrtW ->
+    combHull (getDisjuncts gnext) >>= \tnext ->
+    widenOne (gcrtH,tnext) >>= \gcrtW ->
+    fixTestBU_mr recpost1 recpost2 fcrtW gcrtW >>= \fixok ->
+      if fixok then addOmegaStr ("# Result F "++ show cnt ++ ":="++showSet fcrtW) >> return (fcrtW,cnt)
+      else iterBUConj_mr recpost1 recpost2 fnext gnext snext tnext (cnt+1)  
 
 iterBUConj:: RecPost -> Formula -> Formula -> Int -> FS (Formula,Int)
 -- requires: scrt is in conjunctive form

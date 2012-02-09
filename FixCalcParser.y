@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
 import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -48,6 +48,8 @@ import Monad(foldM)
   widen   {TkKwWiden}
   subset  {TkKwSubset}
   bottomup{TkKwBottomup}
+  bottomup_mr{TkKwBottomup_mr}
+  bottomup_gen{TkKwBottomup_gen}
   topdown {TkKwTopdown}
   selhull {TkKwSelhull}
   manualhull {TkKwManualhull}
@@ -67,6 +69,7 @@ import Monad(foldM)
 %name parseCalc LCommand
 %%
 
+
 LCommand:: {[RelEnv -> FS RelEnv]}
 LCommand: 
   Command LCommand       {$1:$2}      
@@ -76,18 +79,29 @@ Command::{RelEnv -> FS RelEnv}
 Command:
     lit ':=' ParseFormula ';'                                    
     {\env -> putStrNoLnFS ("# " ++ $1 ++ ":=") >>
-             $3 env >>= \rhs -> 
+             $3 env >>= \rhs ->
              case rhs of {
                R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
                F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
-             return (extendRelEnv env ($1,renamedRHS))}
+	       return (extendRelEnv env ($1,renamedRHS))}
+  | ParseFormula1 ';'                                           
+    {\env -> $1 env >>= \fl -> 
+	mapM(\rhs ->
+             case rhs of
+               (F f) -> 
+                  simplify f >>= \fsimpl ->
+                  putStrFS("\n" ++ showSet fsimpl ++ "\n")
+               (R recpost) -> 
+	          putStrFS ("\n" ++ show recpost ++ "\n")) fl >> return env
+    }
   | ParseFormula ';'                                           
-    {\env -> $1 env >>= \rhs -> case rhs of
+    {\env -> $1 env >>= \rhs -> 
+             case rhs of
                (F f) -> 
                   simplify f >>= \fsimpl ->
                   putStrFS("\n" ++ showSet fsimpl ++ "\n") >> return env
                (R recpost) -> 
-                  putStrFS ("\n" ++ show recpost ++ "\n") >> return env
+	          putStrFS ("\n" ++ show recpost ++ "\n") >> return env
     }
   | fixtestpost '(' lit ',' lit ')' ';'
     {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
@@ -119,9 +133,16 @@ Command:
                Just (R recpost) -> putStrFS("\n" ++ show recpost ++ "\n") >> return env
                Just (F f) -> putStrFS("\n" ++ show f ++ "\n") >> return env
                Nothing -> error ("Variable not declared - "++$1++"\n")
-    }
+    }                   
 
-                     
+
+ParseFormula1::{RelEnv -> FS [Value]}
+ParseFormula1:
+bottomup_gen '(' '[' Llit ']'')' 
+     {\env -> let heur = SimilarityHeur in
+	  bottomUp2k_gen ($4 env) (map (\x -> (1,heur)) ($4 env)) (map (\x -> fFalse) ($4 env)) 
+	 >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
+
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
     '{' '[' LPorUSizeVar ']' ':' Formula '}'      
@@ -151,6 +172,17 @@ ParseFormula:
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
+  | bottomup_mr '(' lit ',' lit ')'
+        {\env -> putStrFS ("bottomup_mr(" ++ $3 ++ "," ++ $5 ++ ");") >>
+	case lookupVar $3 env of
+	    Just (F f) -> error ("First argument of bottomup_mr is not a constraint abstraction\n")
+	    Nothing -> error ("Variable not declared - "++$3++"\n")
+	    Just (R recpost1) -> 
+	      case lookupVar $5 env of 
+	    	    Just (F f) -> error ("Second argument of bottomup_mr is not a constraint abstraction\n")
+	    	    Nothing -> error ("Variable not declared - "++$5++"\n")
+	            Just (R recpost2) -> 
+		      bottomUp_mr recpost1 recpost2  >>= \(post,cnt) -> return (F post)}
   | topdown '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFS ("topdown(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
@@ -216,9 +248,23 @@ ParseFormula:
                    _ -> error ("Argument of pairwisecheck is not a valid formula "++$2++"\n")
         }
 
+Llit:: {RelEnv -> [RecPost]}
+Llit: lit {
+     \env -> case lookupVar $1 env of
+       Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
+       Nothing -> error ("Variable not declared - "++$1++"\n")
+       Just (R recpost) -> [recpost]
+  }
+ | lit ',' Llit {
+     \env -> case lookupVar $1 env of
+       Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
+       Nothing -> error ("Variable not declared - "++$1++"\n")
+       Just (R recpost) -> recpost:($3 env)}
+
 LInt::{[Int]}
 LInt: intNum {[$1]}
   | intNum ',' LInt {$1:$3}
+
 
 Formula: QFormula  {$1}
   | '(' Formula ')' {$2}

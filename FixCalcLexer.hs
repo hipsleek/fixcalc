@@ -16,7 +16,7 @@ data Tk=
 	| TkEOF
 	| TkRec
 	| TkString String
-	| TkKwWiden | TkKwSubset | TkKwBottomup | TkKwTopdown | TkKwSelhull | TkKwWidenppl
+	| TkKwWiden | TkKwSubset | TkKwBottomup | TkKwBottomup_mr | TkKwBottomup_gen | TkKwTopdown | TkKwSelhull | TkKwWidenppl
 	| TkKwIntersection | TkKwPairwisecheck | TkKwHull | TkKwFixtestpost | TkKwFixtestinv
 	| TkKwManualhull
 
@@ -74,6 +74,8 @@ lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkFo
 lexer' ('w':'i':'d':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWiden xs
 lexer' ('w':'i':'d':'e':'n':'p':'p':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWidenppl xs
 lexer' ('s':'u':'b':'s':'e':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSubset xs
+lexer' ('b':'o':'t':'t':'o':'m':'u':'p':'m':'r':xs) | not $ isAlphaNum (head xs) = returnPI TkKwBottomup_mr xs
+lexer' ('b':'o':'t':'t':'o':'m':'u':'p':'g':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwBottomup_gen xs
 lexer' ('b':'o':'t':'t':'o':'m':'u':'p':xs) | not $ isAlphaNum (head xs) = returnPI TkKwBottomup xs
 lexer' ('t':'o':'p':'d':'o':'w':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwTopdown xs
 lexer' ('s':'e':'l':'h':'u':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSelhull xs
