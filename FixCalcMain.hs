@@ -21,7 +21,8 @@ main =
       getCPUTime >>= \tStartCPU ->
       parse fileContents flags >>
       getCPUTime >>= \tEndCPU ->
-      putStrLn ("Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)
+      --putStrLn ("Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)
+      putStrLn ("")
 
 processCmdLine:: [String] -> IO (Maybe (String,Flags))
 processCmdLine cmdLine = 
