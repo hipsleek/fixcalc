@@ -21,9 +21,9 @@ F4:=test(F3H);F4;F4H:=selhull(F4,3,SimHeur);F4H;
 F3W:=widen(F3H,F4H,SimHeur);F3W;fixtestPost(test,F3W);
 
 Fix1:=bottomup(test,1,SimHeur);
-Fix2:=bottomup(test,2,SimHeur);
-Fix3:=bottomup(test,3,SimHeur);
-Fix1;Fix2;Fix3;
+#Fix2:=bottomup(test,2,SimHeur);
+#Fix3:=bottomup(test,3,SimHeur);
+Fix1;#Fix2;Fix3;
 
-F3W subset Fix3;
-Fix3 subset F3W;
+#F3W subset Fix3;
+#Fix3 subset F3W;
