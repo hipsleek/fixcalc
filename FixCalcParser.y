@@ -142,10 +142,15 @@ Command:
 
 ParseFormula1::{RelEnv -> FS [Value]}
 ParseFormula1:
-bottomup_gen '(' '[' Llit ']'')' 
-     {\env -> let heur = SimilarityHeur in
-	  bottomUp2k_gen ($4 env) (map (\x -> (1,heur)) ($4 env)) (map (\x -> fFalse) ($4 env)) 
-	 >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
+  bottomup_gen '(' '[' Llit ']' ',' '[' LInt ']' ',' lit ')' 
+    {\env -> 
+      let heur = case $11 of {"SimHeur" -> SimilarityHeur; 
+                             "DiffHeur" -> DifferenceHeur; 
+                             "HausHeur" -> HausdorffHeur; 
+                             lit -> error ("Heuristic not implemented - "++lit)} 
+      in
+  	  bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
+	     >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
 
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
