@@ -637,7 +637,8 @@ instance Show Formula where
 instance Show Update where
     show (Const i) = show i
     show (Coef qsv i) = 
-      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "","") in
+      -- added a "*" so that 2n is displayed as 2*n
+      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "*","") in
       bef ++ (show (Test3 qsv)) ++ aft
 
 newtype Test3 = Test3 QSizeVar 	  

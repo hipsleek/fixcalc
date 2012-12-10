@@ -12,7 +12,7 @@ import System.IO.Unsafe(unsafePerformIO)
 -------FS Fresh---------------------------
 data St = MkState { 
   cnt :: Integer, -- ^Used for unique name generation.
-  omegaStrs:: [String], -- ^Strings to be printed in the log file. Kept in reverse order, so that adding a string is fast (to the front of the list).
+  omegaStrs :: [String], -- ^Strings to be printed in the log file. Kept in reverse order, so that adding a string is fast (to the front of the list).
   flags:: Flags, -- ^ Set of flags read from the command-line.
   safePrimChecks:: Int,
   unsafePrimChecks:: Int,
