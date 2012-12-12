@@ -359,9 +359,26 @@ affinity (Just f1) (Just f2) HausdorffHeur _ fsv =
   return (100-haus)
 affinity (Just f1) (Just f2) heur operation _ = 
     operation f1 f2 >>= \foperation -> 
+    let f_or = Or [f1,f2] in
+    getFlags >>= \flags ->
+    -- simplify foperation >>= \foperation ->
+    -- simplify f_or >>= \f_or ->
+    -- subset foperation f_or >>= \imp1 ->
+    -- subset f_or foperation >>= \imp2 ->
     simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
     subset fDif fFalse >>= \difIsFalse ->
-    if difIsFalse then return 100
+    if difIsFalse {-imp1 && imp2-} then
+       when (showDebugMSG flags >=2) (putStrFS("Full Match 100!")) >> 
+       when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
+       when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
+       when (showDebugMSG flags >=2) (putStrFS("foper:="++showSet foperation)) >>
+       when (showDebugMSG flags >=2) (putStrFS("f_or:="++showSet f_or)) >>
+       when (showDebugMSG flags >=2) (putStrFS("fDif:="++showSet fDif)) >>
+       subset f1 f2 >>= \fb1 ->
+       subset f2 f1 >>= \fb2 ->
+       let v1 = if fb1 then 50 else 0 in
+       let v2 = if fb2 then 50 else 0 in
+       return (100+v1+v2)
     else
       subset fTrue foperation >>= \operationIsTrue ->
       if operationIsTrue then return 0 else 
@@ -375,14 +392,16 @@ affinity (Just f1) (Just f2) heur operation _ =
           let diffSteps = 100 - (20*nsteps-s) in
           return diffSteps
         _ -> {- SimilarityHeur, SimInteractiveHeur -}
---          putStrFS("F1:="++showSet f1) >> putStrFS("F2:="++showSet f2) >>
+         when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
+         when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
           mset f1 f2 foperation >>= \mSet ->
           let cmset = length mSet in
           let frac = (((fromIntegral cmset / (fromIntegral (cf1+cf2)))*98)+1) in
---          putStrFS("Foper:="++showSet foperation) >>
---          putStrFS("mSet::="++concatMap (\f -> showSet f) mSet) >>
---          putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac)) >>
+         when (showDebugMSG flags >=2) (putStrFS("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
+         when (showDebugMSG flags >=2) (putStrFS("Foper:="++showSet foperation)) >>
+         when (showDebugMSG flags >=2) (putStrFS("mSet::="++concatMap (\f -> showSet f) mSet)) >>
+         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac))) >>
           return (ceiling frac)
     where
       mset:: Formula -> Formula -> Formula -> FS [Formula]
