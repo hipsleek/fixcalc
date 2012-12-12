@@ -361,17 +361,24 @@ affinity (Just f1) (Just f2) heur operation _ =
     operation f1 f2 >>= \foperation -> 
     let f_or = Or [f1,f2] in
     getFlags >>= \flags ->
-    subset foperation f_or >>= \imp1 ->
-    subset f_or foperation >>= \imp2 ->
+    simplify foperation >>= \foperation ->
+    simplify f_or >>= \f_or ->
+    -- subset foperation f_or >>= \imp1 ->
+    -- subset f_or foperation >>= \imp2 ->
     simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
-    -- subset fDif fFalse >>= \difIsFalse ->
-    if imp1 && imp2 then
+    subset fDif fFalse >>= \difIsFalse ->
+    if difIsFalse {-imp1 && imp2-} then
        when (showDebugMSG flags >=2) (putStrFS("Full Match 100!")) >> 
        when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
        when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
        when (showDebugMSG flags >=2) (putStrFS("foper:="++showSet foperation)) >>
+       when (showDebugMSG flags >=2) (putStrFS("f_or:="++showSet f_or)) >>
        when (showDebugMSG flags >=2) (putStrFS("fDif:="++showSet fDif)) >>
-       return 100
+       subset f1 f2 >>= \fb1 ->
+       subset f2 f1 >>= \fb2 ->
+       let v1 = if fb1 then 50 else 0 in
+       let v2 = if fb2 then 50 else 0 in
+       return (100+v1+v2)
     else
       subset fTrue foperation >>= \operationIsTrue ->
       if operationIsTrue then return 0 else 
