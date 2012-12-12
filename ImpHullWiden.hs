@@ -342,6 +342,15 @@ showAffinMx mat =
     showRow mat (m,n) i j | j>n = ""
     showRow mat (m,n) i j = show (mat!(i,j)) ++ " " ++ showRow mat (m,n) i (j+1)
 
+merge_set:: Formula -> Formula -> Formula -> FS ([Formula],Int)
+      -- requires: f1,f2 are conjunctive formulae
+merge_set f1 f2 foperation =
+        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
+        let combined_set = (conjf1 `union` conjf2) in
+        let n = length combined_set in
+        filterM (\f -> subset foperation f) combined_set >>= \ans ->
+        return (ans,n)
+
 affinity:: Maybe Formula -> Maybe Formula -> Heur -> (Formula -> Formula -> FS Formula) -> [QSizeVar] -> FS Int
 -- requires: f1,f2 represent conjunctive formulae
 affinity Nothing _ heur _ _ = return identityA
@@ -395,20 +404,21 @@ affinity (Just f1) (Just f2) heur operation _ =
          when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
          when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
-          mset f1 f2 foperation >>= \mSet ->
+          merge_set f1 f2 foperation >>= \(mSet,num_of_orig) ->
           let cmset = length mSet in
-          let frac = (((fromIntegral cmset / (fromIntegral (cf1+cf2)))*98)+1) in
+          let frac = (((fromIntegral cmset / (fromIntegral (num_of_orig{- cf1+cf2 -}
+                                                           )))*98)+1) in
          when (showDebugMSG flags >=2) (putStrFS("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
          when (showDebugMSG flags >=2) (putStrFS("Foper:="++showSet foperation)) >>
          when (showDebugMSG flags >=2) (putStrFS("mSet::="++concatMap (\f -> showSet f) mSet)) >>
-         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac))) >>
+         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (num_of_orig) ++ "  " ++ show (ceiling frac))) >>
           return (ceiling frac)
-    where
-      mset:: Formula -> Formula -> Formula -> FS [Formula]
-      -- requires: f1,f2 are conjunctive formulae
-      mset f1 f2 foperation =
-        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
-        filterM (\f -> subset foperation f) (conjf1 `union` conjf2)
+    -- where
+    --   mset:: Formula -> Formula -> Formula -> FS [Formula]
+    --   -- requires: f1,f2 are conjunctive formulae
+    --   mset f1 f2 foperation =
+    --     let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
+    --     filterM (\f -> subset foperation f) (conjf1 `union` conjf2)
 
 type Range = (Maybe Int,Maybe Int) 
 -- ^A 'Range' value represents an interval: 'Nothing' means Infinity, 'Just' i means the integer i.
