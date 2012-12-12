@@ -20,7 +20,7 @@ import Data.Array(Array,(//),(!),array,assocs,bounds)
 import Data.Char(digitToInt,isDigit)
 import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
-import Monad(filterM,when)
+import Monad(filterM,when,foldM)
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 
@@ -65,6 +65,7 @@ computeHalfMx heur disj =
         computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
         computeHalfMx1 heur mat1 (m,n) (i+1) disj
 
+
 -- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
 computeHalfRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
 computeHalfRow heur mat (m,n) i j disj | j>n = return mat
@@ -80,22 +81,51 @@ computeHalfCol heur mat (m,n) i j disj =
   let newmat = mat // [((i,j),affinIJ)] in
   computeHalfCol heur newmat (m,n) (i-1) j disj
 
+recomputeRow :: Heur -> AffinMx -> Int -> [Maybe Disjunct] -> FS AffinMx
+recomputeRow heur mat row disj dim =
+  let r = [i | i <-[row+1..dim], (disj!i)!=Nothing] in
+  foldM (\af -> \j -> affinity (disj!!row) (disj!!j) heur comb2Hull ?) mat r 
+  
+mkZero:: AffinMx -> Int -> Int -> Int FS AffinMx
+mkZero mat row dim = return (mat // ([(row,i)|i<-[0..dim]]++[(i,row)|i<-[0..dim]]))
+
+-- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
+computeHalfList:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
+computeHalfList heur _ mat dim [] = return mat
+computeHalfList heur affinMx replDisjM dim ((i,j):ls) = 
+  mkZero affixMx j dim >>= \affixMx1 ->
+  recomputeRow heur affixMx i replDisjM dim >>= \affixMx1 ->
+  recomputeCol heur affixMx1 i replDisjM >>= \affixMx2 ->
+  -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
+  -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
+  -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
+  -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
+  computeHalfList heur affixMx2 replDisjM ls
+
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
   getFlags >>= \flags -> 
   when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
+  chooseAllMax heur affinMx >>= \max_ls ->
+  let (dist_pairs,all_elems) = chooseDistElems max_ls in
   when (showDebugMSG flags >=2) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
-  replaceRelated disjM (i,j) >>= \replDisjM ->
+  -- replaceRelated disjM (i,j) >>= \replDisjM ->
+  replaceRelated_either disjM dist_pairs all_elems (i,j) >>= \(replDisjM,rm_list) ->
+  when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list rm_list))) >>
   when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
                                ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   if (length (catMaybes replDisjM))<=m then return replDisjM
-  else 
-    computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
-    computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
-    computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
-    computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
+  else
+    reComputeHalfList heur affixMx replDisjM rm_list \affixMX4 -> 
+    -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
+    -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
+    -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
+    -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
     iterateHalfMx (m,heur) replDisjM affinMx4
 
 -- replaces two related disjuncts with their hull
@@ -108,7 +138,26 @@ replaceRelated disj (i,j) =
   let disjI = updateList disj i (Just hulled) in
   let disjIJ = updateList disjI j Nothing in
   return disjIJ
-  
+
+-- replaces pairs of related disjuncts with their hull
+replaceRelated_list:: [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
+-- requires: (0<=i,j<length disj)
+-- ensures: length res=length disj
+replaceRelated_list disj [] = return disj
+replaceRelated_list disj (p:ls) = 
+  replaceRelated disj p >>= \new_disj ->
+  replaceRelated_list new_disj ls
+-- foldM (\e -> \p -> replaceRelated e p) disj ls
+
+replaceRelated_either:: [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)])
+-- requires: (0<=i,j<length disj)
+-- ensures: length res=length disj
+-- returns also a list of rows to be nullified
+replaceRelated_either disj ls elms p = 
+  if elms==[] 
+  then replaceRelated_list disj ls >>= \ a -> return (a,ls)
+  else replaceRelated disj p >>= \ a -> return (a,[p])
+
 comb2Hull:: Formula -> Formula -> FS Formula
 comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
 
@@ -172,7 +221,12 @@ iterateMx heur (disjCrt,disjNxt) affinMx partIJs =
             ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) (disjCrt++disjNxt)))) >>
   when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
+  chooseAllMax heur affinMx >>= \max_ls ->
+  let (dist_pairs,all_elems) = chooseDistElems max_ls in  
   when (showDebugMSG flags >=1) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  when (showDebugMSG flags >=1) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -312,6 +366,15 @@ initAffinMx n =
   let l = map (\x -> ((x `quot` (n+1),x `rem` (n+1)),identityA)) gen in
     array ((0,0),(n,n)) l
 
+norm_pair:: (Int,Int) -> (Int,Int)
+norm_pair (i,j) = (i+1,j+1)
+                  
+norm_list:: [(Int,Int)] -> [(Int,Int)]
+norm_list ls = map norm_pair ls
+
+norm_elem:: [Int] -> [Int]
+norm_elem ls = map (\x -> x+1) ls
+
 -- |Returns the indices of either the maximum element in the matrix or chosen by the user with SimInteractiveHeur.
 chooseElem:: Heur -> AffinMx -> FS (Int,Int)
 chooseElem heur mat = 
@@ -323,6 +386,39 @@ chooseElem heur mat =
       putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
       return (getIndices str (fst maxe))
     _ -> return (fst maxe)
+
+-- |Returns all maximum elements in the matrix or chosen by the user with SimInteractiveHeur.
+chooseAllMax:: Heur -> AffinMx -> FS [(Int,Int)]
+chooseAllMax heur mat = 
+  let firstMax = ([],0) in
+  let maxe = foldl (\(curr_ls,amax) -> \((i,j),val) -> if val>=amax then (if val>amax then ([(i,j)],val) else (([(i,j)]++curr_ls),val)) else (curr_ls,amax)) firstMax (assocs mat) in
+  case heur of
+    SimInteractiveHeur ->
+      let ls = norm_list (fst maxe) in
+      putStrFS ("MAX elem is: " ++ show ls) >>
+      putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
+      return [(getIndices str (head ls))]
+    _ -> return (fst maxe)
+
+-- choose only distinct pairs of elements
+chooseDist:: [(Int,Int)] -> [(Int,Int)]
+chooseDist ls =
+  snd (foldl (\(elems,ls) -> \(i,j) -> if member (i,j) elems 
+                                 then (elems,ls) else ([i,j] `union` elems,[(i,j)]++ls) ) ([],[]) ls)
+  where
+    member (i,j) elems = (i `elem` elems) || (j `elem` elems)
+
+-- choose distinct pairs or all the elements if strongly connected 
+chooseDistElems:: [(Int,Int)] -> ([(Int,Int)],[Int])
+chooseDistElems ls =
+  let ls_len = length ls in
+  if ls_len<=1 then (ls,[])
+  else let dist_elems = foldl (\dl -> \(i,j) -> [i,j] `union` dl) [] ls 
+       in let dist_len = length dist_elems in 
+       if ls_len == dist_len 
+       then ([],dist_elems)
+       else (chooseDist ls,[])
+
 
 getIndices:: String -> (Int,Int) -> (Int,Int)
 getIndices str givenmax = 
