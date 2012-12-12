@@ -27,7 +27,11 @@ simplify f =
     
 subset:: Formula -> Formula -> FS Bool
 -- ^Given f1 and f2, returns (f1 subset f2).
-subset f1 f2 = impSubset (fqsv f1,[],f1) (fqsv f2,[],f2)
+subset f1 f2 = 
+  let v1 = fqsv f1 in let v2 = fqsv f2 in
+  -- putStrFS("vars F1:="++show v1++"\n  "++showSet f1) >>   
+  -- putStrFS("vars F2:="++show v2++"\n  "++showSet f2) >>   
+  impSubset (v1,[],f1) (v2,[],f2)
 
 hull:: Formula -> FS Formula
 -- ^Applies a Hull or a ConvexHull operation depending on the flag 'whatHull'.
