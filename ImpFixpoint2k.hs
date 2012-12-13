@@ -100,68 +100,69 @@ bottomUp2k_gen recpost flagsl initFormula =
   addOmegaStr("New fix point iteration") >> 
   addOmegaStr("+++++++++++++++++++++++++++") >> 
   getFlags >>= \flags -> 
-    subrec_gen recpost initFormula >>= \f1 -> mapM (\f2 -> simplify f2) f1
-     >>= \initf1 -> mapM (\f1r -> addOmegaStr ("# F1:="++showSet f1r)) initf1 >>
-     subrec_gen recpost initf1 >>= \f1 -> mapM (\f2 -> simplify f2) f1
-     >>= \initf2 -> mapM (\f1r -> addOmegaStr ("# F2:="++showSet f1r)) initf2 >>
-     subrec_gen recpost initf2 >>= \f1 -> mapM (\f2 -> simplify f2) f1
-     >>= \initf3 -> mapM (\f1r -> addOmegaStr ("# F3:="++showSet f1r)) initf3 >>
-     mapM (\f3r -> (pairwiseCheck f3r)) initf3 
-     >>= \pwF3l -> 
-         let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip pwF3l flagsl) in
-         let zipf1 = zip4 initf1 initf3 mdisj (snd (unzip flagsl)) in 
-         -- hull
-         mapM (\(f1r,f3r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1
-           -- substitution
-           >>= \hf1 -> subrec_gen recpost (map (\x -> (Or x)) hf1) 
-           >>= \f1 -> mapM (\f2 -> simplify f2) f1
-           >>= \initf4 -> mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
---           mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
---           \hf2 ->
-               -- substitution
---               subrec_gen recpost initf4
---               >>= \f1 -> mapM (\f2 -> simplify f2) f1
---               >>= \initf5 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf5 >>
---               mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
---               \hullf2 ->
---               subrec_gen recpost initf5
---               >>= \f1 -> mapM (\f2 -> simplify f2) f1
---               >>= \initf6 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf4 >>
-     
-              -- hull again  
-              let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
-              let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
-              mapM (\(f1r,f6r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1
-              -- call to iter 
-              >>= \s3 -> iterBU2k_gen recpost (zip mdisj (snd (unzip flagsl))) s3 initf1 (map (\x->4) initf1) 
-               
+  subrec_gen recpost initFormula >>= \f1 -> 
+  mapM (\f2 -> simplify f2) f1 >>= \initf1 -> 
+  mapM (\f1r -> addOmegaStr ("# F1:="++showSet f1r)) initf1 >>
+  subrec_gen recpost initf1 >>= \f1 -> 
+  mapM (\f2 -> simplify f2) f1 >>= \initf2 -> 
+  mapM (\f1r -> addOmegaStr ("# F2:="++showSet f1r)) initf2 >>
+  subrec_gen recpost initf2 >>= \f1 -> 
+  mapM (\f2 -> simplify f2) f1 >>= \initf3 -> 
+  mapM (\f1r -> addOmegaStr ("# F3:="++showSet f1r)) initf3 >>
+  mapM (\f3r -> (pairwiseCheck f3r)) initf3 >>= \pwF3l -> 
+  let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip pwF3l flagsl) in
+  let zipf1 = zip4 initf1 initf3 mdisj (snd (unzip flagsl)) in 
+  -- hull
+  -- substitution
+  mapM (\(f1r,f3r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1 >>= \hf1 -> 
+  subrec_gen recpost (map (\x -> (Or x)) hf1) >>= \f1 -> 
+  mapM (\f2 -> simplify f2) f1 >>= \initf4 -> 
+  mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
+          -- mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
+          -- \hf2 ->
+          --      substitution
+          --     subrec_gen recpost initf4
+          --     >>= \f1 -> mapM (\f2 -> simplify f2) f1
+          --     >>= \initf5 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf5 >>
+          --     mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
+          --     \hullf2 ->
+          --     subrec_gen recpost initf5
+          --     >>= \f1 -> mapM (\f2 -> simplify f2) f1
+          --     >>= \initf6 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf4 >>
+  -- hull again  
+  let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
+  let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
+  mapM (\(f1r,f6r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1 >>= \s3 ->   
+  -- call to iter 
+  iterBU2k_gen recpost (zip mdisj (snd (unzip flagsl))) s3 initf1 (map (\x->4) initf1) 
+
 iterBU2k_gen:: [RecPost] -> [FixFlags] -> [DisjFormula] -> [Formula] -> [Int] -> FS [(Formula,Int)]
 iterBU2k_gen recpost flags scrtl fbasel cntl =
   let scrt_or = map (\x -> (Or x)) scrtl in
-   subrec_gen recpost scrt_or >>= \fn -> mapM (\f -> simplify f) fn >>= \fnextl ->
-    let zipf = zip5 cntl scrtl fnextl fbasel flags in
-      mapM (\(cnt,scrt,fnext,fbase,(m,heur)) ->
+  subrec_gen recpost scrt_or >>= \fn -> 
+  mapM (\f -> simplify f) fn >>= \fnextl ->
+  let zipf = zip5 cntl scrtl fnextl fbasel flags in
+  mapM (\(cnt,scrt,fnext,fbase,(m,heur)) ->
              if (cnt>maxIter) then return ([fTrue],-1)
              else addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
                   combSelHull (m,heur) (getDisjuncts fnext) fTrue 
                   >>= \fnextHMany -> widen heur (scrt,fnextHMany) 
-                                     >>= \wl -> return (wl, cnt)) zipf 
-      >>= \snext_cnt ->
-      let (snextl, cntll) = unzip snext_cnt in
-      let snextl_or = map (\x -> (Or x)) snextl in
-       addOmegaStr("++++++++++++++++++++++++++++++++++")>>
-       addOmegaStr("After widenning: " ++ (foldl (\x -> \y -> x ++" "++(show y)) "" snextl_or)) >>
-       addOmegaStr("++++++++++++++++++++++++++++++++++")>>
-       fixTestBU_gen recpost snextl_or >>= 
-         \fixokl -> 
-          let fixok = foldl (\x -> \y -> x&&y) True fixokl in 
-          if fixok then 
-             mapM (\(snext, cnt) -> pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)) snext_cnt >>= \r -> return r
-          else 
-            addOmegaStr("++++++++++++++++++++++++++++++++++")>>
-            addOmegaStr("Didn't reach fixpoint yet -> iterate again") >>
-            addOmegaStr("++++++++++++++++++++++++++++++++++")>>
-            iterBU2k_gen recpost flags snextl fbasel (map (\x -> if (x /= -1) then x+1 else x) cntll)
+                                     >>= \wl -> return (wl, cnt)) zipf >>= \snext_cnt ->
+  let (snextl, cntll) = unzip snext_cnt in
+  let snextl_or = map (\x -> (Or x)) snextl in
+  addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+  addOmegaStr("After widenning: " ++ (foldl (\x -> \y -> x ++" "++(show y)) "" snextl_or)) >>
+  addOmegaStr("++++++++++++++++++++++++++++++++++")>>
+  fixTestBU_gen recpost snextl_or >>= \fixokl -> 
+  let fixok = foldl (\x -> \y -> x&&y) True fixokl in 
+  if fixok 
+  then 
+    mapM (\(snext, cnt) -> pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)) snext_cnt >>= \r -> return r
+  else 
+    addOmegaStr("++++++++++++++++++++++++++++++++++") >>
+    addOmegaStr("Didn't reach fixpoint yet -> iterate again") >>
+    addOmegaStr("++++++++++++++++++++++++++++++++++") >>
+    iterBU2k_gen recpost flags snextl fbasel (map (\x -> if (x /= -1) then x+1 else x) cntll)
 
          
 -- iterates starting with scrt (downwards if scrt is Reductive point; upwards if scrt is Extensive point)
