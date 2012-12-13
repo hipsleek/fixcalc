@@ -192,7 +192,6 @@ comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
 
 comb2Widen:: Formula -> Formula -> FS Formula
 comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
-
 -- WN to fix
 moreSelHull x y heur ys =
   if x<y then combSelHull (x,heur) ys undefined
@@ -474,7 +473,6 @@ showAffinMx mat =
     showRow:: AffinMx -> (Int,Int) -> Int -> Int -> String
     showRow mat (m,n) i j | j>n = ""
     showRow mat (m,n) i j = show (mat!(i,j)) ++ " " ++ showRow mat (m,n) i (j+1)
-
 merge_set:: Formula -> Formula -> Formula -> FS ([Formula],Int)
       -- requires: f1,f2 are conjunctive formulae
 merge_set f1 f2 foperation =
@@ -503,8 +501,8 @@ affinity (Just f1) (Just f2) heur operation _ =
     operation f1 f2 >>= \foperation -> 
     let f_or = Or [f1,f2] in
     getFlags >>= \flags ->
-    simplify foperation >>= \foperation ->
-    simplify f_or >>= \f_or ->
+    -- simplify foperation >>= \foperation ->
+    -- simplify f_or >>= \f_or ->
     -- subset foperation f_or >>= \imp1 ->
     -- subset f_or foperation >>= \imp2 ->
     simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
