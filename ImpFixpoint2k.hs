@@ -106,30 +106,28 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
 
 type Id = String
 type Dict = Id -> Maybe (RecPost,FixFlags)
+type DictOK = Id -> (RecPost,FixFlags)
 -- dict = Id -> Just (RecPost,FixFlags)
 -- [(Id,Formula)] -> [(Id,Formula,Int)]
 
 -- for each formula, unfold it once if it has not reached a fix point
-subrec_g :: Dict -> [(Id,(Formula,Bool))] -> FS [(Id,(Formula,Bool))]
+subrec_g :: DictOK -> [(Id,Formula)] -> FS [(Id,Formula)]
 subrec_g dict f_ls = 
   -- return f_ls
-  let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
-  mapM (\(id,(body,flag)) -> 
-         case (dict id) of
-           Just (rp,_) 
-             -> subrec_n rp new_dc >>= \nbody ->
-                return (id,(nbody,flag))
-           Nothing 
-             -> error "subrec_g: bad mutual recursion detected"
-       ) f_no >>= \new_f_ls ->
-  return (f_ok++new_f_ls)
+  -- let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
+  mapM (\(id,body) ->
+         let (rp,_) = dict id in
+         subrec_n rp new_dc >>= \nbody ->
+         return (id,nbody)
+       ) f_ls >>= \new_f_ls ->
+  return (new_f_ls)
   where 
     new_dc id = 
       case (find (\(x,_) -> id==x) f_ls) of
         Nothing -> Nothing
-        Just (_,(body,_)) -> Just body 
+        Just (_,body) -> Just body 
 
-subrec_genN :: String -> Int -> Int -> Dict -> [(Id,(Formula,Bool))] -> FS [(Id,(Formula,Bool))] 
+subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
 subrec_genN str i j dict f_ls =
   if (i>j) 
   then return f_ls
@@ -137,14 +135,12 @@ subrec_genN str i j dict f_ls =
     let str = str++(show i)++"@" in
     subrec_g dict f_ls >>= \f1 -> 
     mapM (\f2 -> simplify_n f2) f1 >>= \next_ls -> 
-    mapM (\(id,(f,_)) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
+    mapM (\(id,f) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
     subrec_genN str (i+1) j dict next_ls
     where
-      simplify_n x@(id,(f,b)) = 
-        if b 
-        then return x
-        else simplify f >>= \nf ->
-            return (id,(nf,b))
+      simplify_n x@(id,f) = 
+          simplify f >>= \nf ->
+          return (id,nf)
 type IdPair a = (Id,a)
 
 compareP (id1,_) (id2,_) = 
@@ -161,54 +157,95 @@ zipId xs ys =
             else (error ("zipId : mismatch "++i1++"vs "++i2))
         helper _ _ = error "zipId : mismatch in length"
 
-iterBU2k_n:: Dict ->  [(Id,(Formula,Bool,Int))] -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
+findId :: [(Id,a)] -> Id -> a
+findId ls id = 
+  case (find (\(i,_) -> id==i) ls) of
+    Nothing -> error ("findId : "++id++" not found!")
+    Just (_,a) -> a
+  
+iterBU2k_n:: DictOK -> (Id -> (Int,Heur,Formula)) -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
 -- requires: scrt, sbase are in conjunctive form
-iterBU2k_n dict scrt fbase cnt =
-  let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
-  let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
-  if (cnt>maxIter) then return (scrt_ok++(map (\(id,_)->(id,(fTrue,-1))) scrt_no)) 
+iterBU2k_n dict fbase_dict scrt cnt =
+  -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
+  -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
+  if (cnt>maxIter) then return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
-    let new_scrt = map (\(id,(f,b,_))->(id,(f,b))) scrt_no in
     -- unfold once
-    subrec_genN "R_init@" cnt cnt dict new_scrt >>= \fnext ->
+    subrec_genN "R_init@" cnt cnt dict scrt >>= \fnext ->
+    -- fnext :: [(Id,(Formula))]
     -- selective hull
-    -- widen  
-    -- fixpoint test
-    -- all complete?
-    return scrt_ok
-    
-    -- combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
-    -- widen heur (scrt,fnextHMany) >>= \snext ->
+    mapM (\(id,f3r) ->
+           let (mdisj,heur,f1r)=fbase_dict id in
+           combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
+               return (id,new_f)) fnext >>= \hull_f -> 
+    -- hullf :: [(Id,(Formula))]
+    let zip1 = zipId scrt hull_f in
+    mapM (\(id,(sc,fnextHMany)) ->
+           let (mdisj,heur,f1r)=fbase_dict id in
+           widen heur (getDisjuncts sc,fnextHMany) >>= \new_f ->
+               return (id,new_f)) zip1 >>= \widen_f -> 
+    -- widen_f :: [(Id,(DisjFormula))]
+    mapM (\(id,snext) ->
+           let (recpost,_)=dict id in
+           fixTestBU recpost (Or snext) >>= \fixok ->
+               return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
+    -- fixok_f :: [(Id,(Formula,Bool))]
+    let (f_done,f_no) = partition (\(_,(_,b))->b) fixok_f in
+    let f_done2 = map (\(id,(f,_))->(id,(f,cnt))) f_done in
+    let f_cont = map (\(id,(f,_))->(id,f)) f_no in
+    if f_no==[] 
+    then 
+      return f_done2
+    else 
+      iterBU2k_n dict fbase_dict f_cont (cnt+1) >>= \f_rest ->
+      return (f_done2++f_rest)
+
+
     -- fixTestBU recpost (Or snext) >>= \fixok ->
     -- if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     -- else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
 
-bottomUp2k_n :: Dict -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
-bottomUp2k_n dict initFs = 
-  let initFS = map (\(id,f)->(id,(f,False))) initFs in
+bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
+bottomUp2k_gen recpost flagsl initFormula = 
+    let dict = zip1 recpost flagsl in
+    let init_f = zip2 recpost initFormula in
+    bottomUp2k_n (findId dict) init_f >>= \bt_ans ->
+    -- bt_ans ::[(Id,(Formula,Int))]
+    return (map (\(id,_)->findId bt_ans id) dict)
+    where
+      zip1 [] [] = []
+      zip1 ((a@(RecPost mn _ _)):ls1) (ff:ls2) = (mn,(a,ff)):(zip1 ls1 ls2)
+      zip1 _ _ = error "Error in zip1"
+      zip2 [] [] = []
+      zip2 ((a@(RecPost mn _ _)):ls1) (ff:ls2) = (mn,ff):(zip2 ls1 ls2)
+      zip2 _ _ = error "Error in zip2"
+
+bottomUp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
+bottomUp2k_n dict initFS = 
+  -- let initFS = map (\(id,f)->(id,(f,False))) initFs in
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
   addOmegaStr("#  New fix point iteration") >> 
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
   getFlags >>= \flags -> 
   subrec_genN "M_init@" 1 1 dict initFS >>= \initFS1 ->
-  subrec_genN "M_init@" 2 3 dict initFS >>= \initFS3 ->
-  -- compute new pairwise pwF3l::[(Id,(Formula,Bool))]
-  mapM (\(id,(f,b)) -> ((pairwiseCheck f) >>= \nf -> return (id,(nf,b)))) initFS3 >>= \pwF3l -> 
+  subrec_genN "M_init@" 2 3 dict initFS1 >>= \initFS3 ->
+  -- compute new pairwise pwF3l::[(Id,Formula)]
+  mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
-  let mdisj = map (\(id,(f,_))-> 
-                    case (dict id) of
-                      Nothing -> error ("Id "++id++"not found in mutual rec")
-                      Just (_,(m,heur)) ->
-                          (id,(min m (countDisjuncts f),heur,f))) pwF3l in
+  let mdisj = map (\(id,f)-> 
+                    let (_,(m,heur))=(dict id) in
+                    (id,(min m (countDisjuncts f),heur,f))) pwF3l in
   -- compute new quad value f1r,f3r,mdisj,heur ::(id,(F1,bool),(m,heur,F3))
   let zipf1 = zipId initFS1 mdisj in
-  mapM (\(id,((f1r,flag),(mdisj,heur,f3r))) ->
+  let fbase_dict = findId mdisj in
+  mapM (\(id,(f1r,(mdisj,heur,f3r))) ->
          combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
-         return (id,(new_f,flag))) zipf1 >>= \hf1 -> 
-  return []
+         return (id,new_f)) zipf1 >>= \hf1 -> 
+  -- hf1::[(Id,DisjFormula)]
+  iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
 
-bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
-bottomUp2k_gen recpost flagsl initFormula = 
+bottomUp2k_gen_old :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
+bottomUp2k_gen_old recpost flagsl initFormula = 
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
   addOmegaStr("#  New fix point iteration") >> 
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
