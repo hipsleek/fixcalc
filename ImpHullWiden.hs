@@ -20,7 +20,7 @@ import Data.Array(Array,(//),(!),array,assocs,bounds)
 import Data.Char(digitToInt,isDigit)
 import List(nub,union,(\\))
 import Maybe(catMaybes,fromJust)
-import Monad(filterM,when)
+import Monad(filterM,when,foldM)
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 
@@ -80,22 +80,67 @@ computeHalfCol heur mat (m,n) i j disj =
   let newmat = mat // [((i,j),affinIJ)] in
   computeHalfCol heur newmat (m,n) (i-1) j disj
 
+recomputeRow :: Heur -> AffinMx -> Int -> [Maybe Disjunct] -> Int -> FS AffinMx
+recomputeRow heur mat row disj dim =
+  let r = [i | i <-[row+1..dim], not((disj!!i)==Nothing)] in
+  foldM (\af -> \c -> 
+                let qv = (nub $ concatMap fqsv (catMaybes [disj!!row,disj!!c])) in
+                affinity (disj!!row) (disj!!c) heur comb2Hull qv >>= \ aff_new ->
+                let newmat = mat // [((row,c),aff_new)] in
+                return newmat) mat r 
+  
+mkZero:: AffinMx -> Int -> Int -> FS AffinMx
+mkZero mat row dim = return (mat // ([((row,i),-1)|i<-[0..dim]]++[((i,row),-1)|i<-[0..dim]]))
+
+-- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
+computeHalfElems:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [Int] -> FS AffinMx
+computeHalfElems heur mat _ dim [] = return mat
+computeHalfElems heur mat replDisjM dim (i:ls) = 
+  foldM (\mat -> \j -> mkZero mat j dim) mat ls  >>= \mat2 ->
+  recomputeRow heur mat2 i replDisjM dim
+
+-- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
+computeHalfList:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
+computeHalfList heur mat _ dim [] = return mat
+computeHalfList heur affinMx replDisjM dim ((i,j):ls) = 
+  mkZero affinMx j dim >>= \affinMx1 ->
+  recomputeRow heur affinMx1 i replDisjM dim >>= \affinMx2 ->
+  -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
+  -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
+  -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
+  -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
+  computeHalfList heur affinMx2 replDisjM dim ls
+
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
   getFlags >>= \flags -> 
   when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
+  chooseAllMax heur affinMx >>= \max_ls ->
+  let (dist_pairs,all_elems) = chooseDistElems max_ls in
   when (showDebugMSG flags >=2) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
-  replaceRelated disjM (i,j) >>= \replDisjM ->
+  -- replaceRelated disjM (i,j) >>= \replDisjM ->
+  replaceRelated_either disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
+  when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list hull_list))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("List elems merged: " ++ show (norm_elem elm_list))) >>
   when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
                                ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
-  if (length (catMaybes replDisjM))<=m then return replDisjM
-  else 
-    computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
-    computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
-    computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
-    computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
+  let new_m = length (catMaybes replDisjM) in
+  if new_m<=m then
+    {- WN : to change m to a smaller value -}
+    return replDisjM
+  else
+    let dim = length replDisjM-1 in
+    computeHalfList heur affinMx replDisjM dim hull_list >>= \affinMx1 -> 
+    computeHalfElems heur affinMx1 replDisjM dim elm_list >>= \affinMx4 -> 
+    -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
+    -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
+    -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
+    -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
     iterateHalfMx (m,heur) replDisjM affinMx4
 
 -- replaces two related disjuncts with their hull
@@ -109,11 +154,47 @@ replaceRelated disj (i,j) =
   let disjIJ = updateList disjI j Nothing in
   return disjIJ
   
+replaceRelated_elems:: [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
+replaceRelated_elems disj (a:b:ls) = 
+  let relI = map (\i -> fromJust (disj!!i)) (a:b:ls) in
+  hull (Or relI) >>= \hulled ->
+  let disjI = updateList disj a (Just hulled) in
+  let disjIJ = zeroList disjI (b:ls) in
+  return disjIJ 
+
+zeroList disj [] = disj 
+zeroList disj (b:ls) = 
+  let disjI = updateList disj b Nothing in
+  zeroList disjI ls
+
+-- replaces pairs of related disjuncts with their hull
+replaceRelated_list:: [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
+-- requires: (0<=i,j<length disj)
+-- ensures: length res=length disj
+replaceRelated_list disj [] = return disj
+replaceRelated_list disj (p:ls) = 
+  replaceRelated disj p >>= \new_disj ->
+  replaceRelated_list new_disj ls
+-- foldM (\e -> \p -> replaceRelated e p) disj ls
+
+replaceRelated_either:: [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
+-- requires: (0<=i,j<length disj)
+-- ensures: length res=length disj
+-- returns also a list of rows to be nullified
+replaceRelated_either disj ls elms p = 
+  if elms==[] 
+  then replaceRelated_list disj ls >>= \ a -> return (a,ls,[])
+  else replaceRelated_elems disj elms >>= \ a -> return (a,[],elms)
+
 comb2Hull:: Formula -> Formula -> FS Formula
 comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
 
 comb2Widen:: Formula -> Formula -> FS Formula
 comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
+-- WN to fix
+moreSelHull x y heur ys =
+  if x<y then combSelHull (x,heur) ys undefined
+  else return ys
 
 ----------------------------------
 --------Widening powersets--------
@@ -122,8 +203,11 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 widen heur (xs,ys) = 
-  getFlags >>= \flags -> 
-  when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
+  getFlags >>= \flags ->
+  let x_len = length xs in
+  let y_len = length ys in
+  moreSelHull x_len y_len heur ys >>= \ ys ->
+  when (not (x_len == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
                                             ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
@@ -172,7 +256,12 @@ iterateMx heur (disjCrt,disjNxt) affinMx partIJs =
             ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) (disjCrt++disjNxt)))) >>
   when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
+  chooseAllMax heur affinMx >>= \max_ls ->
+  let (dist_pairs,all_elems) = chooseDistElems max_ls in  
   when (showDebugMSG flags >=1) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  when (showDebugMSG flags >=1) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -312,6 +401,15 @@ initAffinMx n =
   let l = map (\x -> ((x `quot` (n+1),x `rem` (n+1)),identityA)) gen in
     array ((0,0),(n,n)) l
 
+norm_pair:: (Int,Int) -> (Int,Int)
+norm_pair (i,j) = (i+1,j+1)
+                  
+norm_list:: [(Int,Int)] -> [(Int,Int)]
+norm_list ls = map norm_pair ls
+
+norm_elem:: [Int] -> [Int]
+norm_elem ls = map (\x -> x+1) ls
+
 -- |Returns the indices of either the maximum element in the matrix or chosen by the user with SimInteractiveHeur.
 chooseElem:: Heur -> AffinMx -> FS (Int,Int)
 chooseElem heur mat = 
@@ -323,6 +421,39 @@ chooseElem heur mat =
       putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
       return (getIndices str (fst maxe))
     _ -> return (fst maxe)
+
+-- |Returns all maximum elements in the matrix or chosen by the user with SimInteractiveHeur.
+chooseAllMax:: Heur -> AffinMx -> FS [(Int,Int)]
+chooseAllMax heur mat = 
+  let firstMax = ([],0) in
+  let maxe = foldl (\(curr_ls,amax) -> \((i,j),val) -> if val>=amax then (if val>amax then ([(i,j)],val) else (([(i,j)]++curr_ls),val)) else (curr_ls,amax)) firstMax (assocs mat) in
+  case heur of
+    SimInteractiveHeur ->
+      let ls = norm_list (fst maxe) in
+      putStrFS ("MAX elem is: " ++ show ls) >>
+      putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
+      return [(getIndices str (head ls))]
+    _ -> return (fst maxe)
+
+-- choose only distinct pairs of elements
+chooseDist:: [(Int,Int)] -> [(Int,Int)]
+chooseDist ls =
+  snd (foldl (\(elems,ls) -> \(i,j) -> if member (i,j) elems 
+                                 then (elems,ls) else ([i,j] `union` elems,[(i,j)]++ls) ) ([],[]) ls)
+  where
+    member (i,j) elems = (i `elem` elems) || (j `elem` elems)
+
+-- choose distinct pairs or all the elements if strongly connected 
+chooseDistElems:: [(Int,Int)] -> ([(Int,Int)],[Int])
+chooseDistElems ls =
+  let ls_len = length ls in
+  if ls_len<=1 then (ls,[])
+  else let dist_elems = foldl (\dl -> \(i,j) -> [i,j] `union` dl) [] ls 
+       in let dist_len = length dist_elems in 
+       if ls_len == dist_len 
+       then ([],dist_elems)
+       else (chooseDist ls,[])
+
 
 getIndices:: String -> (Int,Int) -> (Int,Int)
 getIndices str givenmax = 
@@ -341,6 +472,14 @@ showAffinMx mat =
     showRow:: AffinMx -> (Int,Int) -> Int -> Int -> String
     showRow mat (m,n) i j | j>n = ""
     showRow mat (m,n) i j = show (mat!(i,j)) ++ " " ++ showRow mat (m,n) i (j+1)
+merge_set:: Formula -> Formula -> Formula -> FS ([Formula],Int)
+      -- requires: f1,f2 are conjunctive formulae
+merge_set f1 f2 foperation =
+        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
+        let combined_set = (conjf1 `union` conjf2) in
+        let n = length combined_set in
+        filterM (\f -> subset foperation f) combined_set >>= \ans ->
+        return (ans,n)
 
 affinity:: Maybe Formula -> Maybe Formula -> Heur -> (Formula -> Formula -> FS Formula) -> [QSizeVar] -> FS Int
 -- requires: f1,f2 represent conjunctive formulae
@@ -395,20 +534,21 @@ affinity (Just f1) (Just f2) heur operation _ =
          when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
          when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
-          mset f1 f2 foperation >>= \mSet ->
+          merge_set f1 f2 foperation >>= \(mSet,num_of_orig) ->
           let cmset = length mSet in
-          let frac = (((fromIntegral cmset / (fromIntegral (cf1+cf2)))*98)+1) in
+          let frac = (((fromIntegral cmset / (fromIntegral (num_of_orig{- cf1+cf2 -}
+                                                           )))*98)+1) in
          when (showDebugMSG flags >=2) (putStrFS("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
          when (showDebugMSG flags >=2) (putStrFS("Foper:="++showSet foperation)) >>
          when (showDebugMSG flags >=2) (putStrFS("mSet::="++concatMap (\f -> showSet f) mSet)) >>
-         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (cf1+cf2) ++ "  " ++ show (ceiling frac))) >>
+         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (num_of_orig) ++ "  " ++ show (ceiling frac))) >>
           return (ceiling frac)
-    where
-      mset:: Formula -> Formula -> Formula -> FS [Formula]
-      -- requires: f1,f2 are conjunctive formulae
-      mset f1 f2 foperation =
-        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
-        filterM (\f -> subset foperation f) (conjf1 `union` conjf2)
+    -- where
+    --   mset:: Formula -> Formula -> Formula -> FS [Formula]
+    --   -- requires: f1,f2 are conjunctive formulae
+    --   mset f1 f2 foperation =
+    --     let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
+    --     filterM (\f -> subset foperation f) (conjf1 `union` conjf2)
 
 type Range = (Maybe Int,Maybe Int) 
 -- ^A 'Range' value represents an interval: 'Nothing' means Infinity, 'Just' i means the integer i.
