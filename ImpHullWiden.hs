@@ -81,26 +81,36 @@ computeHalfCol heur mat (m,n) i j disj =
   let newmat = mat // [((i,j),affinIJ)] in
   computeHalfCol heur newmat (m,n) (i-1) j disj
 
-recomputeRow :: Heur -> AffinMx -> Int -> [Maybe Disjunct] -> FS AffinMx
+recomputeRow :: Heur -> AffinMx -> Int -> [Maybe Disjunct] -> Int -> FS AffinMx
 recomputeRow heur mat row disj dim =
-  let r = [i | i <-[row+1..dim], (disj!i)!=Nothing] in
-  foldM (\af -> \j -> affinity (disj!!row) (disj!!j) heur comb2Hull ?) mat r 
+  let r = [i | i <-[row+1..dim], not((disj!!i)==Nothing)] in
+  foldM (\af -> \c -> 
+                let qv = (nub $ concatMap fqsv (catMaybes [disj!!row,disj!!c])) in
+                affinity (disj!!row) (disj!!c) heur comb2Hull qv >>= \ aff_new ->
+                let newmat = mat // [((row,c),aff_new)] in
+                return newmat) mat r 
   
-mkZero:: AffinMx -> Int -> Int -> Int FS AffinMx
-mkZero mat row dim = return (mat // ([(row,i)|i<-[0..dim]]++[(i,row)|i<-[0..dim]]))
+mkZero:: AffinMx -> Int -> Int -> FS AffinMx
+mkZero mat row dim = return (mat // ([((row,i),-1)|i<-[0..dim]]++[((i,row),-1)|i<-[0..dim]]))
+
+-- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
+computeHalfElems:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [Int] -> FS AffinMx
+computeHalfElems heur mat _ dim [] = return mat
+computeHalfElems heur mat replDisjM dim (i:ls) = 
+  foldM (\mat -> \j -> mkZero mat j dim) mat ls  >>= \mat2 ->
+  recomputeRow heur mat2 i replDisjM dim
 
 -- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
 computeHalfList:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
-computeHalfList heur _ mat dim [] = return mat
+computeHalfList heur mat _ dim [] = return mat
 computeHalfList heur affinMx replDisjM dim ((i,j):ls) = 
-  mkZero affixMx j dim >>= \affixMx1 ->
-  recomputeRow heur affixMx i replDisjM dim >>= \affixMx1 ->
-  recomputeCol heur affixMx1 i replDisjM >>= \affixMx2 ->
+  mkZero affinMx j dim >>= \affinMx1 ->
+  recomputeRow heur affinMx1 i replDisjM dim >>= \affinMx2 ->
   -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
   -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
   -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
   -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
-  computeHalfList heur affixMx2 replDisjM ls
+  computeHalfList heur affinMx2 replDisjM dim ls
 
 iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) disjM affinMx = 
@@ -115,13 +125,19 @@ iterateHalfMx (m,heur) disjM affinMx =
   when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   -- replaceRelated disjM (i,j) >>= \replDisjM ->
-  replaceRelated_either disjM dist_pairs all_elems (i,j) >>= \(replDisjM,rm_list) ->
-  when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list rm_list))) >>
+  replaceRelated_either disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
+  when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list hull_list))) >>
+  when (showDebugMSG flags >=2) (putStrFS ("List elems merged: " ++ show (norm_elem elm_list))) >>
   when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
                                ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
-  if (length (catMaybes replDisjM))<=m then return replDisjM
+  let new_m = length (catMaybes replDisjM) in
+  if new_m<=m then
+    {- WN : to change m to a smaller value -}
+    return replDisjM
   else
-    reComputeHalfList heur affixMx replDisjM rm_list \affixMX4 -> 
+    let dim = length replDisjM-1 in
+    computeHalfList heur affinMx replDisjM dim hull_list >>= \affinMx1 -> 
+    computeHalfElems heur affinMx1 replDisjM dim elm_list >>= \affinMx4 -> 
     -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
     -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
     -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
@@ -139,6 +155,19 @@ replaceRelated disj (i,j) =
   let disjIJ = updateList disjI j Nothing in
   return disjIJ
 
+replaceRelated_elems:: [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
+replaceRelated_elems disj (a:b:ls) = 
+  let relI = map (\i -> fromJust (disj!!i)) (a:b:ls) in
+  hull (Or relI) >>= \hulled ->
+  let disjI = updateList disj a (Just hulled) in
+  let disjIJ = zeroList disjI (b:ls) in
+  return disjIJ 
+
+zeroList disj [] = disj 
+zeroList disj (b:ls) = 
+  let disjI = updateList disj b Nothing in
+  zeroList disjI ls
+
 -- replaces pairs of related disjuncts with their hull
 replaceRelated_list:: [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
 -- requires: (0<=i,j<length disj)
@@ -149,20 +178,25 @@ replaceRelated_list disj (p:ls) =
   replaceRelated_list new_disj ls
 -- foldM (\e -> \p -> replaceRelated e p) disj ls
 
-replaceRelated_either:: [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)])
+replaceRelated_either:: [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
 -- returns also a list of rows to be nullified
 replaceRelated_either disj ls elms p = 
   if elms==[] 
-  then replaceRelated_list disj ls >>= \ a -> return (a,ls)
-  else replaceRelated disj p >>= \ a -> return (a,[p])
+  then replaceRelated_list disj ls >>= \ a -> return (a,ls,[])
+  else replaceRelated_elems disj elms >>= \ a -> return (a,[],elms)
 
 comb2Hull:: Formula -> Formula -> FS Formula
 comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
 
 comb2Widen:: Formula -> Formula -> FS Formula
 comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
+
+-- WN to fix
+moreSelHull x y heur ys =
+  if x<y then combSelHull (x,heur) ys undefined
+  else return ys
 
 ----------------------------------
 --------Widening powersets--------
@@ -171,8 +205,11 @@ widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 widen heur (xs,ys) = 
-  getFlags >>= \flags -> 
-  when (not (length xs == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
+  getFlags >>= \flags ->
+  let x_len = length xs in
+  let y_len = length ys in
+  moreSelHull x_len y_len heur ys >>= \ ys ->
+  when (not (x_len == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
                                             ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
