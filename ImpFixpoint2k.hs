@@ -206,64 +206,87 @@ subrec_mr (RecPost formalMN1 f1 (formalI1,formalO1,qsvByVal1))
   subrec_mr1 f1 f2 f3
   where 
     subrec_mr1:: Formula -> Formula -> Formula -> FS Formula
-    subrec_mr1 f g h = case f of 
-      And fs ->  mapM (\x -> subrec_mr1 x g h) fs >>= \res -> return (And res)
-      Or fs -> mapM (\x -> subrec_mr1 x g h) fs >>= \res -> return (Or res)
-      Exists vars ff -> subrec_mr1 ff g h >>= \res -> return (Exists vars res)
+    subrec_mr1 f g h = 
+      case f of 
+      And fs ->  
+        mapM (\x -> subrec_mr1 x g h) fs >>= \res -> 
+        return (And res)
+      Or fs -> 
+        mapM (\x -> subrec_mr1 x g h) fs >>= \res -> 
+        return (Or res)
+      Exists vars ff -> 
+        subrec_mr1 ff g h >>= \res -> 
+        return (Exists vars res)
       GEq us -> return f
       EqK us -> return f
       AppRecPost actualMN actualIO ->
-          if (formalMN1==actualMN) then
-              if not (length (formalI1++formalO1) == length actualIO) then 
-                  error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+          if (formalMN1==actualMN) 
+          then
+             if not (length (formalI1++formalO1) == length actualIO) 
+             then 
+               error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+             else
+               let rho = zip (formalI1++formalO1) actualIO in
+               debugApply rho g >>= \rhoG -> 
+               return $ fAnd [rhoG,noChange qsvByVal1]
+          else 
+            if (formalMN2==actualMN) 
+            then
+              if not (length (formalI2++formalO2) == length actualIO) 
+              then
+                error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
               else
-                 let rho = zip (formalI1++formalO1) actualIO in
-                 debugApply rho g >>= \rhoG -> return $ fAnd [rhoG,noChange qsvByVal1]
-          else if (formalMN2==actualMN) then
-                   if not (length (formalI2++formalO2) == length actualIO) then
-                       error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
-                   else
-                       let rho = zip (formalI2++formalO2) actualIO in
-                       debugApply rho h >>= \rhoH ->
-                           return $ fAnd [rhoH,noChange qsvByVal2]
-               else            
-                   error "subrec_mr: input error detected" 
+                let rho = zip (formalI2++formalO2) actualIO in
+                debugApply rho h >>= \rhoH ->
+                return $ fAnd [rhoH,noChange qsvByVal2]
+            else            
+              error "subrec_mr: input error detected" 
       _ -> error ("unexpected argument: "++show f)
 
 subrec_gen1 :: RecPost -> [RecPost] -> [Formula] -> FS Formula
-subrec_gen1 rp r g = 
-  case rp of
-   RecPost formalMN1 f (formalI,formalO,qsvByVal) ->
-    addOmegaStr("+++++++++++++++++++++++++++++") >>
-    addOmegaStr("Subst for " ++ show f ++ ":") >>
-    addOmegaStr("+++++++++++++++++++++++++++++") >>
-    subrec1 f r g
-     where 
+subrec_gen1 rp@(RecPost formalMN1 f (formalI,formalO,qsvByVal)) r g = 
+  addOmegaStr("+++++++++++++++++++++++++++++") >>
+  addOmegaStr("Subst for " ++ show f ++ ":") >>
+  addOmegaStr("+++++++++++++++++++++++++++++") >>
+  subrec1 f r g
+    where 
       subrec1:: Formula -> [RecPost] -> [Formula] -> FS Formula
       subrec1 f r g = 
-         case f of 
-            And fs -> mapM (\x -> subrec1 x r g) fs >>= \res -> return (And res)
-            Or fs -> mapM (\x -> subrec1 x r g) fs >>= \res -> return (Or res)
-            Exists vars ff -> subrec1 ff r g >>= \res -> return (Exists vars res)
-            GEq us -> return f
-            EqK us -> return f
-            AppRecPost actualMN actualIO ->
-              let func = zip r g in
-              let func_app = find (\x -> case (fst x) of
-                                       RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2) -> (actualMN == formalMN2)
-                                       _ -> False) func in
-              case func_app of
-                Nothing -> error "subrec_gen: input error detected" 
-                Just (RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2), f3) ->
-                    if not (length (formalI2++formalO2) == length actualIO) then
-                           error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
-                       else
-                           let rho = zip (formalI2++formalO2) actualIO in
-                           addOmegaStr ("before subst: " ++ show f3) >> simplify f3 >>= \f3s ->
-                           debugApply rho f3s  >>= \rhof3 -> simplify rhof3 >>= \rhof31 -> addOmegaStr ("after subst: " ++ show rhof31) >>= 
+        case f of 
+          And fs -> 
+            mapM (\x -> subrec1 x r g) fs >>= \res -> 
+            return (And res)
+          Or fs -> 
+            mapM (\x -> subrec1 x r g) fs >>= \res -> 
+            return (Or res)
+          Exists vars ff -> 
+            subrec1 ff r g >>= \res -> 
+            return (Exists vars res)
+          GEq us -> return f
+          EqK us -> return f
+          AppRecPost actualMN actualIO ->
+            let func = zip r g in
+            let func_app = find (\x -> 
+                                  case (fst x) of
+                                    RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2) -> (actualMN == formalMN2)
+                                    _ -> False) func in
+            case func_app of
+              Nothing -> 
+                error "subrec_gen: input error detected" 
+              Just (RecPost formalMN2 f2 (formalI2,formalO2,qsvByVal2), f3) ->
+                if not (length (formalI2++formalO2) == length actualIO) 
+                then
+                  error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+                else
+                  let rho = zip (formalI2++formalO2) actualIO in
+                  addOmegaStr ("before subst: " ++ show f3) >> 
+                  simplify f3 >>= \f3s ->
+                  debugApply rho f3s  >>= \rhof3 -> 
+                  simplify rhof3 >>= \rhof31 -> 
+                  addOmegaStr ("after subst: " ++ show rhof31) >>=
                            \_ -> return $ (fAnd [rhof31,noChange qsvByVal2])
-            _ -> error ("unexpected argument: "++show f)
-   _ -> error "subrec_gen: input error detected"
+              _ -> error ("unexpected argument: "++show f)
+          _ -> error "subrec_gen: input error detected"
 
 
 subrec_gen :: [RecPost] -> [Formula] -> FS [Formula]
@@ -278,21 +301,22 @@ subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
  where 
  subrec1:: Formula -> Formula -> FS Formula
  subrec1 f g = case f of 
-    And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
-    Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
-    Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
-    GEq us -> return f
-    EqK us -> return f
-    AppRecPost actualMN actualIO ->
-      if not (formalMN==actualMN) then
-        error "subrec: mutual recursion detected" 
-      else if not (length (formalI++formalO) == length actualIO) then
-        error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
-      else
-        let rho = zip (formalI++formalO) actualIO in
-        debugApply rho g >>= \rhoG ->
-        return $ fAnd [rhoG,noChange qsvByVal]
-    _ -> error ("unexpected argument: "++show f)
+   And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
+   Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
+   Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
+   GEq us -> return f
+   EqK us -> return f
+   AppRecPost actualMN actualIO ->
+     if not (formalMN==actualMN) then
+       error "subrec: mutual recursion detected" 
+     else if not (length (formalI++formalO) == length actualIO) 
+          then
+             error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+          else
+              let rho = zip (formalI++formalO) actualIO in
+              debugApply rho g >>= \rhoG ->
+              return $ fAnd [rhoG,noChange qsvByVal]
+   _ -> error ("unexpected argument: "++show f)
 
 -----Top Down fixpoint
 -- 2nd widening strategy + general selHull
