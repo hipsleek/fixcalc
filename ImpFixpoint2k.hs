@@ -68,13 +68,17 @@ bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
   getFlags >>= \flags -> 
-  subrec recpost initFormula >>= \f1 -> simplify f1 >>= \f1r ->
+  subrec recpost initFormula >>= \f1 -> 
+  simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
-  subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
+  subrec recpost f1r >>= \f2 -> 
+  simplify f2 >>= \f2r -> 
   addOmegaStr ("# F2:="++showSet f2r) >>
-  subrec recpost f2r >>= \f3 ->  simplify f3 >>= \f3r -> 
+  subrec recpost f2r >>= \f3 ->  
+  simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
-  pairwiseCheck f3r >>=  \pwF3 -> let mdisj = min m (countDisjuncts pwF3) in
+  pairwiseCheck f3r >>=  \pwF3 -> 
+  let mdisj = min m (countDisjuncts pwF3) in
   when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4 >>= \res ->
@@ -114,10 +118,11 @@ bottomUp2k_gen recpost flagsl initFormula =
   let zipf1 = zip4 initf1 initf3 mdisj (snd (unzip flagsl)) in 
   -- hull
   -- substitution
-  mapM (\(f1r,f3r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1 >>= \hf1 -> 
-  subrec_gen recpost (map (\x -> (Or x)) hf1) >>= \f1 -> 
-  mapM (\f2 -> simplify f2) f1 >>= \initf4 -> 
-  mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
+  mapM (\(f1r,f3r,mdisj,heur) -> 
+         combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1 >>= \hf1 -> 
+  -- subrec_gen recpost (map (\x -> (Or x)) hf1) >>= \f1 -> 
+  -- mapM (\f2 -> simplify f2) f1 >>= \initf4 -> 
+  -- mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
           -- mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
           -- \hf2 ->
           --      substitution
@@ -130,8 +135,8 @@ bottomUp2k_gen recpost flagsl initFormula =
           --     >>= \f1 -> mapM (\f2 -> simplify f2) f1
           --     >>= \initf6 -> mapM (\f1r -> addOmegaStr ("# F5:="++showSet f1r)) initf4 >>
   -- hull again  
-  let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
-  let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
+  -- let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
+  -- let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
   mapM (\(f1r,f6r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1 >>= \s3 ->   
   -- call to iter 
   iterBU2k_gen recpost (zip mdisj (snd (unzip flagsl))) s3 initf1 (map (\x->4) initf1) 
