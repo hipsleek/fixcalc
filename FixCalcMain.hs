@@ -8,6 +8,7 @@ import System(getArgs)
 import System.IO(hFlush,stdout)
 import System.CPUTime(getCPUTime)
 import System.Time(getClockTime,diffClockTimes)
+import Monad(when)
 
 
 main :: IO ()
@@ -21,8 +22,8 @@ main =
       getCPUTime >>= \tStartCPU ->
       parse fileContents flags >>
       getCPUTime >>= \tEndCPU ->
-      putStrLn ("# Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)
-      --putStrLn ("")
+      when (showDebugMSG flags>=0) (putStrLn ("# Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)) >>
+      when (showDebugMSG flags<0) (putStrLn (""))
 
 processCmdLine:: [String] -> IO (Maybe (String,Flags))
 processCmdLine cmdLine = 
