@@ -59,7 +59,21 @@ fixpoint2k m recPost@(RecPost mn f (i,o,byval)) =
 --      putStrFS("TransInv:=" ++ showRelation(i,recTheseQSizeVars i,inv)) >>
 --      putStrFS("    TD " ++ show cntInv ++ "iter: " ++ showDiffTimes time3 time2) >>
       return (post,inv)
-     
+
+subrecN :: String -> Int -> Int -> RecPost -> Formula -> FS Formula
+subrecN hd_str f n recpost currFormula =
+  helper f currFormula
+  where
+    helper i cf = 
+      let str = hd_str in
+      if i>n 
+      then return cf
+      else
+          subrec recpost cf >>= \f1 -> 
+          simplify f1 >>= \f1r ->
+          addOmegaStr (str++(show i)++":="++showSet f1r) >>
+          helper (i+1) f1r
+
 ----Bottom-Up fixpoint
 -- 3rd widening strategy + general selHull
 bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
@@ -68,30 +82,22 @@ bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
   getFlags >>= \flags -> 
-  subrec recpost initFormula >>= \f1 -> 
-  simplify f1 >>= \f1r ->
-  addOmegaStr ("# F1:="++showSet f1r) >>
-  subrec recpost f1r >>= \f2 -> 
-  simplify f2 >>= \f2r -> 
-  addOmegaStr ("# F2:="++showSet f2r) >>
-  subrec recpost f2r >>= \f3 ->  
-  simplify f3 >>= \f3r -> 
-  addOmegaStr ("# F3:="++showSet f3r) >>
+  subrecN "F_init@" 1 1 recpost initFormula >>= \f1r ->
+  subrecN "F_init@" 2 3 recpost f1r >>= \f3r ->
   pairwiseCheck f3r >>=  \pwF3 -> 
   let mdisj = min m (countDisjuncts pwF3) in
   when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4 >>= \res ->
   return res
-    
+
 iterBU2k:: RecPost -> FixFlags -> Formula -> DisjFormula -> Formula -> Int -> FS (Formula,Int)
 -- requires: scrt, sbase are in conjunctive form
 iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
 -- 3nd widening strategy: iterate using scrt (fcrt is not used anymore)
-    subrec recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
-    addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
+    subrecN "F_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
     widen heur (scrt,fnextHMany) >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok ->
