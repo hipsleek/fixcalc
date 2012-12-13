@@ -2,6 +2,7 @@ module Main(main) where
 import FixCalcParser(parse)
 import ImpConfig(defaultFlags,Flags(..),Hull(..))
 import MyPrelude
+import Fresh
 ------------------------------------------
 import Numeric(fromRat,showFFloat)
 import System(getArgs)
@@ -23,7 +24,9 @@ main =
       parse fileContents flags >>
       getCPUTime >>= \tEndCPU ->
       when (showDebugMSG flags>=0) (putStrLn ("# Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)) >>
-      when (showDebugMSG flags<0) (putStrLn (""))
+      when (showDebugMSG flags<0) (putStrLn ("")) >>
+      -- when (showDebugMSG flags>=3) (writeOmegaStrs) >>
+      return ()
 
 processCmdLine:: [String] -> IO (Maybe (String,Flags))
 processCmdLine cmdLine = 

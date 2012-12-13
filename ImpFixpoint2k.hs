@@ -106,13 +106,13 @@ bottomUp2k_gen recpost flagsl initFormula =
   getFlags >>= \flags -> 
   subrec_gen recpost initFormula >>= \f1 -> 
   mapM (\f2 -> simplify f2) f1 >>= \initf1 -> 
-  mapM (\f1r -> addOmegaStr ("# F1:="++showSet f1r)) initf1 >>
+  mapM (\f1r -> addOmegaStr ("# F1_init :="++showSet f1r)) initf1 >>
   subrec_gen recpost initf1 >>= \f1 -> 
   mapM (\f2 -> simplify f2) f1 >>= \initf2 -> 
-  mapM (\f1r -> addOmegaStr ("# F2:="++showSet f1r)) initf2 >>
+  mapM (\f1r -> addOmegaStr ("# F2_init :="++showSet f1r)) initf2 >>
   subrec_gen recpost initf2 >>= \f1 -> 
   mapM (\f2 -> simplify f2) f1 >>= \initf3 -> 
-  mapM (\f1r -> addOmegaStr ("# F3:="++showSet f1r)) initf3 >>
+  mapM (\f1r -> addOmegaStr ("# F3_init :="++showSet f1r)) initf3 >>
   mapM (\f3r -> (pairwiseCheck f3r)) initf3 >>= \pwF3l -> 
   let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip pwF3l flagsl) in
   let zipf1 = zip4 initf1 initf3 mdisj (snd (unzip flagsl)) in 
@@ -122,7 +122,7 @@ bottomUp2k_gen recpost flagsl initFormula =
          combSelHull (mdisj,heur) (getDisjuncts f3r) f1r) zipf1 >>= \hf1 -> 
   -- subrec_gen recpost (map (\x -> (Or x)) hf1) >>= \f1 -> 
   -- mapM (\f2 -> simplify f2) f1 >>= \initf4 -> 
-  -- mapM (\f1r -> addOmegaStr ("# F4:="++showSet f1r)) initf4 >>
+  -- mapM (\f1r -> addOmegaStr ("# F4a :="++showSet f1r)) initf4 >>
           -- mapM (\f3r -> (pairwiseCheck f3r)) initf4 >>=
           -- \hf2 ->
           --      substitution
@@ -149,7 +149,7 @@ iterBU2k_gen recpost flags scrtl fbasel cntl =
   let zipf = zip5 cntl scrtl fnextl fbasel flags in
   mapM (\(cnt,scrt,fnext,fbase,(m,heur)) ->
              if (cnt>maxIter) then return ([fTrue],-1)
-             else addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
+             else addOmegaStr ("# R_Next."++ show cnt ++ ":="++showSet fnext) >>
                   combSelHull (m,heur) (getDisjuncts fnext) fTrue 
                   >>= \fnextHMany -> widen heur (scrt,fnextHMany) 
                                      >>= \wl -> return (wl, cnt)) zipf >>= \snext_cnt ->
