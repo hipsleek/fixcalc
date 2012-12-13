@@ -3,7 +3,7 @@
   Mainly used for unique name generation.
 -}
 module Fresh where
-import ImpConfig(Flags,outputFile)
+import ImpConfig(Flags,showDebugMSG,outputFile)
 import MyPrelude
 ------------------------------------------
 import System.CPUTime(getCPUTime)
@@ -106,6 +106,21 @@ getUnsafeUserChecks = FS (\st -> return (st,unsafeUserChecks st))
 
 putStrFS:: String -> FS ()
 putStrFS str = FS (\st -> putStrLn str >> return (st,()))
+
+putStrFSOpt:: String -> FS ()
+putStrFSOpt str = 
+  getFlags >>= \flags ->
+  if (showDebugMSG flags>=0) 
+  then putStrFS str 
+  else return ()
+  -- FS (\st -> return (st,()))
+
+putStrNoLnFSOpt:: String -> FS ()
+putStrNoLnFSOpt str = 
+  getFlags >>= \flags ->
+  if (showDebugMSG flags>=0) 
+  then putStrNoLnFS str 
+  else return ()
 
 putStrNoLnFS:: String -> FS ()
 putStrNoLnFS str = FS (\st -> putStr str >> return (st,()))

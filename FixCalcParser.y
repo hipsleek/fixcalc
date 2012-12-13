@@ -78,7 +78,7 @@ LCommand:
 Command::{RelEnv -> FS RelEnv}
 Command:
     lit ':=' ParseFormula ';'                                    
-    {\env -> --putStrNoLnFS ("# " ++ $1 ++ ":=") >>
+    {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
              $3 env >>= \rhs ->
              case rhs of {
                R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
@@ -97,46 +97,46 @@ Command:
              case rhs of
                (F f) -> 
                   simplify f >>= \fsimpl ->
-                  --putStrFS("\n" ++ showSet fsimpl ++ "\n") >> 
+                  putStrFSOpt("\n" ++ showSet fsimpl ++ "\n") >> 
                   return env
                (R recpost) -> 
-                  --putStrFS ("\n" ++ show recpost ++ "\n") >> 
+                  putStrFS ("\n" ++ show recpost ++ "\n") >> 
                   return env
     }
   | fixtestpost '(' lit ',' lit ')' ';'
-    {\env -> --putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
+    {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
              case (lookupVar $3 env,lookupVar $5 env) of
                (Just (R recpost),Just (F f)) ->
                   fixTestBU recpost f >>= \fixok -> 
-                  --putStrFS("\n" ++ show fixok ++ "\n") >> 
+                  putStrFSOpt("\n# " ++ show fixok ++ "\n") >> 
                   return env
                (_,_) -> error ("Arguments of fixtest are incorrect")}
   | fixtestinv '(' lit ',' lit ')' ';'
-    {\env -> --putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
+    {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
              case (lookupVar $3 env,lookupVar $5 env) of
                (Just (R recpost),Just (F f)) ->
                   getOneStep recpost fTrue >>= \oneStep ->
                   fixTestTD oneStep f >>= \fixok -> 
-                  --putStrFS("\n" ++ show fixok ++ "\n") >> 
+                  putStrFSOpt("\n# " ++ show fixok ++ "\n") >> 
                   return env
                (_,_) -> error ("Arguments of fixtestInv are incorrect")}
   | lit subset lit ';'                                
-    {\env -> --putStrFS("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
+    {\env -> putStrFSOpt("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
              case (lookupVar $1 env,lookupVar $3 env) of
                (Just (F f1),Just (F f2)) ->
                   subset f1 f2 >>= \subok -> 
-                  --putStrFS("\n" ++ show subok ++ "\n") >> 
+                  putStrFSOpt("\n# " ++ show subok ++ "\n") >> 
                   return env
                (_,_) -> error ("Argument of subset is not a valid formula\n")
      }
   | lit ';'
-    {\env -> --putStrFS("# "++ $1 ++ ";") >>
+    {\env -> putStrFSOpt("\n# "++ $1 ++ ";") >>
              case lookupVar $1 env of 
-               Just (R recpost) -> --putStrFS("\n" ++ show recpost ++ "\n") >> 
+               Just (R recpost) -> putStrFS("\n" ++ show recpost ++ "\n") >> 
                  return env
                Just (F f) -> putStrFS("\n" ++ show f ++ "\n") >> 
                  return env
-               Nothing -> error ("Variable not declared - "++$1++"\n")
+               Nothing -> error ("# Variable not declared - "++$1++"\n")
     }                   
 
 
@@ -155,17 +155,17 @@ ParseFormula1:
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
     '{' '[' LPorUSizeVar ']' ':' Formula '}'      
-                  {\env -> --putStrFS ("{ ... };") >>
+                  {\env -> putStrFSOpt ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
                            else return (F $6)} 
   | '{' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' ':' Formula '}'      
-                  {\env -> --putStrFS ("{ ... };") >> 
+                  {\env -> putStrFSOpt ("{ ... };") >> 
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $16)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
                            else return (R (RecPost "dummy" $16 (reverse $3,reverse $8,reverse $13)))}
   | lit '(' lit ')'
-                {\env -> --putStrFS ($1 ++ "(" ++ $3 ++ ");") >>
+                {\env -> putStrFSOpt ($1 ++ "(" ++ $3 ++ ");") >>
                          let cabst = case lookupVar $1 env of {Just (R recpost) -> recpost; 
                                                                Just (F f) -> error ("Argument of subrec is not a constraint abstraction\n"); 
                                                                Nothing -> error ("Variable not declared - "++$1++"\n")} in
@@ -174,7 +174,7 @@ ParseFormula:
                                                            Nothing -> error ("Variable not declared - "++$3++"\n")} in
                          subrec cabst f >>= \fn -> simplify fn >>= \fnext -> return (F fnext)}
   | bottomup '(' lit ',' intNum ',' lit ')'
-        {\env -> --putStrFS ("bottomup(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
+        {\env -> putStrFSOpt ("bottomup(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
                    Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
@@ -193,7 +193,7 @@ ParseFormula:
 	            Just (R recpost2) -> 
 		      bottomUp_mr recpost1 recpost2  >>= \(post,cnt) -> return (F post)}
   | topdown '(' lit ',' intNum ',' lit ')'
-        {\env -> --putStrFS ("topdown(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
+        {\env -> putStrFSOpt ("topdown(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
                    Just (F f) -> error ("Argument of topdown is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
@@ -201,7 +201,7 @@ ParseFormula:
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      topDown2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
   | selhull '(' lit ',' intNum ',' lit ')'
-        {\env -> --putStrFS ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
+        {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
                    Just (R recpost) -> error ("Argument of selhull is not a formula\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
@@ -209,7 +209,7 @@ ParseFormula:
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
   | manualhull '(' lit ',' '[' LInt ']' ')'
-        {\env -> --putStrFS ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
+        {\env -> putStrFSOpt ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
                  case lookupVar $3 env of
                     Just (F f) -> 
                       let disj = getDisjuncts f in
@@ -223,7 +223,7 @@ ParseFormula:
                       
         }
   | widen '(' lit ',' lit ',' lit ')' 
-        {\env -> --putStrFS ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
+        {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
                    (Just (F f1),Just (F f2)) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
@@ -234,7 +234,7 @@ ParseFormula:
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
   | lit intersection lit
-        {\env -> --putStrFS($1 ++ " intersection " ++ $3 ++ ";") >>
+        {\env -> putStrFSOpt($1 ++ " intersection " ++ $3 ++ ";") >>
                  case (lookupVar $1 env,lookupVar $3 env) of
                    (Just (F f1),Just (F f2)) ->
                       simplify (And [f1,f2]) >>= \f3 -> 
@@ -242,14 +242,14 @@ ParseFormula:
                    (_,_) -> error ("Argument of intersection is not a valid formula\n")
          }
   | hull lit
-        {\env -> --putStrFS("hull " ++ $2 ++ ";") >>
+        {\env -> putStrFSOpt("hull " ++ $2 ++ ";") >>
                  case (lookupVar $2 env) of
                    Just (F f1) -> hull f1 >>= \f2 -> 
                       return (F f2)
                    _ -> error ("Argument of hull is not a valid formula\n")
          }
   | pairwisecheck lit
-        {\env -> --putStrFS ("PairwiseCheck "++ $2) >>
+        {\env -> putStrFSOpt ("PairwiseCheck "++ $2) >>
                  case lookupVar $2 env of
                    Just (F f) -> 
                       pairwiseCheck f >>= \fsimpl ->

@@ -65,6 +65,7 @@ computeHalfMx heur disj =
         computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
         computeHalfMx1 heur mat1 (m,n) (i+1) disj
 
+
 -- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
 computeHalfRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
 computeHalfRow heur mat (m,n) i j disj | j>n = return mat
@@ -153,7 +154,7 @@ replaceRelated disj (i,j) =
   let disjI = updateList disj i (Just hulled) in
   let disjIJ = updateList disjI j Nothing in
   return disjIJ
-  
+
 replaceRelated_elems:: [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
 replaceRelated_elems disj (a:b:ls) = 
   let relI = map (\i -> fromJust (disj!!i)) (a:b:ls) in
