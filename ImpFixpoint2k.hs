@@ -22,7 +22,7 @@ import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwise
 import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
-import List((\\),nub,find,zip4,zip5,zip)
+import List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
 import Maybe(catMaybes)
 import Monad(when,mapAndUnzipM)
 
@@ -103,12 +103,115 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
     fixTestBU recpost (Or snext) >>= \fixok ->
     if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
+
+type Id = String
+type Dict = Id -> Maybe (RecPost,FixFlags)
+-- dict = Id -> Just (RecPost,FixFlags)
+-- [(Id,Formula)] -> [(Id,Formula,Int)]
+
+-- for each formula, unfold it once if it has not reached a fix point
+subrec_g :: Dict -> [(Id,(Formula,Bool))] -> FS [(Id,(Formula,Bool))]
+subrec_g dict f_ls = 
+  -- return f_ls
+  let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
+  mapM (\(id,(body,flag)) -> 
+         case (dict id) of
+           Just (rp,_) 
+             -> subrec_n rp new_dc >>= \nbody ->
+                return (id,(nbody,flag))
+           Nothing 
+             -> error "subrec_g: bad mutual recursion detected"
+       ) f_no >>= \new_f_ls ->
+  return (f_ok++new_f_ls)
+  where 
+    new_dc id = 
+      case (find (\(x,_) -> id==x) f_ls) of
+        Nothing -> Nothing
+        Just (_,(body,_)) -> Just body 
+
+subrec_genN :: String -> Int -> Int -> Dict -> [(Id,(Formula,Bool))] -> FS [(Id,(Formula,Bool))] 
+subrec_genN str i j dict f_ls =
+  if (i>j) 
+  then return f_ls
+  else
+    let str = str++(show i)++"@" in
+    subrec_g dict f_ls >>= \f1 -> 
+    mapM (\f2 -> simplify_n f2) f1 >>= \next_ls -> 
+    mapM (\(id,(f,_)) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
+    subrec_genN str (i+1) j dict next_ls
+    where
+      simplify_n x@(id,(f,b)) = 
+        if b 
+        then return x
+        else simplify f >>= \nf ->
+            return (id,(nf,b))
+type IdPair a = (Id,a)
+
+compareP (id1,_) (id2,_) = 
+  compare id1 id2
+  
+zipId :: [IdPair a] -> [IdPair b] -> [IdPair (a,b)]
+zipId xs ys = 
+  helper (sortBy compareP xs) (sortBy compareP ys)
+      where
+        helper [] [] = []
+        helper ((i1,a):ls1) ((i2,b):ls2) = 
+            if i1==i2 
+            then (i1,(a,b)):(helper ls1 ls2)
+            else (error ("zipId : mismatch "++i1++"vs "++i2))
+        helper _ _ = error "zipId : mismatch in length"
+
+iterBU2k_n:: Dict ->  [(Id,(Formula,Bool,Int))] -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
+-- requires: scrt, sbase are in conjunctive form
+iterBU2k_n dict scrt fbase cnt =
+  let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
+  let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
+  if (cnt>maxIter) then return (scrt_ok++(map (\(id,_)->(id,(fTrue,-1))) scrt_no)) 
+  else
+    let new_scrt = map (\(id,(f,b,_))->(id,(f,b))) scrt_no in
+    -- unfold once
+    subrec_genN "R_init@" cnt cnt dict new_scrt >>= \fnext ->
+    -- selective hull
+    -- widen  
+    -- fixpoint test
+    -- all complete?
+    return scrt_ok
     
+    -- combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
+    -- widen heur (scrt,fnextHMany) >>= \snext ->
+    -- fixTestBU recpost (Or snext) >>= \fixok ->
+    -- if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
+    -- else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
+
+bottomUp2k_n :: Dict -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
+bottomUp2k_n dict initFs = 
+  let initFS = map (\(id,f)->(id,(f,False))) initFs in
+  addOmegaStr("# +++++++++++++++++++++++++++") >> 
+  addOmegaStr("#  New fix point iteration") >> 
+  addOmegaStr("# +++++++++++++++++++++++++++") >> 
+  getFlags >>= \flags -> 
+  subrec_genN "M_init@" 1 1 dict initFS >>= \initFS1 ->
+  subrec_genN "M_init@" 2 3 dict initFS >>= \initFS3 ->
+  -- compute new pairwise pwF3l::[(Id,(Formula,Bool))]
+  mapM (\(id,(f,b)) -> ((pairwiseCheck f) >>= \nf -> return (id,(nf,b)))) initFS3 >>= \pwF3l -> 
+  -- compute new mdisj::[(Id,(m,heur,Formula))]
+  let mdisj = map (\(id,(f,_))-> 
+                    case (dict id) of
+                      Nothing -> error ("Id "++id++"not found in mutual rec")
+                      Just (_,(m,heur)) ->
+                          (id,(min m (countDisjuncts f),heur,f))) pwF3l in
+  -- compute new quad value f1r,f3r,mdisj,heur ::(id,(F1,bool),(m,heur,F3))
+  let zipf1 = zipId initFS1 mdisj in
+  mapM (\(id,((f1r,flag),(mdisj,heur,f3r))) ->
+         combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
+         return (id,(new_f,flag))) zipf1 >>= \hf1 -> 
+  return []
+
 bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen recpost flagsl initFormula = 
-  addOmegaStr("+++++++++++++++++++++++++++") >> 
-  addOmegaStr("New fix point iteration") >> 
-  addOmegaStr("+++++++++++++++++++++++++++") >> 
+  addOmegaStr("# +++++++++++++++++++++++++++") >> 
+  addOmegaStr("#  New fix point iteration") >> 
+  addOmegaStr("# +++++++++++++++++++++++++++") >> 
   getFlags >>= \flags -> 
   subrec_gen recpost initFormula >>= \f1 -> 
   mapM (\f2 -> simplify f2) f1 >>= \initf1 -> 
@@ -143,7 +246,8 @@ bottomUp2k_gen recpost flagsl initFormula =
   -- hull again  
   -- let mdisj = map (\(pwF3,(m,heur)) -> (min m (countDisjuncts pwF3))) (zip initf4 flagsl) in              
   -- let zipf1 = zip4 initf1 initf4 mdisj (snd (unzip flagsl)) in 
-  mapM (\(f1r,f6r,mdisj,heur) -> combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1 >>= \s3 ->   
+  mapM (\(f1r,f6r,mdisj,heur) -> 
+         combSelHull (mdisj,heur) (getDisjuncts f6r) f1r) zipf1 >>= \s3 ->   
   -- call to iter 
   iterBU2k_gen recpost (zip mdisj (snd (unzip flagsl))) s3 initf1 (map (\x->4) initf1) 
 
@@ -303,31 +407,68 @@ subrec_gen1 rp@(RecPost formalMN1 f (formalI,formalO,qsvByVal)) r g =
 subrec_gen :: [RecPost] -> [Formula] -> FS [Formula]
 subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
 
+subrec_n :: RecPost -> (Id -> Maybe Formula) -> FS Formula
+subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
+  helper f1
+  where
+  helper :: Formula -> FS Formula
+  helper f = 
+    case f of 
+      And fs -> 
+          mapM (\x -> helper x) fs >>= \res -> 
+          return (And res)
+      Or fs -> 
+          mapM (\x -> helper x) fs >>= \res -> 
+          return (Or res)
+      Exists vars ff -> 
+          helper ff >>= \res -> 
+          return (Exists vars res)
+      GEq us -> return f
+      EqK us -> return f
+      AppRecPost actualMN actualIO ->
+          case (dc actualMN) of
+            Nothing ->
+                error "bad mutual recursion detected"
+            Just body ->
+                if not (length (formalI++formalO) == length actualIO) 
+                then
+                    error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+                else
+                    let rho = zip (formalI++formalO) actualIO in
+                    debugApply rho body >>= \rhoG ->
+                    return $ fAnd [rhoG,noChange qsvByVal]
+      _ -> error ("unexpected argument: "++show f)
+
 subrec :: RecPost -> Formula -> FS Formula
 -- ^Given CAbst and F, returns CAbst(F). 
 -- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
 -- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
-subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
-  subrec1 f1 f2
- where 
- subrec1:: Formula -> Formula -> FS Formula
- subrec1 f g = case f of 
-   And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
-   Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
-   Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
-   GEq us -> return f
-   EqK us -> return f
-   AppRecPost actualMN actualIO ->
-     if not (formalMN==actualMN) then
-       error "subrec: mutual recursion detected" 
-     else if not (length (formalI++formalO) == length actualIO) 
-          then
-             error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
-          else
-              let rho = zip (formalI++formalO) actualIO in
-              debugApply rho g >>= \rhoG ->
-              return $ fAnd [rhoG,noChange qsvByVal]
-   _ -> error ("unexpected argument: "++show f)
+subrec rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
+  subrec_n rp dc
+  where
+    dc id = if (formalMN==id) then Just f2 else Nothing
+
+-- subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
+--   subrec1 f1 f2
+--  where 
+--  subrec1:: Formula -> Formula -> FS Formula
+--  subrec1 f g = case f of 
+--    And fs ->  mapM (\x -> subrec1 x g) fs >>= \res -> return (And res)
+--    Or fs -> mapM (\x -> subrec1 x g) fs >>= \res -> return (Or res)
+--    Exists vars ff -> subrec1 ff g >>= \res -> return (Exists vars res)
+--    GEq us -> return f
+--    EqK us -> return f
+--    AppRecPost actualMN actualIO ->
+--      if not (formalMN==actualMN) then
+--        error "subrec: mutual recursion detected" 
+--      else if not (length (formalI++formalO) == length actualIO) 
+--           then
+--              error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+--           else
+--               let rho = zip (formalI++formalO) actualIO in
+--               debugApply rho g >>= \rhoG ->
+--               return $ fAnd [rhoG,noChange qsvByVal]
+--    _ -> error ("unexpected argument: "++show f)
 
 -----Top Down fixpoint
 -- 2nd widening strategy + general selHull
