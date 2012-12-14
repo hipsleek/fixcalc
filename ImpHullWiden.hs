@@ -212,13 +212,13 @@ widen heur (xs,ys) =
                                             ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
-  addOmegaStr ("# Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
-  addOmegaStr ("# Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
+  addOmegaStr ("Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
+  addOmegaStr ("Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
-  addOmegaStr ("# WidenOUT:=" ++ showSet(Or res)) >> 
+  addOmegaStr ("WidenOUT:=" ++ showSet(Or res)) >> 
   return res
   
 computeMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
@@ -284,14 +284,14 @@ replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) =
 widenOne:: (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
 widenOne (fcrt,fnext) = 
---    addOmegaStr ("# WidenCrt:=" ++ showSet fcrt) >> 
---    addOmegaStr("# WidenNxt:=" ++ showSet fnext) >>
-  closure fcrt >>= \fcrts ->
+  addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
+  addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
+  closure fcrt >>= \fcrts ->    -- 
   mapM (subset fnext) fcrts >>= \suboks ->
   let fcrts' = zip fcrts suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let fwid = fAnd (map fst fcrt') in
---    addOmegaStr ("# WidenRes:=" ++ showSet fwid) >>
+  addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
   return fwid
 
 closure:: Disjunct -> FS [Disjunct]

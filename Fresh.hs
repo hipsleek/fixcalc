@@ -9,6 +9,7 @@ import MyPrelude
 import System.CPUTime(getCPUTime)
 import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
+import Monad(when)
 -------FS Fresh---------------------------
 data St = MkState { 
   cnt :: Integer, -- ^Used for unique name generation.
@@ -63,7 +64,12 @@ takeFresh n = fresh >>= \fsh ->
   takeFresh (n-1) >>= \fshs -> return $ fsh:fshs
 
 addOmegaStr:: String -> FS ()
-addOmegaStr newStr = 
+addOmegaStr s = 
+  getFlags >>= \flags ->
+  when (showDebugMSG flags >=3) (addOmegaS s)
+
+addOmegaS:: String -> FS ()
+addOmegaS newStr = 
   FS (\st -> return (st{omegaStrs=(newStr:omegaStrs st)},()))
 
 writeOmegaStrs:: FS ()

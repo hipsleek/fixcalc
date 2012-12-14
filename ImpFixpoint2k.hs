@@ -71,7 +71,7 @@ subrecN hd_str f n recpost currFormula =
       else
           subrec recpost cf >>= \f1 -> 
           simplify f1 >>= \f1r ->
-          addOmegaStr (str++(show i)++":="++showSet f1r) >>
+          -- addOmegaStr (str++(show i)++":="++showSet f1r) >>
           helper (i+1) f1r
 
 ----Bottom-Up fixpoint
@@ -97,7 +97,7 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
 -- 3nd widening strategy: iterate using scrt (fcrt is not used anymore)
-    subrecN "F_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
+    subrecN "R_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
     widen heur (scrt,fnextHMany) >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok ->
@@ -107,12 +107,15 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
 type Id = String
 type Dict = Id -> Maybe (RecPost,FixFlags)
 type DictOK = Id -> (RecPost,FixFlags)
+type FDict = Id -> Maybe Formula
+
 -- dict = Id -> Just (RecPost,FixFlags)
 -- [(Id,Formula)] -> [(Id,Formula,Int)]
 
--- for each formula, unfold it once if it has not reached a fix point
-subrec_g :: DictOK -> [(Id,Formula)] -> FS [(Id,Formula)]
-subrec_g dict f_ls = 
+-- for each formula here, unfold it just once 
+-- these are formula that have not reached fixpoint
+subrec_g :: DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)]
+subrec_g dict fdict f_ls = 
   -- return f_ls
   -- let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
   mapM (\(id,body) ->
@@ -122,25 +125,41 @@ subrec_g dict f_ls =
        ) f_ls >>= \new_f_ls ->
   return (new_f_ls)
   where 
-    new_dc id = 
-      case (find (\(x,_) -> id==x) f_ls) of
-        Nothing -> Nothing
-        Just (_,body) -> Just body 
+    new_dc id =
+      case (fdict id) of
+        Just f -> Just f
+        Nothing ->
+            case (find (\(x,_) -> id==x) f_ls) of
+              Nothing -> Nothing
+              Just (_,body) -> Just body 
 
-subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
-subrec_genN str i j dict f_ls =
+extend_fdict :: FDict -> [(Id,Formula)] -> Id -> Maybe Formula
+extend_fdict fdict ls id =
+  case (fdict id) of
+    Just a -> Just a
+    Nothing ->
+      case (find (\(i,_) -> id==i) ls) of
+        Nothing -> Nothing
+        Just (_,f) -> Just f
+
+subrec_genN :: String -> Int -> Int -> DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)] 
+subrec_genN str i j dict fdict f_ls =
+  addOmegaStr("+++++++++++++++++++++++++++++") >>
+  addOmegaStr("Subst for " ++ show str ++ ":") >>
+  addOmegaStr("+++++++++++++++++++++++++++++") >>
   if (i>j) 
   then return f_ls
   else
-    let str = str++(show i)++"@" in
-    subrec_g dict f_ls >>= \f1 -> 
+    let str = str++(show i)++"_" in
+    subrec_g dict fdict f_ls >>= \f1 -> 
     mapM (\f2 -> simplify_n f2) f1 >>= \next_ls -> 
-    mapM (\(id,f) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
-    subrec_genN str (i+1) j dict next_ls
+    -- mapM (\(id,f) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
+    subrec_genN str (i+1) j dict fdict next_ls
     where
       simplify_n x@(id,f) = 
           simplify f >>= \nf ->
           return (id,nf)
+
 type IdPair a = (Id,a)
 
 compareP (id1,_) (id2,_) = 
@@ -163,15 +182,17 @@ findId ls id =
     Nothing -> error ("findId : "++id++" not found!")
     Just (_,a) -> a
   
-iterBU2k_n:: DictOK -> (Id -> (Int,Heur,Formula)) -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
+iterBU2k_n:: DictOK -> FDict -> (Id -> (Int,Heur,Formula)) -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
 -- requires: scrt, sbase are in conjunctive form
-iterBU2k_n dict fbase_dict scrt cnt =
+iterBU2k_n dict fdict fbase_dict scrt cnt =
   -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
   -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
-  if (cnt>maxIter) then return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
+  if (cnt>maxIter) 
+  then 
+    return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
     -- unfold once
-    subrec_genN "R_init@" cnt cnt dict scrt >>= \fnext ->
+    subrec_genN "G_init@" cnt cnt dict fdict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
     mapM (\(id,f3r) ->
@@ -192,21 +213,28 @@ iterBU2k_n dict fbase_dict scrt cnt =
     -- fixok_f :: [(Id,(Formula,Bool))]
     let (f_done,f_no) = partition (\(_,(_,b))->b) fixok_f in
     let f_done2 = map (\(id,(f,_))->(id,(f,cnt))) f_done in
+    let f_done3 = map (\(id,(f,_))->(id,f)) f_done2 in
     let f_cont = map (\(id,(f,_))->(id,f)) f_no in
     if f_no==[] 
     then 
       return f_done2
-    else 
-      iterBU2k_n dict fbase_dict f_cont (cnt+1) >>= \f_rest ->
+    else
+      iterBU2k_n dict (extend_fdict fdict f_done3) fbase_dict f_cont (cnt+1) >>= \f_rest ->
       return (f_done2++f_rest)
+        
+        where
+        
 
 
     -- fixTestBU recpost (Or snext) >>= \fixok ->
     -- if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     -- else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
 
-bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
-bottomUp2k_gen recpost flagsl initFormula = 
+bottomUp2k_gen_new :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
+bottomUp2k_gen_new recpost flagsl initFormula = 
+    addOmegaStr("+++++++++++++++++++++++++++") >> 
+    addOmegaStr(" gen_new M fix point iteration") >> 
+    addOmegaStr("+++++++++++++++++++++++++++") >> 
     let dict = zip1 recpost flagsl in
     let init_f = zip2 recpost initFormula in
     bottomUp2k_n (findId dict) init_f >>= \bt_ans ->
@@ -222,13 +250,13 @@ bottomUp2k_gen recpost flagsl initFormula =
 
 bottomUp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 bottomUp2k_n dict initFS = 
-  -- let initFS = map (\(id,f)->(id,(f,False))) initFs in
-  addOmegaStr("# +++++++++++++++++++++++++++") >> 
-  addOmegaStr("#  New fix point iteration") >> 
-  addOmegaStr("# +++++++++++++++++++++++++++") >> 
+  addOmegaStr("+++++++++++++++++++++++++++") >> 
+  addOmegaStr("  k_n M fix point iteration") >> 
+  addOmegaStr("+++++++++++++++++++++++++++") >>
+  let fdict x = Nothing in
   getFlags >>= \flags -> 
-  subrec_genN "M_init@" 1 1 dict initFS >>= \initFS1 ->
-  subrec_genN "M_init@" 2 3 dict initFS1 >>= \initFS3 ->
+  subrec_genN "K_init@" 1 1 dict fdict initFS >>= \initFS1 ->
+  subrec_genN "K_init@" 2 3 dict fdict initFS1 >>= \initFS3 ->
   -- compute new pairwise pwF3l::[(Id,Formula)]
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
@@ -242,12 +270,16 @@ bottomUp2k_n dict initFS =
          combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
-  iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
+  iterBU2k_n dict fdict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
 
+bottomUp2k_gen x = bottomUp2k_gen_new x 
+
+{- WN : Cristina previous code 
+        superceded by bottomUp2k_gen_new
 bottomUp2k_gen_old :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen_old recpost flagsl initFormula = 
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
-  addOmegaStr("#  New fix point iteration") >> 
+  addOmegaStr("#  gen_old fix point iteration") >> 
   addOmegaStr("# +++++++++++++++++++++++++++") >> 
   getFlags >>= \flags -> 
   subrec_gen recpost initFormula >>= \f1 -> 
@@ -315,7 +347,8 @@ iterBU2k_gen recpost flags scrtl fbasel cntl =
     addOmegaStr("Didn't reach fixpoint yet -> iterate again") >>
     addOmegaStr("++++++++++++++++++++++++++++++++++") >>
     iterBU2k_gen recpost flags snextl fbasel (map (\x -> if (x /= -1) then x+1 else x) cntll)
-
+Cristina : _gen
+-}
          
 -- iterates starting with scrt (downwards if scrt is Reductive point; upwards if scrt is Extensive point)
 -- iterates until maxIter (no termination criterion)
@@ -345,10 +378,12 @@ fixTestBU_mr recpost1 respost2 candidate1 candidate2 =
     subrec_mr recpost1 respost2 candidate1 candidate2 >>= \fnext -> 
     subset fnext candidate1
 
+{-
 fixTestBU_gen:: [RecPost] -> [Formula] -> FS [Bool]
 fixTestBU_gen recpost candidate = 
   subrec_gen recpost candidate >>=
   \f -> let zipf = zip f candidate in mapM (\(f,c) -> (subset f c)) zipf
+-}
 
 --cris
 subrec_mr :: RecPost -> RecPost -> Formula -> Formula -> FS Formula
@@ -395,6 +430,7 @@ subrec_mr (RecPost formalMN1 f1 (formalI1,formalO1,qsvByVal1))
               error "subrec_mr: input error detected" 
       _ -> error ("unexpected argument: "++show f)
 
+{-
 subrec_gen1 :: RecPost -> [RecPost] -> [Formula] -> FS Formula
 subrec_gen1 rp@(RecPost formalMN1 f (formalI,formalO,qsvByVal)) r g = 
   addOmegaStr("+++++++++++++++++++++++++++++") >>
@@ -437,12 +473,13 @@ subrec_gen1 rp@(RecPost formalMN1 f (formalI,formalO,qsvByVal)) r g =
                   simplify rhof3 >>= \rhof31 -> 
                   addOmegaStr ("after subst: " ++ show rhof31) >>=
                            \_ -> return $ (fAnd [rhof31,noChange qsvByVal2])
-              _ -> error ("unexpected argument: "++show f)
-          _ -> error "subrec_gen: input error detected"
+              _ -> error ("subrec1: unexpected argument: "++show f)
+          _ -> error "subrec1: input error detected"
 
 
 subrec_gen :: [RecPost] -> [Formula] -> FS [Formula]
 subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
+-}
 
 subrec_n :: RecPost -> (Id -> Maybe Formula) -> FS Formula
 subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
@@ -474,7 +511,8 @@ subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
                     let rho = zip (formalI++formalO) actualIO in
                     debugApply rho body >>= \rhoG ->
                     return $ fAnd [rhoG,noChange qsvByVal]
-      _ -> error ("unexpected argument: "++show f)
+      _ -> error ("subrec_n : unexpected argument: "++show f)
+
 
 subrec :: RecPost -> Formula -> FS Formula
 -- ^Given CAbst and F, returns CAbst(F). 
