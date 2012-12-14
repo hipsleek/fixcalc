@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
 import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -172,7 +172,7 @@ ParseFormula:
                          let f = case lookupVar $3 env of {Just (F f) -> f;
                                                            Just (R recpost) -> error ("Argument of subrec is not a formula\n"); 
                                                            Nothing -> error ("Variable not declared - "++$3++"\n")} in
-                         subrec cabst f >>= \fn -> simplify fn >>= \fnext -> return (F fnext)}
+                         subrec_z cabst f >>= \fn -> simplify fn >>= \fnext -> return (F fnext)}
   | bottomup '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("bottomup(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of

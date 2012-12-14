@@ -70,7 +70,8 @@ takeFresh n = fresh >>= \fsh ->
 addOmegaStr:: String -> FS ()
 addOmegaStr s = 
   getFlags >>= \flags ->
-  when (showDebugMSG flags >=3) (addOmegaS s)
+  when ((showDebugMSG flags)>=3) (addOmegaS s) >>
+  return ()
 
 addOmegaS:: String -> FS ()
 addOmegaS newStr = 
@@ -120,7 +121,8 @@ putStrFS str = FS (\st -> putStrLn str >> return (st,()))
 putStrFS_debug:: String -> FS ()
 putStrFS_debug s = 
   getFlags >>= \flags ->
-  when (showDebugMSG flags >=4) (putStrFS s)
+  when (showDebugMSG flags>3) (putStrFS ("DEBUG:"++s)) >>
+  return ()
 
 putStrFSOpt:: String -> FS ()
 putStrFSOpt str = 

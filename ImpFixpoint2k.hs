@@ -119,7 +119,7 @@ subrec_g :: DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)]
 subrec_g dict fdict f_ls = 
   -- return f_ls
   -- let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
-  putStrFS ("subrec_g:"++ (show f_ls)) >>
+  putStrFS_debug ("subrec_g:"++ (show f_ls)) >>
   mapM (\(id,body) ->
          let (rp,_) = dict id in
          subrec_n rp new_dc >>= \nbody ->
@@ -219,24 +219,14 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
            fixTestBU_n n_fdict recpost (Or snext) >>= \fixok ->
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
-    let (f_done,f_no) = partition (\(_,(_,b))->b) fixok_f in
-    let f_done2 = map (\(id,(f,_))->(id,(f,cnt))) f_done in
-    let f_done3 = map (\(id,(f,_))->(id,f)) f_done2 in
-    let f_cont = map (\(id,(f,_))->(id,f)) f_no in
-    if f_no==[] 
+    let reach_fixpt = all (\(_,(_,b))->b) fixok_f in
+    let new_ls = map (\(id,(f,_))->(id,(f,cnt))) fixok_f in
+    if reach_fixpt
     then 
-      return f_done2
+      return (map (\(id,(f,_))->(id,(f,cnt))) fixok_f)
     else
-      iterBU2k_n dict (extend_fdict fdict f_done3) fbase_dict f_cont (cnt+1) >>= \f_rest ->
-      return (f_done2++f_rest)
-        
-        where
-        
-
-
-    -- fixTestBU recpost (Or snext) >>= \fixok ->
-    -- if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
-    -- else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
+      let new_ls = map (\(id,(f,_))->(id,f)) fixok_f in
+      iterBU2k_n dict fdict fbase_dict new_ls (cnt+1)
 
 bottomUp2k_gen_new :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen_new recpost flagsl initFormula = 
