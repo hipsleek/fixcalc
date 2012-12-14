@@ -15,7 +15,7 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
@@ -196,7 +196,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
-    putStrFS "iterBU2k_n" >>
+    putStrFS_debug "iterBU2k_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict fdict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
@@ -363,7 +363,7 @@ Cristina : _gen
 iterate2k:: RecPost -> FixFlags -> DisjFormula -> Int -> FS (Formula,Int)
 -- requires: scrt is in conjunctive form
 iterate2k recpost (m,heur) scrt cnt =
-    putStrFS "iterate2k" >>
+    putStrFS_debug "iterate2k" >>
     subrec_z recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHull (m,heur) (getDisjuncts fnext) undefined >>= \snext ->
@@ -375,7 +375,7 @@ iterate2k recpost (m,heur) scrt cnt =
 
 fixTestBU_n:: FDict -> RecPost -> Formula -> FS Bool
 fixTestBU_n fdict recpost candidate = 
-    putStrFS "fixTestBU_n" >>
+    putStrFS_debug "fixTestBU_n" >>
     addOmegaStr ("#\tObtained postcondition?") >>
     subrec_n recpost fdict >>= \fnext -> 
     subset fnext candidate
@@ -383,7 +383,7 @@ fixTestBU_n fdict recpost candidate =
 {- |Given CAbst and F, returns True if F is a reductive point of CAbst: CAbst(F) => F. -}
 fixTestBU:: RecPost -> Formula -> FS Bool
 fixTestBU recpost candidate = 
-    putStrFS "fixTestBU" >>
+    putStrFS_debug "fixTestBU" >>
     addOmegaStr ("#\tObtained postcondition?") >>
     subrec_z recpost candidate >>= \fnext -> 
     subset fnext candidate
@@ -500,7 +500,7 @@ subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
 
 subrec_n :: RecPost -> (Id -> Maybe Formula) -> FS Formula
 subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
-  putStrFS ("subrec_n:"++formalMN) >>
+  putStrFS_debug ("subrec_n:"++formalMN) >>
   helper f1
   where
   helper :: Formula -> FS Formula
@@ -537,7 +537,7 @@ subrec_z :: RecPost -> Formula -> FS Formula
 -- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
 -- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
 subrec_z rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
-  putStrFS ("subrec_z:"++show f1++" "++show f2) >>
+  putStrFS_debug ("subrec_z:"++show f1++" "++show f2) >>
   subrec_n rp dc
   where
     dc id = if (formalMN==id) then Just f2 else Nothing
@@ -679,7 +679,7 @@ fixpoint m recPost@(RecPost mn f (i,o,_)) =
 -- old widening strategy + selHullBase
 bottomUp:: RecPost -> FS (Formula,Int)
 bottomUp recpost =
-  putStrFS "bottomUp" >>
+  putStrFS_debug "bottomUp" >>
   subrec_z recpost fFalse >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
     subrec_z recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
@@ -727,7 +727,7 @@ iterBU:: RecPost -> Formula -> DisjFormula -> Formula -> Int -> FS (Formula,Int)
 iterBU recpost fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
-    putStrFS "iterBU" >>
+    putStrFS_debug "iterBU" >>
     subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHullBase (getDisjuncts fnext) fbase >>= \snext -> 
@@ -760,7 +760,7 @@ iterBUConj:: RecPost -> Formula -> Formula -> Int -> FS (Formula,Int)
 iterBUConj recpost fcrt scrt cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
-    putStrFS "iterBUConj" >>
+    putStrFS_debug "iterBUConj" >>
     subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combHull (getDisjuncts fnext) >>= \snext ->
