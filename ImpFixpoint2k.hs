@@ -114,9 +114,8 @@ type FDict = Id -> Maybe Formula
 -- [(Id,Formula)] -> [(Id,Formula,Int)]
 
 -- for each formula here, unfold it just once 
--- these are formula that have not reached fixpoint
-subrec_g :: DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)]
-subrec_g dict fdict f_ls = 
+subrec_g :: DictOK -> [(Id,Formula)] -> FS [(Id,Formula)]
+subrec_g dict f_ls = 
   -- return f_ls
   -- let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
   putStrFS_debug ("subrec_g:"++ (show f_ls)) >>
@@ -128,24 +127,24 @@ subrec_g dict fdict f_ls =
   return (new_f_ls)
   where 
     new_dc id =
-      case (fdict id) of
-        Just f -> Just f
-        Nothing ->
-            case (find (\(x,_) -> id==x) f_ls) of
-              Nothing -> Nothing
-              Just (_,body) -> Just body 
+      -- case (fdict id) of
+      --   Just f -> Just f
+      --   Nothing ->
+      case (find (\(x,_) -> id==x) f_ls) of
+        Nothing -> Nothing
+        Just (_,body) -> Just body 
 
-extend_fdict :: FDict -> [(Id,Formula)] -> Id -> Maybe Formula
-extend_fdict fdict ls id =
-  case (fdict id) of
-    Just a -> Just a
-    Nothing ->
+extend_fdict :: [(Id,Formula)] -> Id -> Maybe Formula
+extend_fdict ls id =
+  -- case (fdict id) of
+  --   Just a -> Just a
+  --   Nothing ->
       case (find (\(i,_) -> id==i) ls) of
         Nothing -> Nothing
         Just (_,f) -> Just f
 
-subrec_genN :: String -> Int -> Int -> DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)] 
-subrec_genN str i j dict fdict f_ls =
+subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
+subrec_genN str i j dict f_ls =
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- WN : line below cause a LOOP!
   -- addOmegaStr("Subst for " ++ (show str) ++ ":") >>
@@ -155,11 +154,11 @@ subrec_genN str i j dict fdict f_ls =
   then return f_ls
   else
     let str = str++(show i)++"_" in
-    subrec_g dict fdict f_ls >>= \f1 -> 
+    subrec_g dict f_ls >>= \f1 -> 
     mapM (\f2 -> simplify_n f2) f1 >>= \next_ls ->
     -- infinite loop when str is used below
     mapM (\(id,f) -> addOmegaStr ("F_init"++id++" :="++showSet f)) next_ls >>
-    subrec_genN str (i+1) j dict fdict next_ls
+    subrec_genN str (i+1) j dict next_ls
     where
       simplify_n x@(id,f) = 
           simplify f >>= \nf ->
@@ -187,9 +186,9 @@ findId ls id =
     Nothing -> error ("findId : "++id++" not found!")
     Just (_,a) -> a
   
-iterBU2k_n:: DictOK -> FDict -> (Id -> (Int,Heur,Formula)) -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
+iterBU2k_n :: DictOK -> (Id -> (Int,Heur,Formula)) -> [(Id,Formula)] -> Int -> FS [(Id,(Formula,Int))]
 -- requires: scrt, sbase are in conjunctive form
-iterBU2k_n dict fdict fbase_dict scrt cnt =
+iterBU2k_n dict fbase_dict scrt cnt =
   -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
   -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
   if (cnt>maxIter) 
@@ -198,7 +197,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
   else
     putStrFS_debug "iterBU2k_n" >>
     -- unfold once
-    subrec_genN "G_init" cnt cnt dict fdict scrt >>= \fnext ->
+    subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
     mapM (\(id,f3r) ->
@@ -213,7 +212,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
-    let n_fdict = extend_fdict fdict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
+    let n_fdict = extend_fdict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
            fixTestBU_n n_fdict recpost (Or snext) >>= \fixok ->
@@ -226,7 +225,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
       return (map (\(id,(f,_))->(id,(f,cnt))) fixok_f)
     else
       let new_ls = map (\(id,(f,_))->(id,f)) fixok_f in
-      iterBU2k_n dict fdict fbase_dict new_ls (cnt+1)
+      iterBU2k_n dict fbase_dict new_ls (cnt+1)
 
 bottomUp2k_gen_new :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen_new recpost flagsl initFormula = 
@@ -251,10 +250,10 @@ bottomUp2k_n dict initFS =
   addOmegaStr("+++++++++++++++++++++++++++") >> 
   addOmegaStr("  k_n M fix point iteration") >> 
   addOmegaStr("+++++++++++++++++++++++++++") >>
-  let fdict x = Nothing in
+  -- let fdict x = Nothing in
   getFlags >>= \flags -> 
-  subrec_genN "K_init" 1 1 dict fdict initFS >>= \initFS1 ->
-  subrec_genN "K_init" 2 3 dict fdict initFS1 >>= \initFS3 ->
+  subrec_genN "K_init" 1 1 dict initFS >>= \initFS1 ->
+  subrec_genN "K_init" 2 3 dict initFS1 >>= \initFS3 ->
   -- compute new pairwise pwF3l::[(Id,Formula)]
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
@@ -268,7 +267,7 @@ bottomUp2k_n dict initFS =
          combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
-  iterBU2k_n dict fdict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
+  iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
 
 bottomUp2k_gen x = bottomUp2k_gen_new x 
 
