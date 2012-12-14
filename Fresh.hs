@@ -114,8 +114,13 @@ incUnsafeUserChecks = FS (\st -> return (st{unsafeUserChecks = (unsafeUserChecks
 getUnsafeUserChecks:: FS Int
 getUnsafeUserChecks = FS (\st -> return (st,unsafeUserChecks st))
 
-putStrFS:: String -> FS ()
+putStrFS :: String -> FS ()
 putStrFS str = FS (\st -> putStrLn str >> return (st,()))
+
+putStrFS_debug:: String -> FS ()
+putStrFS_debug s = 
+  getFlags >>= \flags ->
+  when (showDebugMSG flags >=4) (putStrFS s)
 
 putStrFSOpt:: String -> FS ()
 putStrFSOpt str = 

@@ -10,7 +10,7 @@ module ImpFixpoint2k(
   fixTestBU,
   fixTestTD,
   getOneStep,
-  subrec,
+  subrec_z,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
@@ -69,7 +69,7 @@ subrecN hd_str f n recpost currFormula =
       if i>n 
       then return cf
       else
-          subrec recpost cf >>= \f1 -> 
+          subrec_z recpost cf >>= \f1 -> 
           simplify f1 >>= \f1r ->
           -- addOmegaStr (str++(show i)++":="++showSet f1r) >>
           helper (i+1) f1r
@@ -97,6 +97,7 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
 -- 3nd widening strategy: iterate using scrt (fcrt is not used anymore)
+    putStrFS "iterBU2k" >>
     subrecN "R_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
     widen heur (scrt,fnextHMany) >>= \snext ->
@@ -118,6 +119,7 @@ subrec_g :: DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)]
 subrec_g dict fdict f_ls = 
   -- return f_ls
   -- let (f_ok,f_no) = partition (\(_,(_,b))->b) f_ls in
+  putStrFS ("subrec_g:"++ (show f_ls)) >>
   mapM (\(id,body) ->
          let (rp,_) = dict id in
          subrec_n rp new_dc >>= \nbody ->
@@ -194,6 +196,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
+    putStrFS "iterBU2k_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict fdict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
@@ -209,9 +212,11 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
            widen heur (getDisjuncts sc,fnextHMany) >>= \new_f ->
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
+    -- WN : to rewrite fixTestBU_n
+    let n_fdict = extend_fdict fdict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
-           fixTestBU recpost (Or snext) >>= \fixok ->
+           fixTestBU_n n_fdict recpost (Or snext) >>= \fixok ->
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
     let (f_done,f_no) = partition (\(_,(_,b))->b) fixok_f in
@@ -358,7 +363,8 @@ Cristina : _gen
 iterate2k:: RecPost -> FixFlags -> DisjFormula -> Int -> FS (Formula,Int)
 -- requires: scrt is in conjunctive form
 iterate2k recpost (m,heur) scrt cnt =
-    subrec recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
+    putStrFS "iterate2k" >>
+    subrec_z recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHull (m,heur) (getDisjuncts fnext) undefined >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok -> 
@@ -366,12 +372,20 @@ iterate2k recpost (m,heur) scrt cnt =
 --    putStrFS("    Post" ++ show cnt ++ ":=" ++ showSet (Or snext)) >>
     if (cnt>maxIter) then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterate2k recpost (m,heur) snext (cnt+1)  
-    
+
+fixTestBU_n:: FDict -> RecPost -> Formula -> FS Bool
+fixTestBU_n fdict recpost candidate = 
+    putStrFS "fixTestBU_n" >>
+    addOmegaStr ("#\tObtained postcondition?") >>
+    subrec_n recpost fdict >>= \fnext -> 
+    subset fnext candidate
+
 {- |Given CAbst and F, returns True if F is a reductive point of CAbst: CAbst(F) => F. -}
 fixTestBU:: RecPost -> Formula -> FS Bool
 fixTestBU recpost candidate = 
+    putStrFS "fixTestBU" >>
     addOmegaStr ("#\tObtained postcondition?") >>
-    subrec recpost candidate >>= \fnext -> 
+    subrec_z recpost candidate >>= \fnext -> 
     subset fnext candidate
 
 --cris
@@ -486,6 +500,7 @@ subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
 
 subrec_n :: RecPost -> (Id -> Maybe Formula) -> FS Formula
 subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
+  putStrFS ("subrec_n:"++formalMN) >>
   helper f1
   where
   helper :: Formula -> FS Formula
@@ -517,11 +532,12 @@ subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
       _ -> error ("subrec_n : unexpected argument: "++show f)
 
 
-subrec :: RecPost -> Formula -> FS Formula
+subrec_z :: RecPost -> Formula -> FS Formula
 -- ^Given CAbst and F, returns CAbst(F). 
 -- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
 -- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
-subrec rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
+subrec_z rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
+  putStrFS ("subrec_z:"++show f1++" "++show f2) >>
   subrec_n rp dc
   where
     dc id = if (formalMN==id) then Just f2 else Nothing
@@ -663,11 +679,12 @@ fixpoint m recPost@(RecPost mn f (i,o,_)) =
 -- old widening strategy + selHullBase
 bottomUp:: RecPost -> FS (Formula,Int)
 bottomUp recpost =
-  subrec recpost fFalse >>= \f1 -> simplify f1 >>= \f1r ->
+  putStrFS "bottomUp" >>
+  subrec_z recpost fFalse >>= \f1 -> simplify f1 >>= \f1r ->
   addOmegaStr ("# F1:="++showSet f1r) >>
-    subrec recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
+    subrec_z recpost f1r >>= \f2 -> simplify f2 >>= \f2r -> 
     addOmegaStr ("# F2:="++showSet f2r) >>
-  subrec recpost f2r >>= \f3 -> simplify f3 >>= \f3r -> 
+  subrec_z recpost f2r >>= \f3 -> simplify f3 >>= \f3r -> 
   addOmegaStr ("# F3:="++showSet f3r) >>
   getFlags >>= \flags -> 
   if useSelectiveHull flags then
@@ -710,7 +727,8 @@ iterBU:: RecPost -> Formula -> DisjFormula -> Formula -> Int -> FS (Formula,Int)
 iterBU recpost fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
-    subrec recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
+    putStrFS "iterBU" >>
+    subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHullBase (getDisjuncts fnext) fbase >>= \snext -> 
     widenOne (head scrt,head snext) >>= \fcrtWBase ->
@@ -742,7 +760,8 @@ iterBUConj:: RecPost -> Formula -> Formula -> Int -> FS (Formula,Int)
 iterBUConj recpost fcrt scrt cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
-    subrec recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
+    putStrFS "iterBUConj" >>
+    subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combHull (getDisjuncts fnext) >>= \snext ->
     widenOne (scrt,snext) >>= \fcrtW ->
