@@ -15,7 +15,7 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
@@ -502,7 +502,7 @@ subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
       AppRecPost actualMN actualIO ->
           case (dc actualMN) of
             Nothing ->
-                error "bad mutual recursion detected"
+                error ("bad mutual recursion detected :"++(show actualMN))
             Just body ->
                 if not (length (formalI++formalO) == length actualIO) 
                 then

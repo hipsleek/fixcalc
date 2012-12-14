@@ -4,7 +4,7 @@
   and that the collected postcondition implies the one given in the method declaration.
 -}
 module ImpTypeChecker(typeCheckProg) where
-import Fresh(runFS,FS(),initialState,fresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS,
+import Fresh(runFS,FS(),initialState,fresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS,
     incSafePrimChecks,incUnsafePrimChecks,getSafePrimChecks,getUnsafePrimChecks,incUnsafeUserChecks,getSafeUserChecks,getUnsafeUserChecks)
 import ImpAST 
 import ImpConfig(Flags,Postcondition(..),postcondition)

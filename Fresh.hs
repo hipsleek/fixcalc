@@ -43,7 +43,11 @@ runFS state (FS a) =
   let strs = reverse (omegaStrs finalState) in
   let outFile = outputFile (flags finalState) ++ ".omega" in
   let str = concatSepBy "\n" strs in
+  -- putStrLn ("# Hello1") >>
+  putStrLn ("length of string") >>
+  putStrLn ("length"++(show (length str))) >>
   writeFile outFile str >>
+  -- putStrLn ("# Hello2") >>
   return result
 
 initialState:: Flags -> St
@@ -72,16 +76,16 @@ addOmegaS:: String -> FS ()
 addOmegaS newStr = 
   FS (\st -> return (st{omegaStrs=(newStr:omegaStrs st)},()))
 
-writeOmegaStrs:: FS ()
-writeOmegaStrs = 
-  getFlags >>= \flags ->
-  let outFile = outputFile flags ++ ".omega" in
-  getOmegaStrs >>= \strs ->
-  let str = concatSepBy "\n" strs in
-    FS (\st -> writeFile outFile str >> return (st,()))
-  where
-  getOmegaStrs:: FS [String]
-  getOmegaStrs = FS (\st -> return (st,reverse (omegaStrs st)))
+-- writeOmegaStrs:: FS ()
+-- writeOmegaStrs = 
+--   getFlags >>= \flags ->
+--   let outFile = outputFile flags ++ ".omega" in
+--   getOmegaStrs >>= \strs ->
+--   let str = concatSepBy "\n" strs in
+--     FS (\st -> writeFile outFile str >> return (st,()))
+--   where
+--   getOmegaStrs:: FS [String]
+--   getOmegaStrs = FS (\st -> return (st,reverse (omegaStrs st)))
 
 getFlags:: FS Flags
 getFlags = FS (\st -> return (st,flags st))

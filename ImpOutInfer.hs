@@ -1,6 +1,6 @@
 {- |Does the outcome inference. It uses the call-graph computation from "ImpTypeInfer". -}
 module ImpOutInfer(outInferSccs,RecFlags,getNonTruePres) where
-import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,writeOmegaStrs,getFlags,putStrFS,getCPUTimeFS)
+import Fresh(runFS,FS(),initialState,fresh,takeFresh,addOmegaStr,getFlags,putStrFS,getCPUTimeFS)
 import ImpAST
 import ImpConfig(traceIndividualErrors,computeAll)
 import ImpFormula
