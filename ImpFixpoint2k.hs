@@ -144,16 +144,19 @@ extend_fdict fdict ls id =
 
 subrec_genN :: String -> Int -> Int -> DictOK -> FDict -> [(Id,Formula)] -> FS [(Id,Formula)] 
 subrec_genN str i j dict fdict f_ls =
-  addOmegaStr("+++++++++++++++++++++++++++++") >>
-  addOmegaStr("Subst for " ++ show str ++ ":") >>
-  addOmegaStr("+++++++++++++++++++++++++++++") >>
+  -- addOmegaStr("+++++++++++++++++++++++++++++") >>
+  -- WN : line below cause a LOOP!
+  -- addOmegaStr("Subst for " ++ (show str) ++ ":") >>
+  -- addOmegaStr("+++++++++++++++++++++++++++++") >>
+  -- addOmegaStr(str) >>
   if (i>j) 
   then return f_ls
   else
     let str = str++(show i)++"_" in
     subrec_g dict fdict f_ls >>= \f1 -> 
-    mapM (\f2 -> simplify_n f2) f1 >>= \next_ls -> 
-    -- mapM (\(id,f) -> addOmegaStr (str++id++" :="++showSet f)) next_ls >>
+    mapM (\f2 -> simplify_n f2) f1 >>= \next_ls ->
+    -- infinite loop when str is used below
+    mapM (\(id,f) -> addOmegaStr ("F_init"++id++" :="++showSet f)) next_ls >>
     subrec_genN str (i+1) j dict fdict next_ls
     where
       simplify_n x@(id,f) = 
@@ -192,7 +195,7 @@ iterBU2k_n dict fdict fbase_dict scrt cnt =
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
     -- unfold once
-    subrec_genN "G_init@" cnt cnt dict fdict scrt >>= \fnext ->
+    subrec_genN "G_init" cnt cnt dict fdict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
     mapM (\(id,f3r) ->
@@ -255,8 +258,8 @@ bottomUp2k_n dict initFS =
   addOmegaStr("+++++++++++++++++++++++++++") >>
   let fdict x = Nothing in
   getFlags >>= \flags -> 
-  subrec_genN "K_init@" 1 1 dict fdict initFS >>= \initFS1 ->
-  subrec_genN "K_init@" 2 3 dict fdict initFS1 >>= \initFS3 ->
+  subrec_genN "K_init" 1 1 dict fdict initFS >>= \initFS1 ->
+  subrec_genN "K_init" 2 3 dict fdict initFS1 >>= \initFS3 ->
   -- compute new pairwise pwF3l::[(Id,Formula)]
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]

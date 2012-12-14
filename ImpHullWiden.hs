@@ -33,7 +33,8 @@ combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
 -- requires: m>=1
 -- ensures: length(res)=m
 combSelHull (m,heur) disj fbase = 
-  getFlags >>= \flags -> 
+  getFlags >>= \flags ->
+  -- WN : did this cause loop?
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m then return disj
   else case m of
@@ -218,6 +219,7 @@ widen heur (xs,ys) =
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
   mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
+  -- WN :causing LOOP?
   addOmegaStr ("WidenOUT:=" ++ showSet(Or res)) >> 
   return res
   
@@ -285,6 +287,7 @@ widenOne:: (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
 widenOne (fcrt,fnext) = 
   addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
+  -- WN : cause LOOP?
   addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
   closure fcrt >>= \fcrts ->    -- 
   mapM (subset fnext) fcrts >>= \suboks ->

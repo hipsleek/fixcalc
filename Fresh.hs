@@ -44,8 +44,8 @@ runFS state (FS a) =
   let outFile = outputFile (flags finalState) ++ ".omega" in
   let str = concatSepBy "\n" strs in
   -- putStrLn ("# Hello1") >>
-  putStrLn ("length of string") >>
-  putStrLn ("length"++(show (length str))) >>
+  -- putStrLn ("length of string") >>
+  -- putStrLn ("length"++(show (length str))) >>
   writeFile outFile str >>
   -- putStrLn ("# Hello2") >>
   return result
