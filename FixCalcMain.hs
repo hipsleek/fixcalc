@@ -24,7 +24,7 @@ main =
       parse fileContents flags >>
       getCPUTime >>= \tEndCPU ->
       when (showDebugMSG flags>=0) (putStrLn ("# Total CPU time: " ++ showDiffTimes tEndCPU tStartCPU)) >>
-      when (showDebugMSG flags<0) (putStrLn ("")) >>
+      when (showDebugMSG flags=-1) (putStrLn ("")) >>
       -- when (showDebugMSG flags>=3) (writeOmegaStrs) >>
       return ()
 

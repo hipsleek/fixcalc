@@ -15,16 +15,17 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
-import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
+import ImpFormula
+  -- (debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
 import ImpHullWiden(closure,widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
 import Maybe(catMaybes)
-import Monad(when,mapAndUnzipM)
+import Monad(when,mapAndUnzipM,foldM)
 
 maxIter::Int
 maxIter = 10
@@ -73,19 +74,12 @@ subrecN hd_str f n recpost currFormula =
           simplify f1 >>= \f1 ->
           -- let f1 = saturate f1 in
           saturateFS f1 >>= \f_n ->
+          let satf_l=getConjunctsN f_n in
           closureFS f1 >>= \cl_r ->
-          pr_compare f1 f_n cl_r >>
+          print_DD (cl_r/=[]) (-1) [("orig",show f1),("saturated",show satf_l),("closure",show cl_r)] >>
           -- addOmegaStr (str++(show i)++":="++showSet f1r) >>
           helper (i+1) f_n
 
-pr_compare f1 f_n cl_r =
-      case cl_r of
-        [] ->
-            return ()
-        _ ->
-            putStrFS_DD (-3) ("original:"++(show f1)) >> 
-            putStrFS_DD (-3) ("saturated:"++(show f_n)) >>
-            putStrFS_DD (-3) ("closure:"++(show cl_r)) 
 
 closureFS :: Formula -> FS DisjFormula
 closureFS f =
@@ -103,12 +97,13 @@ bottomUp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
 -- for the least-fixed point of CAbst and the number of iterations in which the result is obtained.
 -- This computation is also named bottom-up fixpoint.
 bottomUp2k recpost (m,heur) initFormula = 
+  putStrFS_DD 13 "bottomUp2k" >>
   getFlags >>= \flags -> 
   subrecN "F_init@" 1 1 recpost initFormula >>= \f1r ->
   subrecN "F_init@" 2 3 recpost f1r >>= \f3r ->
   pairwiseCheck f3r >>=  \pwF3 -> 
   let mdisj = min m (countDisjuncts pwF3) in
-  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
+  (putStrFS_DD 1 ("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts pwF3) ++ ") => m="++ show mdisj)) >>
   combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \s3 ->
   iterBU2k recpost (mdisj,heur) f3r s3 f1r 4 >>= \res ->
   return res
@@ -122,7 +117,7 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
     putStrFS "iterBU2k" >>
     subrecN "R_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
-    widen heur (scrt,fnextHMany) >>= \snext ->
+    widen heur fbase (scrt,fnextHMany) >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok ->
     if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
@@ -187,7 +182,7 @@ subrec_genN str i j dict f_ls =
           -- let sf = saturate nf in
           saturateFS nf >>= \sf ->
           closureFS sf >>= \cl_r ->
-          pr_compare nf sf cl_r >>
+          print_DD (cl_r/=[]) (-3) [("orig",(show nf)),("saturated",(show sf)),("closure",show cl_r)] >>
           -- putStrFS ("simplify_n orig :"++(show f)) >>
           -- putStrFS ("            new :"++(show nf)) >>
           -- putStrFS ("       saturate :"++(show sf)) >>
@@ -237,7 +232,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
     let zip1 = zipId scrt hull_f in
     mapM (\(id,(sc,fnextHMany)) ->
            let (mdisj,heur,f1r)=fbase_dict id in
-           widen heur (getDisjuncts sc,fnextHMany) >>= \new_f ->
+           widen heur f1r (getDisjuncts sc,fnextHMany) >>= \new_f ->
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
@@ -258,6 +253,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
 
 bottomUp2k_gen_new :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen_new recpost flagsl initFormula = 
+    putStrFS_DD (13) "bottomUp2k_gen_new" >>
     addOmegaStr("+++++++++++++++++++++++++++") >> 
     addOmegaStr(" gen_new M fix point iteration") >> 
     addOmegaStr("+++++++++++++++++++++++++++") >> 
@@ -276,6 +272,7 @@ bottomUp2k_gen_new recpost flagsl initFormula =
 
 bottomUp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 bottomUp2k_n dict initFS = 
+  putStrFS_DD 13 "bottomUp2k_n" >>
   addOmegaStr("+++++++++++++++++++++++++++") >> 
   addOmegaStr("  k_n M fix point iteration") >> 
   addOmegaStr("+++++++++++++++++++++++++++") >>
@@ -299,6 +296,7 @@ bottomUp2k_n dict initFS =
   -- hf1::[(Id,DisjFormula)]
   iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
 
+bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen x = bottomUp2k_gen_new x 
 
 {- WN : Cristina previous code 
@@ -610,7 +608,7 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
     simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
     addOmegaStr ("# G" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
     combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefined >>= \gnext ->
-    widen heur (gcrt,gnext) >>= \gcrtW ->
+    widen heur (And []) (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)
     else iterTD2k recpost (m,heur) gcrtW oneStep (cnt+1)
@@ -712,10 +710,11 @@ bottomUp recpost =
   else 
     combHull Nothing (getDisjuncts f3r) >>= \f3H ->
     iterBUConj recpost f3r f3H 4
-  
+
 --cris
-bottomUp_mr:: RecPost -> RecPost -> FS (Formula,Int)
+bottomUp_mr :: RecPost -> RecPost -> FS (Formula,Int)
 bottomUp_mr recpost1 recpost2 =
+  putStrFS_DD 0 "WARNING : bottom_mr called!" >>
   subrec_mr recpost1 recpost2 fFalse fFalse >>= \f1 -> simplify f1 >>= \f1r ->
   subrec_mr recpost2 recpost1 fFalse fFalse >>= \f2 -> simplify f2 >>= \f2r ->
   addOmegaStr ("# F1a:="++showSet f1r) >>
@@ -750,8 +749,8 @@ iterBU recpost fcrt scrt fbase cnt =
     subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combSelHullBase (getDisjuncts fnext) fbase >>= \snext -> 
-    widenOne (head scrt,head snext) >>= \fcrtWBase ->
-    widenOne (head (tail scrt),head (tail snext)) >>= \fcrtWRec ->
+    widenOne [] (head scrt,head snext) >>= \fcrtWBase ->
+    widenOne [] (head (tail scrt),head (tail snext)) >>= \fcrtWRec ->
     let fcrtW = Or [fcrtWRec,fcrtWBase] in
       fixTestBU recpost fcrtW >>= \fixok ->
       if fixok then return (fcrtW,cnt)
@@ -767,9 +766,9 @@ iterBUConj_mr recpost1 recpost2 fcrt gcrt fcrtH gcrtH cnt =
     subrec_mr recpost2 recpost1 gcrt fcrt >>= \gn -> simplify gn >>= \gnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combHull Nothing (getDisjuncts fnext) >>= \snext ->
-    widenOne (fcrtH,snext) >>= \fcrtW ->
+    widenOne [] (fcrtH,snext) >>= \fcrtW ->
     combHull Nothing (getDisjuncts gnext) >>= \tnext ->
-    widenOne (gcrtH,tnext) >>= \gcrtW ->
+    widenOne [] (gcrtH,tnext) >>= \gcrtW ->
     fixTestBU_mr recpost1 recpost2 fcrtW gcrtW >>= \fixok ->
       if fixok then addOmegaStr ("# Result F "++ show cnt ++ ":="++showSet fcrtW) >> return (fcrtW,cnt)
       else iterBUConj_mr recpost1 recpost2 fnext gnext snext tnext (cnt+1)  
@@ -783,7 +782,7 @@ iterBUConj recpost fcrt scrt cnt =
     subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
     combHull Nothing (getDisjuncts fnext) >>= \snext ->
-    widenOne (scrt,snext) >>= \fcrtW ->
+    widenOne [] (scrt,snext) >>= \fcrtW ->
       fixTestBU recpost fcrtW >>= \fixok ->
       if fixok then return (fcrtW,cnt)
       else iterBUConj recpost fnext snext (cnt+1)  
@@ -830,7 +829,7 @@ iterTD recpost gcrt oneStep cnt =
     compose gcrt oneStep >>= \gcomp ->
     addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
     combHull Nothing [gcrt,gcomp] >>= \gnext ->
-    widenOne (gcrt,gnext) >>= \gcrtW ->
+    widenOne [] (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep gcrtW >>= \fixok ->
     if fixok then return (gcrtW,cnt)
     else iterTD recpost gnext oneStep (cnt+1)

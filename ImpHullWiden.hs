@@ -11,11 +11,12 @@ module ImpHullWiden(
   Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
   DisjFormula     -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
 ) where
-import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags,putStrFS_debug,putStrFS_DD)
+import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags,putStrFS_debug,putStrFS_DD,print_DD)
 import ImpAST
 import System.IO.Unsafe(unsafePerformIO)
 import ImpConfig(noExistentialsInDisjuncts,showDebugMSG,Heur(..),FixFlags)
-import ImpFormula(simplify,hull,subset)
+import ImpFormula
+  -- (simplify,hull,subset)
 import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
@@ -44,7 +45,7 @@ combSelHull (m,heur) disj fbase =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      when (showDebugMSG flags>=2) (putStrFS ("####SelHull with "++show (length (catMaybes disjM))
+      (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
       iterateHalfMx (m,heur) fbase disjM affinMx >>= \relatedDisjM ->
@@ -139,20 +140,20 @@ iterateHalfMx :: FixFlags -> Formula -> [Maybe Disjunct] -> AffinMx -> FS [Maybe
 iterateHalfMx (m,heur) fbase disjM affinMx = 
   putStrFS_debug "iterateHalfMx!" >> 
   getFlags >>= \flags -> 
-  when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx)) >>
+  (putStrFS_DD 2 ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
   chooseAllMax heur affinMx >>= \max_ls ->
   let (dist_pairs,all_elems) = chooseDistElems max_ls in
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
+  (putStrFS_DD 2 ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  (putStrFS_DD 2 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   -- replaceRelated disjM (i,j) >>= \replDisjM ->
   replaceRelated_either fbase disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
-  when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list hull_list))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("List elems merged: " ++ show (norm_elem elm_list))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
+  (putStrFS_DD 2 ("List elems hulled: " ++ show (norm_list hull_list))) >>
+  (putStrFS_DD 2 ("List elems merged: " ++ show (norm_elem elm_list))) >>
+  (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes replDisjM))
                                ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   let new_m = length (catMaybes replDisjM) in
   if new_m<=m then
@@ -227,7 +228,7 @@ comb2Hull:: Formula -> Formula -> FS Formula
 comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
 
 comb2Widen:: Formula -> Formula -> FS Formula
-comb2Widen = (\f1 -> \f2 -> widenOne (f1,f2))
+comb2Widen = (\f1 -> \f2 -> widenOne [] (f1,f2))
 -- WN to fix
 moreSelHull x y heur ys =
   if x<y then combSelHull (x,heur) ys undefined
@@ -236,10 +237,11 @@ moreSelHull x y heur ys =
 ----------------------------------
 --------Widening powersets--------
 ----------------------------------
-widen:: Heur -> (DisjFormula,DisjFormula) -> FS DisjFormula
+widen :: Heur -> Formula -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
-widen heur (xs,ys) = 
+widen heur fbase (xs,ys) =
+  let fbase_ls = getConjunctsN fbase in
   getFlags >>= \flags ->
   let x_len = length xs in
   let y_len = length ys in
@@ -253,7 +255,7 @@ widen heur (xs,ys) =
   let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   computeMx heur (mxs,mys) >>= \affinMx ->
   iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
-  mapM (\(i,j) -> widenOne (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
+  mapM (\(i,j) -> widenOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   -- WN :causing LOOP?
   addOmegaStr ("WidenOUT:=" ++ showSet(Or res)) >> 
   return res
@@ -290,16 +292,16 @@ computeCol heur mat (m,n) i j (disjCrt,disjNxt) =
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
   getFlags >>= \flags -> 
-  when (showDebugMSG flags>=2) (putStrFS ("####Widening 2 arguments, each with "++show (length (catMaybes disjCrt)) 
+  (putStrFS_DD 2 ("####Widening 2 arguments, each with "++show (length (catMaybes disjCrt)) 
             ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) (disjCrt++disjNxt)))) >>
-  when (showDebugMSG flags >=1) (putStrFS ("WidenMatrix "++showAffinMx affinMx)) >>
+  (putStrFS_DD 1 ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
   chooseAllMax heur affinMx >>= \max_ls ->
   let (dist_pairs,all_elems) = chooseDistElems max_ls in  
-  when (showDebugMSG flags >=1) (putStrFS ("Chosen elem is: " ++ show (i+1,j+1))) >>
-  when (showDebugMSG flags >=1) (putStrFS ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
-  when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
+  (putStrFS_DD 1 ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  (putStrFS_DD 1 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
@@ -318,15 +320,19 @@ replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) =
 ----------------------------------
 --------Widening on conj domain---
 ----------------------------------
-widenOne:: (Disjunct,Disjunct) -> FS Disjunct
+widenOne :: [Formula] -> (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
-widenOne (fcrt,fnext) = 
+widenOne fbase_ls (fcrt,fnext) = 
   addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
   -- WN : cause LOOP?
   addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
-  closure fcrt >>= \fcrts ->    -- 
-  mapM (subset fnext) fcrts >>= \suboks ->
-  let fcrts' = zip fcrts suboks in
+  saturateFS fcrt >>= \satf ->    -- 
+  let satf_l = getConjunctsN satf in
+  closure fcrt >>= \fcrts ->    --
+  print_DD True (-3) [("orig",show fcrt),("sat",show satf_l),("closure",show fcrts)] >>
+  let new_ls = (fcrts++fbase_ls) in
+  mapM (subset fnext) new_ls >>= \suboks ->
+  let fcrts' = zip new_ls suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let fwid = fAnd (map fst fcrt') in
   addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
@@ -550,12 +556,12 @@ affinity (Just f1) (Just f2) heur operation _ =
     simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
     subset fDif fFalse >>= \difIsFalse ->
     if difIsFalse {-imp1 && imp2-} then
-       when (showDebugMSG flags >=2) (putStrFS("Full Match 100!")) >> 
-       when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
-       when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
-       when (showDebugMSG flags >=2) (putStrFS("foper:="++showSet foperation)) >>
-       when (showDebugMSG flags >=2) (putStrFS("f_or:="++showSet f_or)) >>
-       when (showDebugMSG flags >=2) (putStrFS("fDif:="++showSet fDif)) >>
+       (putStrFS_DD 2("Full Match 100!")) >> 
+       (putStrFS_DD 2("F1:="++showSet f1)) >> 
+       (putStrFS_DD 2("F2:="++showSet f2)) >>
+       (putStrFS_DD 2("foper:="++showSet foperation)) >>
+       (putStrFS_DD 2("f_or:="++showSet f_or)) >>
+       (putStrFS_DD 2("fDif:="++showSet fDif)) >>
        subset f1 f2 >>= \fb1 ->
        subset f2 f1 >>= \fb2 ->
        let v1 = if fb1 then 50 else 0 in
@@ -574,17 +580,17 @@ affinity (Just f1) (Just f2) heur operation _ =
           let diffSteps = 100 - (20*nsteps-s) in
           return diffSteps
         _ -> {- SimilarityHeur, SimInteractiveHeur -}
-         when (showDebugMSG flags >=2) (putStrFS("F1:="++showSet f1)) >> 
-         when (showDebugMSG flags >=2) (putStrFS("F2:="++showSet f2)) >>
+         (putStrFS_DD 2("F1:="++showSet f1)) >> 
+         (putStrFS_DD 2("F2:="++showSet f2)) >>
           let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
           merge_set f1 f2 foperation >>= \(mSet,num_of_orig) ->
           let cmset = length mSet in
           let frac = (((fromIntegral cmset / (fromIntegral (num_of_orig{- cf1+cf2 -}
                                                            )))*98)+1) in
-         when (showDebugMSG flags >=2) (putStrFS("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
-         when (showDebugMSG flags >=2) (putStrFS("Foper:="++showSet foperation)) >>
-         when (showDebugMSG flags >=2) (putStrFS("mSet::="++concatMap (\f -> showSet f) mSet)) >>
-         when (showDebugMSG flags >=2) (putStrFS("affin:="++show cmset ++ "/" ++ show (num_of_orig) ++ "  " ++ show (ceiling frac))) >>
+         (putStrFS_DD 2("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
+         (putStrFS_DD 2("Foper:="++showSet foperation)) >>
+         (putStrFS_DD 2("mSet::="++concatMap (\f -> showSet f) mSet)) >>
+         (putStrFS_DD 2("affin:="++show cmset ++ "/" ++ show (num_of_orig) ++ "  " ++ show (ceiling frac))) >>
           return (ceiling frac)
     -- where
     --   mset:: Formula -> Formula -> Formula -> FS [Formula]
@@ -692,6 +698,7 @@ getConjuncts formula = case formula of
     else error ("getConjuncts: unexpected argument: "++show formula)
   _ -> error ("getConjuncts: unexpected argument: "++show formula)
 
+
 countConjuncts:: Formula -> Int
 -- requires: formula is conjunctive
 countConjuncts formula = case formula of
@@ -707,7 +714,7 @@ hullExistentials:: Formula -> FS Formula
 hullExistentials disj = 
   getFlags >>= \flags -> 
   if (noExistentialsInDisjuncts==True) && (countExis disj > 0) then 
-    when (showDebugMSG flags >=1) (putStrFS ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
+    (putStrFS_DD 1 ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
     hull disj
   else return disj
 

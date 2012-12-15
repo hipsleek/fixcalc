@@ -264,3 +264,18 @@ apply (s:ss) f = apply ss (applyOne (fst s,snd s) f)
     Const int -> up
     Coef otherSV int -> if otherSV==fromSV then Coef toSV int else up
 
+getConjunctsN:: Formula -> [Formula]
+-- requires: formula is conjunctive
+getConjunctsN formula = case formula of
+  And fs -> concatMap (\f -> getConjunctsN f) fs
+  GEq us -> [formula]
+  EqK us -> [formula]
+  Exists qsvs f ->
+    case getConjunctsN f of
+      [] -> []
+      _ -> [formula]
+  Or fs -> 
+    case fs of
+      [x] -> getConjunctsN x
+      _ -> []
+

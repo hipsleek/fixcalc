@@ -9,7 +9,7 @@ import MyPrelude
 import System.CPUTime(getCPUTime)
 import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
-import Monad(when)
+import Monad(when,foldM)
 -------FS Fresh---------------------------
 data St = MkState { 
   cnt :: Integer, -- ^Used for unique name generation.
@@ -70,7 +70,7 @@ takeFresh n = fresh >>= \fsh ->
 addOmegaStr:: String -> FS ()
 addOmegaStr s = 
   getFlags >>= \flags ->
-  when ((showDebugMSG flags)>=3) (addOmegaS s) >>
+  when ((showDebugMSG flags)>=5) (addOmegaS s) >>
   return ()
 
 addOmegaS:: String -> FS ()
@@ -124,13 +124,34 @@ putStrFS_debug s =
   when (showDebugMSG flags>=100) (putStrFS ("DEBUG:"++s)) >>
   return ()
 
+print_DD :: Bool -> Int -> [(String,String)] -> FS ()
+print_DD flag dno lst =
+      if flag 
+      then
+        foldM (\ _ (a,b)->
+                   putStrFS_DD dno (a++":"++b)
+              ) () lst
+      else
+        return ()
+
 -- print exact if d is negative; otherwise print when exceed
 putStrFS_DD:: Int -> String -> FS ()
 putStrFS_DD d s = 
   getFlags >>= \flags ->
   let m = showDebugMSG flags in
-  let (flag,str)= if d<0 then (m==d,"") else (m>=d,"_"++(show d)) in
-  when flag (putStrFS ("DD"++str++":"++s)) >>
+  let (flag,str)= 
+        if d<0 then (m==d,"") 
+        else if m>9 then (d>=m,"DD_"++(show d)++":") 
+             else if m<5 then (m>=d,"")
+                  else if d>=10 then (True,"DD_"++(show d)++":")
+                       else (m>=d,"")
+  -- -v:5-9 (for details + all tracing + omega)
+  -- -v:1-4 (for details only)
+  -- -v:10.. (for tracing only)
+  -- -v:-1 (minimal tracing)
+  -- -v:-2..(exact tracing)
+  in
+  when flag (putStrFS (str++s)) >>
   return ()
 
 putStrFSOpt:: String -> FS ()
