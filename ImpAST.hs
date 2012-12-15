@@ -710,3 +710,38 @@ printProgCAll prog =
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".all.c" in
 	(unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
+
+saturateFS :: Formula -> FS Formula
+saturateFS f = return (saturate f)
+
+saturate :: Formula -> Formula
+saturate f =
+  case f of
+    And fs ->
+      And (liftAnd (map saturate fs))
+    Or fs -> 
+      Or (map saturate fs)
+    Exists vars ff -> f 
+    GEq us -> f
+    -- below will remove 0=0
+    EqK [Const _] -> And []
+    EqK us -> And [f,GEq us,GEq (map revSign us)]
+    _ -> f
+
+liftAnd :: [Formula] -> [Formula]
+liftAnd ls =
+  let ans = helper ls in
+  case ans of
+    [] -> [EqK [Const 0]]
+    _ -> ans
+  where
+    helper [] = []
+    helper ((And l):ls) = (helper l)++(helper ls)
+    helper (x:ls) = x:(helper ls)
+
+revSign :: Update -> Update
+revSign u =
+  case u of
+    Const i -> Const (-i) 
+    Coef qsv i -> Coef qsv (-i)
+

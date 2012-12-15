@@ -121,7 +121,16 @@ putStrFS str = FS (\st -> putStrLn str >> return (st,()))
 putStrFS_debug:: String -> FS ()
 putStrFS_debug s = 
   getFlags >>= \flags ->
-  when (showDebugMSG flags>3) (putStrFS ("DEBUG:"++s)) >>
+  when (showDebugMSG flags>=100) (putStrFS ("DEBUG:"++s)) >>
+  return ()
+
+-- print exact if d is negative; otherwise print when exceed
+putStrFS_DD:: Int -> String -> FS ()
+putStrFS_DD d s = 
+  getFlags >>= \flags ->
+  let m = showDebugMSG flags in
+  let (flag,str)= if d<0 then (m==d,"") else (m>=d,"_"++(show d)) in
+  when flag (putStrFS ("DD"++str++":"++s)) >>
   return ()
 
 putStrFSOpt:: String -> FS ()

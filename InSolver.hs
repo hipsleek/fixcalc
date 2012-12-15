@@ -11,7 +11,7 @@ import qualified Omega_stub as Omega_stub
 -----------------------------
 import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),Test3(..),showTest3, SizeVar(..),PorU(..),MorM(..),
     fAnd,fOr,fExists,fForall,fFalse,stringToQsv)
-import Fresh(FS(..),fresh,addOmegaStr)
+import Fresh(FS(..),fresh,addOmegaStr,putStrFS)
 import MyPrelude
 -----------------------------
 import Foreign(nullPtr,unsafePerformIO)
@@ -21,12 +21,14 @@ impSimplify:: Relation -> FS Formula
 impSimplify (qsv1,[],f1) =
   let vf1 = map showTest3 qsv1 in
   let impF1 = canonicalF f1 in
---    addOmegaStr (show (vf1,impF1)) >>
+  -- addOmegaStr (show (vf1,impF1)) >>
+  -- putStrFS (show (vf1,impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula vf1 (Omega.Formula (impToOmF impF1)) in
   let back_rf = unsafePerformIO (Omega.simplify (vf1,[],rf1)) in
   replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->
   let res = removeUnions (repl_back_rf) in
---    addOmegaStr ("Simpl:=" ++ show (vf1,res)) >> 
+  -- addOmegaStr ("Simpl:=" ++ show (vf1,res)) >> 
+  -- putStrFS ("Simpl:=" ++ show (vf1,res)) >> 
   return res
 
 impSubset:: Relation -> Relation -> FS Bool

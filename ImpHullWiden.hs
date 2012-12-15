@@ -1,6 +1,7 @@
 {- |Provides operators for Hulling and Widening on the powerset domain of polyhedra -}
 -----Operators common to BU and TD
 module ImpHullWiden(
+  closure,
   combHull,       -- |Given F in DNF-form, performs convex-hulling and returns a conjunctive formula.
   combSelHull,    -- |Given F in DNF-form and m, performs selective hulling. Ensures that length(res)=m. The third argument is not used.
   widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
@@ -10,8 +11,9 @@ module ImpHullWiden(
   Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
   DisjFormula     -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
 ) where
-import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags)
+import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags,putStrFS_debug,putStrFS_DD)
 import ImpAST
+import System.IO.Unsafe(unsafePerformIO)
 import ImpConfig(noExistentialsInDisjuncts,showDebugMSG,Heur(..),FixFlags)
 import ImpFormula(simplify,hull,subset)
 import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
@@ -28,30 +30,50 @@ type DisjFormula = [Formula]
 ----------------------------------
 --------Selective Hull------------
 ----------------------------------
-combSelHull::FixFlags -> DisjFormula -> Formula -> FS DisjFormula
+combSelHull :: FixFlags -> DisjFormula -> Formula -> FS DisjFormula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 -- requires: m>=1
 -- ensures: length(res)=m
 combSelHull (m,heur) disj fbase = 
+  putStrFS_debug "CombSelHull!" >> 
   getFlags >>= \flags ->
-  -- WN : did this cause loop?
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m then return disj
   else case m of
-    1 -> combHull disj >>= \h -> return [h]
+    1 -> combHull (Just fbase) disj >>= \h -> return [h]
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
       when (showDebugMSG flags>=2) (putStrFS ("####SelHull with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
-      iterateHalfMx (m,heur) disjM affinMx >>= \relatedDisjM ->
+      iterateHalfMx (m,heur) fbase disjM affinMx >>= \relatedDisjM ->
       return (catMaybes relatedDisjM)
-    ) >>= \res -> addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> return res
+  ) >>= \res ->
+  -- putStrFS ("Disj :"++(showSet (Or disj))) >>
+  -- putStrFS ("Base :"++(show fbase)) >>
+  -- putStrFS ("SHull :"++(showSet (Or res))) >>
+  addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> 
+  return res
 
-combHull:: DisjFormula -> FS Formula
+combHull:: Maybe Formula -> DisjFormula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
-combHull disj = hull (Or disj)
+combHull fbase disj =
+  putStrFS_debug "combHull" >>
+  hull (Or disj) >>= \hulled ->
+  case fbase of
+    Nothing -> 
+      return hulled
+    Just fbase ->
+      keepProp fbase hulled >>= \new_hulled ->
+      putStrFS_DD (-13) ("fbase:="++(show fbase)) >>
+      putStrFS_DD (-13) ("hulled:="++(show hulled)) >>
+      putStrFS_DD (-13) ("new_hull:="++(show new_hulled)) >>
+      return new_hulled 
+
+keepProp:: Formula -> Formula -> FS Formula
+-- requires: disj represents the DNF-form of a formula f (Or fs)
+keepProp fbase hulled = return hulled
 
 computeHalfMx:: Heur -> [Maybe Disjunct] -> FS AffinMx
 -- ensures: (n,n)=length res, where n=length disj
@@ -113,8 +135,9 @@ computeHalfList heur affinMx replDisjM dim ((i,j):ls) =
   -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
   computeHalfList heur affinMx2 replDisjM dim ls
 
-iterateHalfMx:: FixFlags -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
-iterateHalfMx (m,heur) disjM affinMx = 
+iterateHalfMx :: FixFlags -> Formula -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
+iterateHalfMx (m,heur) fbase disjM affinMx = 
+  putStrFS_debug "iterateHalfMx!" >> 
   getFlags >>= \flags -> 
   when (showDebugMSG flags >=2) (putStrFS ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
@@ -126,7 +149,7 @@ iterateHalfMx (m,heur) disjM affinMx =
   when (showDebugMSG flags >=2) (putStrFS ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   -- replaceRelated disjM (i,j) >>= \replDisjM ->
-  replaceRelated_either disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
+  replaceRelated_either fbase disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
   when (showDebugMSG flags >=2) (putStrFS ("List elems hulled: " ++ show (norm_list hull_list))) >>
   when (showDebugMSG flags >=2) (putStrFS ("List elems merged: " ++ show (norm_elem elm_list))) >>
   when (showDebugMSG flags >=2) (putStrFS ("####SelHull with "++show (length (catMaybes replDisjM))
@@ -143,23 +166,30 @@ iterateHalfMx (m,heur) disjM affinMx =
     -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
     -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
     -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
-    iterateHalfMx (m,heur) replDisjM affinMx4
+    iterateHalfMx (m,heur) fbase replDisjM affinMx4
 
 -- replaces two related disjuncts with their hull
-replaceRelated:: [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
+replaceRelated :: Formula -> [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
-replaceRelated disj (i,j) =
+replaceRelated fbase disj (i,j) =
+  putStrFS_debug "replaceRelated" >> 
   let relI = map (\i -> fromJust (disj!!i)) [i,j] in
-  hull (Or relI) >>= \hulled ->
+  combHull (Just fbase) relI >>= \hulled ->
+  putStrFS ("fbase_pair:="++(show fbase)) >>
+  putStrFS ("hull_pair:="++(show hulled)) >>
   let disjI = updateList disj i (Just hulled) in
+  -- let disjI = updateList disj i Nothing in
   let disjIJ = updateList disjI j Nothing in
   return disjIJ
 
-replaceRelated_elems:: [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
-replaceRelated_elems disj (a:b:ls) = 
+
+replaceRelated_elems :: Formula -> [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
+replaceRelated_elems fbase disj (a:b:ls) = 
   let relI = map (\i -> fromJust (disj!!i)) (a:b:ls) in
-  hull (Or relI) >>= \hulled ->
+  combHull (Just fbase) relI >>= \hulled ->
+  -- putStrFS ("fbase_elems:="++(show fbase)) >>
+  -- putStrFS ("hull_elems:="++(show hulled)) >>
   let disjI = updateList disj a (Just hulled) in
   let disjIJ = zeroList disjI (b:ls) in
   return disjIJ 
@@ -170,23 +200,28 @@ zeroList disj (b:ls) =
   zeroList disjI ls
 
 -- replaces pairs of related disjuncts with their hull
-replaceRelated_list:: [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
+replaceRelated_list :: Formula -> [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
-replaceRelated_list disj [] = return disj
-replaceRelated_list disj (p:ls) = 
-  replaceRelated disj p >>= \new_disj ->
-  replaceRelated_list new_disj ls
--- foldM (\e -> \p -> replaceRelated e p) disj ls
+replaceRelated_list fbase disj ls =
+  putStrFS_debug "replaceRelated_list" >> 
+  helper disj ls 
+  where
+    helper disj [] = 
+      return disj
+    helper disj (p:ls) =
+      replaceRelated fbase disj p >>= \new_disj ->
+      helper new_disj ls
 
-replaceRelated_either:: [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
+replaceRelated_either :: Formula -> [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
 -- returns also a list of rows to be nullified
-replaceRelated_either disj ls elms p = 
+replaceRelated_either fbase disj ls elms p = 
+  putStrFS_debug "replaceRelated_either" >> 
   if elms==[] 
-  then replaceRelated_list disj ls >>= \ a -> return (a,ls,[])
-  else replaceRelated_elems disj elms >>= \ a -> return (a,[],elms)
+  then replaceRelated_list fbase disj ls >>= \ a -> return (a,ls,[])
+  else replaceRelated_elems fbase disj elms >>= \ a -> return (a,[],elms)
 
 comb2Hull:: Formula -> Formula -> FS Formula
 comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
@@ -304,7 +339,11 @@ closure f =
   let conjs = buildClauses updSubst f in
   let noconst = discoverIneqWithoutNegConstant conjs in
   discover2Ineq conjs >>= \discov ->
-  return (conjs++discov++noconst)
+  let ans = conjs++discov++noconst in
+  putStrFS_DD (-13) ("inp:"++(show f)) >>
+  putStrFS_DD (-13) ("closure:"++(show ans)) >>
+  return (ans)
+  
   where
     -- input: (i+13<=j)
     -- output: (i<=j)

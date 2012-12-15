@@ -15,11 +15,11 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula(debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
+import ImpHullWiden(closure,widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
@@ -70,9 +70,31 @@ subrecN hd_str f n recpost currFormula =
       then return cf
       else
           subrec_z recpost cf >>= \f1 -> 
-          simplify f1 >>= \f1r ->
+          simplify f1 >>= \f1 ->
+          -- let f1 = saturate f1 in
+          saturateFS f1 >>= \f_n ->
+          closureFS f1 >>= \cl_r ->
+          pr_compare f1 f_n cl_r >>
           -- addOmegaStr (str++(show i)++":="++showSet f1r) >>
-          helper (i+1) f1r
+          helper (i+1) f_n
+
+pr_compare f1 f_n cl_r =
+      case cl_r of
+        [] ->
+            return ()
+        _ ->
+            putStrFS_DD (-3) ("original:"++(show f1)) >> 
+            putStrFS_DD (-3) ("saturated:"++(show f_n)) >>
+            putStrFS_DD (-3) ("closure:"++(show cl_r)) 
+
+closureFS :: Formula -> FS DisjFormula
+closureFS f =
+    let df= getDisjuncts f in
+    case df of
+      [_] ->
+          closure f >>= \ r -> 
+          return r
+      _ -> return []
 
 ----Bottom-Up fixpoint
 -- 3rd widening strategy + general selHull
@@ -155,14 +177,21 @@ subrec_genN str i j dict f_ls =
   else
     let str = str++(show i)++"_" in
     subrec_g dict f_ls >>= \f1 -> 
-    mapM (\f2 -> simplify_n f2) f1 >>= \next_ls ->
+    mapM (\f2 -> simplify_n f2) f1 >>= \f1 ->
     -- infinite loop when str is used below
-    mapM (\(id,f) -> addOmegaStr ("F_init"++id++" :="++showSet f)) next_ls >>
-    subrec_genN str (i+1) j dict next_ls
+    mapM (\(id,f) -> addOmegaStr ("F_init"++id++" :="++showSet f)) f1 >>
+    subrec_genN str (i+1) j dict f1
     where
       simplify_n x@(id,f) = 
           simplify f >>= \nf ->
-          return (id,nf)
+          -- let sf = saturate nf in
+          saturateFS nf >>= \sf ->
+          closureFS sf >>= \cl_r ->
+          pr_compare nf sf cl_r >>
+          -- putStrFS ("simplify_n orig :"++(show f)) >>
+          -- putStrFS ("            new :"++(show nf)) >>
+          -- putStrFS ("       saturate :"++(show sf)) >>
+          return (id,sf)
 
 type IdPair a = (Id,a)
 
@@ -260,9 +289,10 @@ bottomUp2k_n dict initFS =
   let mdisj = map (\(id,f)-> 
                     let (_,(m,heur))=(dict id) in
                     (id,(min m (countDisjuncts f),heur,f))) pwF3l in
-  -- compute new quad value f1r,f3r,mdisj,heur ::(id,(F1,bool),(m,heur,F3))
   let zipf1 = zipId initFS1 mdisj in
-  let fbase_dict = findId mdisj in
+  -- compute new quad value f1r,f3r,mdisj,heur ::(id,(F1),(m,heur,F3))
+  let fbase = map (\(i,(f1,(m,heur,f3)))->(i,(m,heur,f1))) zipf1 in
+  let fbase_dict = findId fbase in
   mapM (\(id,(f1r,(mdisj,heur,f3r))) ->
          combSelHull (mdisj,heur) (getDisjuncts f3r) f1r >>= \new_f ->
          return (id,new_f)) zipf1 >>= \hf1 -> 
@@ -680,7 +710,7 @@ bottomUp recpost =
     combSelHullBase (getDisjuncts f3r) f1r >>= \s4 ->
     iterBU recpost f3r s4 f1r 4
   else 
-    combHull (getDisjuncts f3r) >>= \f3H ->
+    combHull Nothing (getDisjuncts f3r) >>= \f3H ->
     iterBUConj recpost f3r f3H 4
   
 --cris
@@ -706,8 +736,8 @@ bottomUp_mr recpost1 recpost2 =
 --    combSelHullBase (getDisjuncts f5r) f1r >>= \s4 ->
 --    iterBU recpost1 f5r s4 f1r 4
 --  else 
-  combHull (getDisjuncts f5r) >>= \f5H -> 
-  combHull (getDisjuncts f6r) >>= \f6H -> 
+  combHull Nothing (getDisjuncts f5r) >>= \f5H -> 
+  combHull Nothing (getDisjuncts f6r) >>= \f6H -> 
   iterBUConj_mr recpost1 recpost2 f5r f6r f5H f6H 4
 
 
@@ -736,9 +766,9 @@ iterBUConj_mr recpost1 recpost2 fcrt gcrt fcrtH gcrtH cnt =
     subrec_mr recpost1 recpost2 fcrt gcrt >>= \fn -> simplify fn >>= \fnext ->
     subrec_mr recpost2 recpost1 gcrt fcrt >>= \gn -> simplify gn >>= \gnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
-    combHull (getDisjuncts fnext) >>= \snext ->
+    combHull Nothing (getDisjuncts fnext) >>= \snext ->
     widenOne (fcrtH,snext) >>= \fcrtW ->
-    combHull (getDisjuncts gnext) >>= \tnext ->
+    combHull Nothing (getDisjuncts gnext) >>= \tnext ->
     widenOne (gcrtH,tnext) >>= \gcrtW ->
     fixTestBU_mr recpost1 recpost2 fcrtW gcrtW >>= \fixok ->
       if fixok then addOmegaStr ("# Result F "++ show cnt ++ ":="++showSet fcrtW) >> return (fcrtW,cnt)
@@ -752,7 +782,7 @@ iterBUConj recpost fcrt scrt cnt =
     putStrFS_debug "iterBUConj" >>
     subrec_z recpost fcrt >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
-    combHull (getDisjuncts fnext) >>= \snext ->
+    combHull Nothing (getDisjuncts fnext) >>= \snext ->
     widenOne (scrt,snext) >>= \fcrtW ->
       fixTestBU recpost fcrtW >>= \fixok ->
       if fixok then return (fcrtW,cnt)
@@ -765,8 +795,14 @@ combSelHullBase disj base =
   classify disj base >>= \(nonRec,rec1) ->
   -- it should not happen that length nonRec==0 or length rec==0
   -- but it happens! for bsearch,mergesort,FFT
-  (case length nonRec of {0 -> return fTrue; 1 -> return (head nonRec); _ -> combHull nonRec}) >>= \nonRecH ->
-  (case length rec1 of {0 -> return fTrue; 1 -> return (head rec1); _ -> combHull rec1}) >>= \recH ->
+  (case length nonRec of 
+      {0 -> return fTrue; 
+       1 -> return (head nonRec); 
+       _ -> combHull Nothing nonRec}) >>= \nonRecH ->
+  (case length rec1 of {
+      0 -> return fTrue; 
+      1 -> return (head rec1); 
+      _ -> combHull Nothing rec1}) >>= \recH ->
   return [recH,nonRecH]
   where
   classify:: DisjFormula -> Formula -> FS (DisjFormula,DisjFormula)
@@ -784,7 +820,7 @@ topDown recpost postFromBU =
   addOmegaStr ("#\tG1:="++showRelation oneStep) >>
       compose g1 (ins,recs,g1) >>= \gcomp ->
       addOmegaStr ("#\tG2 hulled to G2r") >>
-      combHull [g1,gcomp] >>= \g2 ->
+      combHull Nothing [g1,gcomp] >>= \g2 ->
       iterTD recpost g2 oneStep 3
 
 iterTD:: RecPost -> Formula -> Relation -> Int -> FS (Formula,Int)
@@ -793,7 +829,7 @@ iterTD recpost gcrt oneStep cnt =
   else
     compose gcrt oneStep >>= \gcomp ->
     addOmegaStr ("#\tG" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
-    combHull [gcrt,gcomp] >>= \gnext ->
+    combHull Nothing [gcrt,gcomp] >>= \gnext ->
     widenOne (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep gcrtW >>= \fixok ->
     if fixok then return (gcrtW,cnt)

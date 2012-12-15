@@ -35,9 +35,12 @@ hull:: Formula -> FS Formula
 -- ^Applies a Hull or a ConvexHull operation depending on the flag 'whatHull'.
 hull f = 
   getFlags >>= \flags ->
-  case whatHull flags of
+  (case whatHull flags of
     Hull -> impHull (fqsv f,[],f)
-    ConvexHull -> impConvexHull (fqsv f,[],f)
+    ConvexHull -> impConvexHull (fqsv f,[],f)) >>= \res ->
+  -- putStrFS ("\nInp:="++(show f)) >>
+  -- putStrFS ("Hull:="++(show res)) >>
+  return res
     
 pairwiseCheck:: Formula -> FS Formula
 pairwiseCheck f = impPairwiseCheck (fqsv f,[],f)
