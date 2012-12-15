@@ -1,0 +1,40 @@
+initial base e.g x=0 & y=0
+  => saturate [x>=0,res>=0,x<=0,y<=0]
+  => add transitivity x>=y,y<=x
+  x!=y ==> x>y or x<y
+  => keep a list of possible constraints 
+     that could be kept
+
+saturate after each convex hull
+  => and save into a history (but may cause loop)
+
+saturate after 3 steps & convex hull?
+
+x=y & y=z ==> x=z (do we need this?)
+
+e1>=e2 & e2>=e3 ==> e1>=e3
+
+(1) find all equalities
+    x=0 & y=0 => x=y
+(2) saturate with inequality
+    x=y ==> x>=y & y>=y
+
+e.g
+    x=0 & y=1 => y=x+1 
+
+-res
+R2:={[x] -> [res] -> []: ((x=-1 && -res=1) 
+R1:={[x] -> [res] -> []: ((res=1 && -x=-1) 
+
+pickEq:[[(-x),-1],[(-res),-1]]
+pickEq(simpl):[[(-x),-1],[(-res),-1]]
+pickEq:[[(-res),1],[(-x),1]]
+pickEq(simpl):[[(-res),1],[(-x),1]]
+
+//
+x=c1 & y=c2 ==> x=y+?
+x=e1 & x=e2 ==> e1=e2
+e1=e2 & e1=e3 ==> e2=e3
+
+
+x=0 & y=3 ==> x-y=0-3 

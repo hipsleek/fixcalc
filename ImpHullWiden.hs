@@ -31,24 +31,24 @@ type DisjFormula = [Formula]
 ----------------------------------
 --------Selective Hull------------
 ----------------------------------
-combSelHull :: FixFlags -> DisjFormula -> Formula -> FS DisjFormula
+combSelHull :: FixFlags -> DisjFormula -> [Formula] -> FS DisjFormula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 -- requires: m>=1
 -- ensures: length(res)=m
-combSelHull (m,heur) disj fbase = 
+combSelHull (m,heur) disj fbase_ls = 
   putStrFS_debug "CombSelHull!" >> 
   getFlags >>= \flags ->
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m then return disj
   else case m of
-    1 -> combHull (Just fbase) disj >>= \h -> return [h]
+    1 -> combHull fbase_ls disj >>= \h -> return [h]
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
       (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur disjM >>= \affinMx ->
-      iterateHalfMx (m,heur) fbase disjM affinMx >>= \relatedDisjM ->
+      iterateHalfMx (m,heur) fbase_ls disjM affinMx >>= \relatedDisjM ->
       return (catMaybes relatedDisjM)
   ) >>= \res ->
   -- putStrFS ("Disj :"++(showSet (Or disj))) >>
@@ -57,22 +57,21 @@ combSelHull (m,heur) disj fbase =
   addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> 
   return res
 
-combHull:: Maybe Formula -> DisjFormula -> FS Formula
+combHull :: [Formula] -> DisjFormula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
-combHull fbase disj =
+combHull fbase_ls disj =
   putStrFS_debug "combHull" >>
   hull (Or disj) >>= \hulled ->
-  case fbase of
-    Nothing -> 
-      return hulled
-    Just fbase ->
-      keepProp fbase hulled >>= \new_hulled ->
-      putStrFS_DD (-13) ("fbase:="++(show fbase)) >>
-      putStrFS_DD (-13) ("hulled:="++(show hulled)) >>
-      putStrFS_DD (-13) ("new_hull:="++(show new_hulled)) >>
-      return new_hulled 
+  if fbase_ls==[] 
+  then 
+    return hulled
+  else
+    keepProp fbase_ls hulled >>= \new_hulled ->
+    print_DD True (-13) [("fbase",show fbase_ls),("hulled",show hulled),("new_hull",show new_hulled)] >>
+    return new_hulled 
 
-keepProp:: Formula -> Formula -> FS Formula
+-- TODO WN 
+keepProp:: [Formula] -> Formula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 keepProp fbase hulled = return hulled
 
@@ -136,7 +135,7 @@ computeHalfList heur affinMx replDisjM dim ((i,j):ls) =
   -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
   computeHalfList heur affinMx2 replDisjM dim ls
 
-iterateHalfMx :: FixFlags -> Formula -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
+iterateHalfMx :: FixFlags -> [Formula] -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) fbase disjM affinMx = 
   putStrFS_debug "iterateHalfMx!" >> 
   getFlags >>= \flags -> 
@@ -170,14 +169,14 @@ iterateHalfMx (m,heur) fbase disjM affinMx =
     iterateHalfMx (m,heur) fbase replDisjM affinMx4
 
 -- replaces two related disjuncts with their hull
-replaceRelated :: Formula -> [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
+replaceRelated :: [Formula] -> [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
-replaceRelated fbase disj (i,j) =
+replaceRelated fbase_ls disj (i,j) =
   putStrFS_debug "replaceRelated" >> 
   let relI = map (\i -> fromJust (disj!!i)) [i,j] in
-  combHull (Just fbase) relI >>= \hulled ->
-  putStrFS ("fbase_pair:="++(show fbase)) >>
+  combHull (fbase_ls) relI >>= \hulled ->
+  putStrFS ("fbase_pair:="++(show fbase_ls)) >>
   putStrFS ("hull_pair:="++(show hulled)) >>
   let disjI = updateList disj i (Just hulled) in
   -- let disjI = updateList disj i Nothing in
@@ -185,10 +184,10 @@ replaceRelated fbase disj (i,j) =
   return disjIJ
 
 
-replaceRelated_elems :: Formula -> [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
-replaceRelated_elems fbase disj (a:b:ls) = 
+replaceRelated_elems :: [Formula] -> [Maybe Disjunct] -> [Int] -> FS [Maybe Disjunct]
+replaceRelated_elems fbase_ls disj (a:b:ls) = 
   let relI = map (\i -> fromJust (disj!!i)) (a:b:ls) in
-  combHull (Just fbase) relI >>= \hulled ->
+  combHull (fbase_ls) relI >>= \hulled ->
   -- putStrFS ("fbase_elems:="++(show fbase)) >>
   -- putStrFS ("hull_elems:="++(show hulled)) >>
   let disjI = updateList disj a (Just hulled) in
@@ -201,7 +200,7 @@ zeroList disj (b:ls) =
   zeroList disjI ls
 
 -- replaces pairs of related disjuncts with their hull
-replaceRelated_list :: Formula -> [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
+replaceRelated_list :: [Formula] -> [Maybe Disjunct] -> [(Int,Int)] -> FS [Maybe Disjunct]
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
 replaceRelated_list fbase disj ls =
@@ -214,7 +213,7 @@ replaceRelated_list fbase disj ls =
       replaceRelated fbase disj p >>= \new_disj ->
       helper new_disj ls
 
-replaceRelated_either :: Formula -> [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
+replaceRelated_either :: [Formula] -> [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
 -- returns also a list of rows to be nullified
@@ -237,11 +236,11 @@ moreSelHull x y heur ys =
 ----------------------------------
 --------Widening powersets--------
 ----------------------------------
-widen :: Heur -> Formula -> (DisjFormula,DisjFormula) -> FS DisjFormula
+widen :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
-widen heur fbase (xs,ys) =
-  let fbase_ls = getConjunctsN fbase in
+widen heur fbase_ls (xs,ys) =
+  -- let fbase_ls = getConjunctsN fbase in
   getFlags >>= \flags ->
   let x_len = length xs in
   let y_len = length ys in
