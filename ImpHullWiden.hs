@@ -21,7 +21,7 @@ import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
 import Data.Char(digitToInt,isDigit)
-import List(nub,union,(\\))
+import List(nub,union,(\\),sortBy)
 import Maybe(catMaybes,fromJust)
 import Monad(filterM,when,foldM)
 
@@ -47,7 +47,7 @@ combSelHull (m,heur) disj fbase_ls =
       let disjM = map (\d -> Just d) disjNoEx in
       (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes disjM))
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
-      computeHalfMx heur disjM >>= \affinMx ->
+      computeHalfMx heur fbase_ls disjM >>= \affinMx ->
       iterateHalfMx (m,heur) fbase_ls disjM affinMx >>= \relatedDisjM ->
       return (catMaybes relatedDisjM)
   ) >>= \res ->
@@ -75,9 +75,9 @@ keepProp:: [Formula] -> Formula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 keepProp fbase hulled = return hulled
 
-computeHalfMx:: Heur -> [Maybe Disjunct] -> FS AffinMx
+computeHalfMx :: Heur -> [Formula] -> [Maybe Disjunct] -> FS AffinMx
 -- ensures: (n,n)=length res, where n=length disj
-computeHalfMx heur disj = 
+computeHalfMx heur fbase_ls disj = 
   let n = length disj-1 in 
   let mx = initAffinMx n in
   computeHalfMx1 heur mx (n,n) 0 disj
@@ -85,31 +85,31 @@ computeHalfMx heur disj =
       computeHalfMx1:: Heur -> AffinMx -> (Int,Int) -> Int -> [Maybe Disjunct] -> FS AffinMx
       computeHalfMx1 heur mat (m,n) i disj | i>n = return mat
       computeHalfMx1 heur mat (m,n) i disj = 
-        computeHalfRow heur mat (m,n) i (i+1) disj >>= \mat1 ->
+        computeHalfRow heur fbase_ls mat (m,n) i (i+1) disj >>= \mat1 ->
         computeHalfMx1 heur mat1 (m,n) (i+1) disj
 
 
 -- computes Affinities for second-half of row i, between columns j(first call uses i+1) and n
-computeHalfRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
-computeHalfRow heur mat (m,n) i j disj | j>n = return mat
-computeHalfRow heur mat (m,n) i j disj = 
-  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj))>>= \affinIJ -> 
+computeHalfRow:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
+computeHalfRow heur fbase_ls mat (m,n) i j disj | j>n = return mat
+computeHalfRow heur fbase_ls mat (m,n) i j disj = 
+  affinity (disj!!i) (disj!!j) heur fbase_ls comb2Hull (nub $ concatMap fqsv (catMaybes disj))>>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
-  computeHalfRow heur newmat (m,n) i (j+1) disj
+  computeHalfRow heur fbase_ls newmat (m,n) i (j+1) disj
 -- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
-computeHalfCol:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
-computeHalfCol heur mat (m,n) i j disj | i<0 = return mat
-computeHalfCol heur mat (m,n) i j disj = 
-  affinity (disj!!i) (disj!!j) heur comb2Hull (nub $ concatMap fqsv (catMaybes disj)) >>= \affinIJ -> 
+computeHalfCol:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> [Maybe Disjunct] -> FS AffinMx
+computeHalfCol heur fbase_ls mat (m,n) i j disj | i<0 = return mat
+computeHalfCol heur fbase_ls mat (m,n) i j disj = 
+  affinity (disj!!i) (disj!!j) heur fbase_ls comb2Hull (nub $ concatMap fqsv (catMaybes disj)) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
-  computeHalfCol heur newmat (m,n) (i-1) j disj
+  computeHalfCol heur fbase_ls newmat (m,n) (i-1) j disj
 
-recomputeRow :: Heur -> AffinMx -> Int -> [Maybe Disjunct] -> Int -> FS AffinMx
-recomputeRow heur mat row disj dim =
+recomputeRow :: Heur -> [Formula] -> AffinMx -> Int -> [Maybe Disjunct] -> Int -> FS AffinMx
+recomputeRow heur fbase_ls mat row disj dim =
   let r = [i | i <-[row+1..dim], not((disj!!i)==Nothing)] in
   foldM (\af -> \c -> 
                 let qv = (nub $ concatMap fqsv (catMaybes [disj!!row,disj!!c])) in
-                affinity (disj!!row) (disj!!c) heur comb2Hull qv >>= \ aff_new ->
+                affinity (disj!!row) (disj!!c) heur fbase_ls comb2Hull qv >>= \ aff_new ->
                 let newmat = mat // [((row,c),aff_new)] in
                 return newmat) mat r 
   
@@ -117,39 +117,40 @@ mkZero:: AffinMx -> Int -> Int -> FS AffinMx
 mkZero mat row dim = return (mat // ([((row,i),-1)|i<-[0..dim]]++[((i,row),-1)|i<-[0..dim]]))
 
 -- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
-computeHalfElems:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [Int] -> FS AffinMx
-computeHalfElems heur mat _ dim [] = return mat
-computeHalfElems heur mat replDisjM dim (i:ls) = 
+computeHalfElems:: Heur -> [Formula] -> AffinMx -> [Maybe Disjunct] -> Int -> [Int] -> FS AffinMx
+computeHalfElems heur fbase_ls mat _ dim [] = return mat
+computeHalfElems heur fbase_ls mat replDisjM dim (i:ls) = 
   foldM (\mat -> \j -> mkZero mat j dim) mat ls  >>= \mat2 ->
-  recomputeRow heur mat2 i replDisjM dim
+  recomputeRow heur fbase_ls mat2 i replDisjM dim
 
 -- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
-computeHalfList:: Heur -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
-computeHalfList heur mat _ dim [] = return mat
-computeHalfList heur affinMx replDisjM dim ((i,j):ls) = 
+computeHalfList:: Heur -> [Formula] -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
+computeHalfList heur fbase_ls mat _ dim [] = return mat
+computeHalfList heur fbase_ls affinMx replDisjM dim ((i,j):ls) = 
   mkZero affinMx j dim >>= \affinMx1 ->
-  recomputeRow heur affinMx1 i replDisjM dim >>= \affinMx2 ->
+  recomputeRow heur fbase_ls affinMx1 i replDisjM dim >>= \affinMx2 ->
   -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
   -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
   -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
   -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
-  computeHalfList heur affinMx2 replDisjM dim ls
+  computeHalfList heur fbase_ls affinMx2 replDisjM dim ls
 
 iterateHalfMx :: FixFlags -> [Formula] -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
-iterateHalfMx (m,heur) fbase disjM affinMx = 
+iterateHalfMx (m,heur) fbase_ls disjM affinMx = 
   putStrFS_debug "iterateHalfMx!" >> 
   getFlags >>= \flags -> 
   (putStrFS_DD 2 ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
   chooseAllMax heur affinMx >>= \max_ls ->
   let (dist_pairs,all_elems) = chooseDistElems max_ls in
+  (putStrFS_DD 2 ("OrigMatrix :" ++ show (disjM))) >>
   (putStrFS_DD 2 ("Chosen elem is: " ++ show (i+1,j+1))) >>
   (putStrFS_DD 2 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
   (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
   (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
   when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   -- replaceRelated disjM (i,j) >>= \replDisjM ->
-  replaceRelated_either fbase disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
+  replaceRelated_either fbase_ls disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
   (putStrFS_DD 2 ("List elems hulled: " ++ show (norm_list hull_list))) >>
   (putStrFS_DD 2 ("List elems merged: " ++ show (norm_elem elm_list))) >>
   (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes replDisjM))
@@ -160,13 +161,13 @@ iterateHalfMx (m,heur) fbase disjM affinMx =
     return replDisjM
   else
     let dim = length replDisjM-1 in
-    computeHalfList heur affinMx replDisjM dim hull_list >>= \affinMx1 -> 
-    computeHalfElems heur affinMx1 replDisjM dim elm_list >>= \affinMx4 -> 
+    computeHalfList heur fbase_ls affinMx replDisjM dim hull_list >>= \affinMx1 -> 
+    computeHalfElems heur fbase_ls affinMx1 replDisjM dim elm_list >>= \affinMx4 -> 
     -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
     -- computeHalfCol heur affinMx1 (length replDisjM-1,length replDisjM-1) (i-1) i replDisjM >>= \affinMx2->
     -- computeHalfRow heur affinMx2 (length replDisjM-1,length replDisjM-1) j (j+1) replDisjM >>= \affinMx3->
     -- computeHalfCol heur affinMx3 (length replDisjM-1,length replDisjM-1) (j-1) j replDisjM >>= \affinMx4->
-    iterateHalfMx (m,heur) fbase replDisjM affinMx4
+    iterateHalfMx (m,heur) fbase_ls replDisjM affinMx4
 
 -- replaces two related disjuncts with their hull
 replaceRelated :: [Formula] -> [Maybe Disjunct] -> (Int,Int) -> FS [Maybe Disjunct]
@@ -176,11 +177,16 @@ replaceRelated fbase_ls disj (i,j) =
   putStrFS_debug "replaceRelated" >> 
   let relI = map (\i -> fromJust (disj!!i)) [i,j] in
   combHull (fbase_ls) relI >>= \hulled ->
-  putStrFS ("fbase_pair:="++(show fbase_ls)) >>
-  putStrFS ("hull_pair:="++(show hulled)) >>
+  -- putStrFS ("fbase_pair:="++(show fbase_ls)) >>
+  -- putStrFS ("hull_pair:="++(show hulled)) >>
   let disjI = updateList disj i (Just hulled) in
   -- let disjI = updateList disj i Nothing in
   let disjIJ = updateList disjI j Nothing in
+  print_DD True 3 [("replaceRelated",show disj),
+                   ("fbase_ls",show fbase_ls),
+                   ("to hull",show relI),
+                   ("hulled",show hulled),
+                   ("result",show disjIJ)] >>
   return disjIJ
 
 
@@ -223,11 +229,24 @@ replaceRelated_either fbase disj ls elms p =
   then replaceRelated_list fbase disj ls >>= \ a -> return (a,ls,[])
   else replaceRelated_elems fbase disj elms >>= \ a -> return (a,[],elms)
 
-comb2Hull:: Formula -> Formula -> FS Formula
-comb2Hull = (\f1 -> \f2 -> hull (Or [f1,f2]))
+comb2Hull :: Formula -> Formula -> FS Formula
+comb2Hull f1 f2 = 
+  hull (Or [f1,f2]) >>= \ans ->
+  print_DD True (-8) [("com2Hull(F1)",show f1),
+                      ("com2Hull(F2)",show f2),
+                      ("com2Hull(ans)",show ans)
+                      ] >>
+  return ans
 
 comb2Widen:: Formula -> Formula -> FS Formula
-comb2Widen = (\f1 -> \f2 -> widenOne [] (f1,f2))
+comb2Widen f1 f2 = 
+  widenOne [] (f1,f2) >>= \ ans ->
+  print_DD True (-8) [("widenOne(F1)",show f1),
+                      ("widenOne(F2)",show f2),
+                      ("widenOne(ans)",show ans)
+                      ] >>
+  return ans
+  
 -- WN to fix
 moreSelHull x y heur ys =
   if x<y then combSelHull (x,heur) ys undefined
@@ -269,24 +288,24 @@ computeMx heur (disjCrt,disjNxt) =
       computeMx1:: Heur -> AffinMx -> (Int,Int) -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
       computeMx1 heur mat (m,n) i (disjCrt,disjNxt) | i>n = return mat
       computeMx1 heur mat (m,n) i (disjCrt,disjNxt) = 
-        computeRow heur mat (m,n) i 0 (disjCrt,disjNxt) >>= \mat1 ->
+        computeRow heur [] mat (m,n) i 0 (disjCrt,disjNxt) >>= \mat1 ->
         computeMx1 heur mat1 (m,n) (i+1) (disjCrt,disjNxt)
 
 -- computes Affinities for row i
-computeRow:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
-computeRow heur mat (m,n) i j (disjCrt,disjNxt) | j>n = return mat
-computeRow heur mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (disjCrt!!i) (disjNxt!!j) heur comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
+computeRow:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
+computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | j>n = return mat
+computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
+  affinity (disjCrt!!i) (disjNxt!!j) heur fbase_ls comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
-  computeRow heur newmat (m,n) i (j+1) (disjCrt,disjNxt)
+  computeRow heur fbase_ls newmat (m,n) i (j+1) (disjCrt,disjNxt)
 
 -- computes Affinities for col j
-computeCol:: Heur -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
-computeCol heur mat (m,n) i j (disjCrt,disjNxt) | i>n = return mat
-computeCol heur mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (disjCrt!!i) (disjNxt!!j) heur comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
+computeCol :: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
+computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | i>n = return mat
+computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
+  affinity (disjCrt!!i) (disjNxt!!j) heur fbase_ls comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
-  computeCol heur newmat (m,n) (i+1) j (disjCrt,disjNxt)
+  computeCol heur fbase_ls newmat (m,n) (i+1) j (disjCrt,disjNxt)
 
 iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
@@ -304,8 +323,8 @@ iterateMx heur (disjCrt,disjNxt) affinMx partIJs =
   replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
   if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
   else 
-    computeRow heur affinMx (length replDisjCrt-1,length replDisjCrt-1) i 0 (replDisjCrt,replDisjNxt) >>= \affinMx1->
-    computeCol heur affinMx1 (length replDisjCrt-1,length replDisjCrt-1) 0 j (replDisjCrt,replDisjNxt) >>= \affinMx2->
+    computeRow heur [] affinMx (length replDisjCrt-1,length replDisjCrt-1) i 0 (replDisjCrt,replDisjNxt) >>= \affinMx1->
+    computeCol heur [] affinMx1 (length replDisjCrt-1,length replDisjCrt-1) 0 j (replDisjCrt,replDisjNxt) >>= \affinMx2->
     iterateMx heur (replDisjCrt,replDisjNxt) affinMx2 ((i,j):partIJs)
 
 -- replaces two related disjuncts with Nothing
@@ -328,8 +347,11 @@ widenOne fbase_ls (fcrt,fnext) =
   saturateFS fcrt >>= \satf ->    -- 
   let satf_l = getConjunctsN satf in
   closure fcrt >>= \fcrts ->    --
-  print_DD True (-3) [("orig",show fcrt),("sat",show satf_l),("closure",show fcrts)] >>
-  let new_ls = (fcrts++fbase_ls) in
+  print_DD True (-8) [("orig",show fcrt),
+                      ("fbase_ls",show fbase_ls),
+                      ("sat(fcrt)",show satf_l),
+                      ("closure",show fcrts)] >>
+  let new_ls = (satf_l++fbase_ls) in
   mapM (subset fnext) new_ls >>= \suboks ->
   let fcrts' = zip new_ls suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
@@ -520,77 +542,141 @@ showAffinMx mat =
     showRow:: AffinMx -> (Int,Int) -> Int -> Int -> String
     showRow mat (m,n) i j | j>n = ""
     showRow mat (m,n) i j = show (mat!(i,j)) ++ " " ++ showRow mat (m,n) i (j+1)
-merge_set:: Formula -> Formula -> Formula -> FS ([Formula],Int)
-      -- requires: f1,f2 are conjunctive formulae
-merge_set f1 f2 foperation =
-        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
-        let combined_set = (conjf1 `union` conjf2) in
-        let n = length combined_set in
-        filterM (\f -> subset foperation f) combined_set >>= \ans ->
-        return (ans,n)
 
-affinity:: Maybe Formula -> Maybe Formula -> Heur -> (Formula -> Formula -> FS Formula) -> [QSizeVar] -> FS Int
+-- remove Eq ctr from the list
+removeEQ f1 = 
+  filter (\e -> case e of
+             EqK _ -> False
+             _ -> True
+         ) f1
+remove_useless f1 =
+  -- let f2 = removeEQ f1 in
+  filter (\e -> case e of
+             EqK _ -> False
+             GEq [Const e] -> False
+             _ -> True
+         ) f1
+
+elim_dupl fs =
+  let nl = map (\e -> (e,show e)) fs in
+  let sl = sortBy (\(_,e1) (_,e2) -> compare e1 e2) nl in
+  helper sl 
+  where
+    helper [] = []
+    helper [(a,_)] = [a]
+    helper ((a1,e1):(ls@((a2,e2):xs))) = 
+      case compare e1 e2 of
+           EQ -> helper ls
+           _ -> a1:(helper ls)
+ 
+{- 
+    pick equality from foperation to give higher weight
+    add inequality contr from fbase_ls
+    remove equality & true ctr from f1 and f2
+-}
+merge_set :: [Formula] -> Formula -> Formula -> Formula -> FS ([Formula],[Formula],Int)
+      -- requires: f1,f2 are conjunctive formulae
+merge_set fbase_ls f1 f2 foperation =
+        putStrFS_debug "merge_set" >>
+        let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
+        let conjf1x = remove_useless conjf1 in
+        let conjf2x = remove_useless conjf2 in
+        let conjf1y = elim_dupl conjf1x in
+        let conjf2y = elim_dupl conjf2x in
+        let combined_set = (conjf1y `union` conjf2y) in
+        let n = length combined_set in
+        filterM (\f -> subset foperation f) combined_set >>= \ans_orig ->
+        filterM (\f -> subset foperation f) fbase_ls >>= \ans_fbase ->
+        print_DD True (-7) [("f1",show f1),("f2",show f2),
+                            ("conjf1x",show conjf1x),("conjf2x",show conjf2x),
+                            ("conjf1y(no dupl)",show conjf1y),("conjf2y(no dupl)",show conjf2y),
+                            ("hulled",show foperation)
+                            ,("combined_set",show combined_set)
+                            ,("implied_set(fbase)",show ans_fbase)
+                            ,("implied_set(orig)",show ans_orig)
+                            ] >>
+        return (ans_orig,ans_fbase,n)
+
+affinity :: Maybe Formula -> Maybe Formula -> Heur -> [Formula] -> (Formula -> Formula -> FS Formula) -> [QSizeVar] -> FS Int
 -- requires: f1,f2 represent conjunctive formulae
-affinity Nothing _ heur _ _ = return identityA
-affinity _ Nothing heur _ _ = return identityA
-affinity (Just f1) (Just f2) HausdorffHeur _ fsv =
-  mapM (\x -> projectQSV f1 x) fsv >>= \ranges1 ->
-  mapM (\x -> projectQSV f2 x) fsv >>= \ranges2 ->
-  let distances = map hausdorffDistance (zip ranges1 ranges2) in
-  let (inc,dist) = addHDistances distances in
-  let maxdist = 1000 in
-  let haus = ceiling (fromIntegral (100*inc) / fromIntegral (length fsv+1)) + 
-             ceiling (fromIntegral (100*dist) / fromIntegral ((length fsv+1)*maxdist))in
---  putStrFS (concatMap show fsv) >>
---  putStrFS ("haus: " ++ show (length fsv) ++ ":" ++ show inc ++ ":" ++ show dist ++ ":" ++ show haus ++ ":" ++ show (100-haus)) >>
-  return (100-haus)
-affinity (Just f1) (Just f2) heur operation _ = 
-    operation f1 f2 >>= \foperation -> 
-    let f_or = Or [f1,f2] in
-    getFlags >>= \flags ->
-    -- simplify foperation >>= \foperation ->
-    -- simplify f_or >>= \f_or ->
-    -- subset foperation f_or >>= \imp1 ->
-    -- subset f_or foperation >>= \imp2 ->
-    simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
-    subset fDif fFalse >>= \difIsFalse ->
-    if difIsFalse {-imp1 && imp2-} then
-       (putStrFS_DD 2("Full Match 100!")) >> 
-       (putStrFS_DD 2("F1:="++showSet f1)) >> 
-       (putStrFS_DD 2("F2:="++showSet f2)) >>
-       (putStrFS_DD 2("foper:="++showSet foperation)) >>
-       (putStrFS_DD 2("f_or:="++showSet f_or)) >>
-       (putStrFS_DD 2("fDif:="++showSet fDif)) >>
-       subset f1 f2 >>= \fb1 ->
-       subset f2 f1 >>= \fb2 ->
-       let v1 = if fb1 then 50 else 0 in
-       let v2 = if fb2 then 50 else 0 in
-       return (100+v1+v2)
-    else
-      subset fTrue foperation >>= \operationIsTrue ->
-      if operationIsTrue then return 0 else 
-      case heur of
-        DifferenceHeur -> 
-          let n = countDisjuncts fDif in
-          let nsteps = if n>4 then 4 else n in
-          let disj = getDisjuncts fDif in
-          let getAverageConjuncts = (\c -> fromIntegral (countConjuncts c) / (fromIntegral n)) in
-          let s = ceiling $ sum (map getAverageConjuncts disj) in
-          let diffSteps = 100 - (20*nsteps-s) in
-          return diffSteps
-        _ -> {- SimilarityHeur, SimInteractiveHeur -}
-         (putStrFS_DD 2("F1:="++showSet f1)) >> 
-         (putStrFS_DD 2("F2:="++showSet f2)) >>
-          let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
-          merge_set f1 f2 foperation >>= \(mSet,num_of_orig) ->
-          let cmset = length mSet in
-          let frac = (((fromIntegral cmset / (fromIntegral (num_of_orig{- cf1+cf2 -}
+affinity f1 f2 heur fbase_ls operation fsv =
+  helper f1 f2 heur
+  where
+    helper Nothing _ _ = return identityA
+    helper _ Nothing _ = return identityA
+    -- affinity Nothing _ heur _ _ = return identityA
+    -- affinity _ Nothing heur _ _ = return identityA
+    helper (Just f1) (Just f2) HausdorffHeur =
+        mapM (\x -> projectQSV f1 x) fsv >>= \ranges1 ->
+        mapM (\x -> projectQSV f2 x) fsv >>= \ranges2 ->
+        let distances = map hausdorffDistance (zip ranges1 ranges2) in
+        let (inc,dist) = addHDistances distances in
+        let maxdist = 1000 in
+        let haus = ceiling (fromIntegral (100*inc) / fromIntegral (length fsv+1)) + 
+                   ceiling (fromIntegral (100*dist) / fromIntegral ((length fsv+1)*maxdist))in
+        --  putStrFS (concatMap show fsv) >>
+        --  putStrFS ("haus: " ++ show (length fsv) ++ ":" ++ show inc ++ ":" ++ show dist ++ ":" ++ show haus ++ ":" ++ show (100-haus)) >>
+        return (100-haus)
+    helper (Just f1) (Just f2) heur = 
+        operation f1 f2 >>= \foperation -> 
+        let f_or = Or [f1,f2] in
+        getFlags >>= \flags ->
+        -- simplify foperation >>= \foperation ->
+        -- simplify f_or >>= \f_or ->
+        -- subset foperation f_or >>= \imp1 ->
+        -- subset f_or foperation >>= \imp2 ->
+        simplify (And [foperation,fNot(Or [f1,f2])]) >>= \fDif ->
+        subset fDif fFalse >>= \difIsFalse ->
+        if difIsFalse {-imp1 && imp2-} 
+        then
+            (putStrFS_DD 2("Full Match 100!")) >> 
+            (putStrFS_DD 2("F1:="++showSet f1)) >> 
+            (putStrFS_DD 2("F2:="++showSet f2)) >>
+            (putStrFS_DD 2("foper:="++showSet foperation)) >>
+            (putStrFS_DD 2("f_or:="++showSet f_or)) >>
+            (putStrFS_DD 2("fDif:="++showSet fDif)) >>
+            subset f1 f2 >>= \fb1 ->
+            subset f2 f1 >>= \fb2 ->
+            let v1 = if fb1 then 50 else 0 in
+            let v2 = if fb2 then 50 else 0 in
+            return (100+v1+v2)
+        else
+            subset fTrue foperation >>= \operationIsTrue ->
+            if operationIsTrue 
+            then return 0 
+            else 
+                case heur of
+                  DifferenceHeur -> 
+                    let n = countDisjuncts fDif in
+                    let nsteps = if n>4 then 4 else n in
+                    let disj = getDisjuncts fDif in
+                    let getAverageConjuncts = (\c -> fromIntegral (countConjuncts c) / (fromIntegral n)) in
+                    let s = ceiling $ sum (map getAverageConjuncts disj) in
+                    let diffSteps = 100 - (20*nsteps-s) in
+                    return diffSteps
+                  _ -> {- SimilarityHeur, SimInteractiveHeur -}
+                    (putStrFS_DD 2("F1:="++showSet f1)) >> 
+                    (putStrFS_DD 2("F2:="++showSet f2)) >>
+                    let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
+                    merge_set fbase_ls f1 f2 foperation >>= \(mSet,mSetFB,num_of_orig) ->
+                    let cmset = length mSet in
+                    let cmsetFB = 
+                          let n = length mSetFB in
+                          if num_of_orig == 0 then n*3
+                          else n in
+                    let fblen = length fbase_ls in
+                    let rr = if fblen == 0 then cmset else 2*cmset+cmsetFB in
+                    let frac = (((fromIntegral (rr) / (fromIntegral (num_of_orig+fblen{- cf1+cf2 -}
                                                            )))*98)+1) in
-         (putStrFS_DD 2("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
-         (putStrFS_DD 2("Foper:="++showSet foperation)) >>
-         (putStrFS_DD 2("mSet::="++concatMap (\f -> showSet f) mSet)) >>
-         (putStrFS_DD 2("affin:="++show cmset ++ "/" ++ show (num_of_orig) ++ "  " ++ show (ceiling frac))) >>
-          return (ceiling frac)
+                    when (frac>=100) (putStrFS_DD 0 ("WARNING frac >100: "++(show frac))) >>
+                    (putStrFS_DD 2("cf1:="++show cf1 ++" cf2:="++show cf2++" cmset:="++show cmset)) >> 
+                    (putStrFS_DD 2("Foper:="++showSet foperation)) >>
+                    (putStrFS_DD 2("mSet::="++concatMap (\f -> showSet f) mSet)) >>
+                    (putStrFS_DD 2("affin:="++show (cmset+cmsetFB) ++ "/" ++ show (num_of_orig+fblen) ++ "  " ++ show (ceiling frac))) >>
+                    print_DD True 2 [("cmset",(show cmset)++" cmsetFB:"++(show cmsetFB)),
+                                     ("num of orig",(show num_of_orig)++" fblen:"++ (show fblen))
+                                     ] >>
+                    return (ceiling frac)
     -- where
     --   mset:: Formula -> Formula -> Formula -> FS [Formula]
     --   -- requires: f1,f2 are conjunctive formulae

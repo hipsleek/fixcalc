@@ -1088,7 +1088,7 @@ getGEqFromEq xs =  (concat (map (\ul -> [GEq ul,GEq (revSignM ul)]++weaken_const
 
 weaken_const :: [Update] -> [Formula]
 weaken_const ((Const c):ls) 
-  = if c<0 then [] 
+  = if c<=0 then [] 
     else case ls of
               [] -> []
               [s] -> [GEq ((Const 0):(revSignM ls))]
