@@ -30,6 +30,11 @@ import Monad(when,mapAndUnzipM,foldM)
 maxIter::Int
 maxIter = 10
 
+type Id = String
+type Dict = Id -> Maybe (RecPost,FixFlags)
+type DictOK = Id -> (RecPost,FixFlags)
+type FDict = Id -> Maybe Formula
+
 {- |Given CAbst, returns two results of fixpoint computation: a postcondition and a transitive invariants.
     This function uses the old fixpoint procedure if simulateOldFixpoint returns True. Only in this case the first argument is used. -}
 fixpoint2k:: MethDecl -> RecPost -> FS (Formula,Formula)
@@ -80,14 +85,6 @@ subrecN hd_str f n recpost currFormula =
           helper (i+1) f1
 
 
-closureFS :: Formula -> FS DisjFormula
-closureFS f =
-    let df= getDisjuncts f in
-    case df of
-      [_] ->
-          closure f >>= \ r -> 
-          return r
-      _ -> return []
 
 ----Bottom-Up fixpoint
 -- 3rd widening strategy + general selHull
@@ -121,10 +118,6 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
     if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
 
-type Id = String
-type Dict = Id -> Maybe (RecPost,FixFlags)
-type DictOK = Id -> (RecPost,FixFlags)
-type FDict = Id -> Maybe Formula
 
 -- dict = Id -> Just (RecPost,FixFlags)
 -- [(Id,Formula)] -> [(Id,Formula,Int)]
@@ -276,10 +269,12 @@ bottomUp2k_n dict initFS =
   subrec_genN "K_init" 1 1 dict initFS >>= \initFS1 ->
   subrec_genN "K_init" 2 3 dict initFS1 >>= \initFS3 ->
   saturateIdList initFS1 >>= \initS ->
-  -- compute new pairwise pwF3l::[(Id,Formula)]
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
   -- saturateIdList pwF3l >>= \pwF3S ->
+  -- saturateIdList pwF3l >>= \initS3 ->
+  -- print_DD True (-4) [("1st saturated",(show initS)),("3rd saturated",(show initS3))
+  --                ] >>
   let mdisj = map (\(id,f)-> 
                     let (_,(m,heur))=(dict id) in
                     (id,(min m (countDisjuncts f),heur,f))) pwF3l in
@@ -292,65 +287,6 @@ bottomUp2k_n dict initFS =
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
   iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
-
-saturateIdList :: [(Id,Formula)] -> FS [(Id,[Formula])] 
-saturateIdList ls =
-  mapM (\(i,f) -> 
-         saturateFS f >>= \sf ->
-         simplify f >>= \simpf ->
-         let ns = sat2 f in
-         let e2 = pickEq f in
-         let e3 = pickEq simpf in
-         let g2 = pickGEq f in
-         print_DD True (-4) [("orig",show f),("sat",show sf),("sat2",show ns)
-                            ,("pickEq",show e2),("pickEq(simpl)",show e3),("pickGEq",show g2)] >>
-         return (i,ns)) ls
-
-sat2 :: Formula -> [Formula]
-sat2 f =
-  helper f 
-  where
-    helper f = 
-      case f of
-        And fs ->
-          concat (map helper fs)
-        Or fs -> 
-          concat (map helper fs)
-        Exists vars ff -> [] 
-        GEq us -> []
-        -- below will remove 0=0
-        EqK [Const _] -> []
-        EqK us -> [GEq us,GEq (map revSign us)]
-        _ -> []
-
-{-
- pickEq:[[(-x),-1],[(-res),-1]]
- pickEq:[[(-res),0],[(-x),0]]
--}
-pickEq f =
-  helper f 
-  where
-    helper f = 
-      case f of
-        And fs ->
-          concat (map helper fs)
-        EqK [Const 0] -> []
-        EqK us -> [us]
-        -- Or fs -> []
-        -- Exists vars ff -> [] 
-        -- GEq us -> []
-        _ -> []
-
-pickGEq :: Formula -> [Formula]
-pickGEq f =
-  helper f 
-  where
-    helper f = 
-      case f of
-        And fs ->
-          concat (map helper fs)
-        GEq us -> [GEq us]
-        _ -> []
 
 
 bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
@@ -1073,6 +1009,240 @@ testRecPost recpost@(RecPost mn f oth) =
     Forall qsvs f -> error ("unexpected argument: "++show formula)
     Union fs -> error ("unexpected argument: "++show formula)
     FormulaBogus -> error ("unexpected argument: "++show formula)
+
+closureFS :: Formula -> FS DisjFormula
+closureFS f =
+    let df= getDisjuncts f in
+    case df of
+      [_] ->
+          closure f >>= \ r -> 
+          return r
+      _ -> return []
+
+pickDisjSatEq :: Formula -> FS [Formula]
+pickDisjSatEq f =
+  let ds = getDisjuncts f in
+  let rs = map pickEq ds in
+  let rs2 = map satEq rs in
+  let ans = concat (rs++rs2) in
+  let f_geq = getGEqFromEq ans in
+  print_DD True (-4) [("orig2",show f),("eq",show rs),
+                      ("sat",show rs2),("satGEq_f_Eq",show f_geq)] >>
+  return (f_geq)
+
+{-- this function generates the inequality from the equality formula
+    x=0 & y=0  ==>
+      generates x=y (intermediate)
+      then returns
+           x<=0 & x>=0 & y>=0 & y<=0 & x>=y & x<=y
+-}
+pickGEqfromEQ :: Formula -> FS [Formula]
+pickGEqfromEQ f =
+  let rs = pickEq f in
+  let rs2 = satEq rs in
+  let ans = (rs++rs2) in
+  let f_geq = getGEqFromEq ans in
+  print_DD True (-6) [("orig(pickSatEq)",show f),("eq",show rs),
+                      ("sat",show rs2),("satGEq_f_Eq",show f_geq)] >>
+  return (f_geq)
+
+
+{- 
+    saturate a formula with implied formula
+    need to avoid redundancy
+    Examples
+     x=0 & y=0  ==> 
+         x=0 & y=0 
+         & x=y (first equality)
+         x>=0 & y>=0 & x>=y & y>=0
+     x=1  ==> x=1 & x>=1 & x<=1 & x>=0
+    Need a fixcalc testing procedure
+      y := Saturate x
+    which should yield only non-redundant implied formuta
+
+-}
+saturateEQ :: Formula -> FS [Formula]
+saturateEQ f =
+  pickGEqfromEQ f >>= \fs ->
+  print_DD True (-5) [("orig5",show f),("sat(GEq)",show fs)] >>
+  return fs
+  
+saturateIdList :: [(Id,Formula)] -> FS [(Id,[Formula])] 
+saturateIdList ls =
+  mapM (\(i,f) -> 
+         saturateEQ f >>= \fs ->
+         return (i,fs)) ls
+         -- let ns = sat2 f in
+         -- let e2 = pickEq f in
+         -- -- e2::[[Update]] initial equalities
+         -- let e3 = satEq e2 in
+         -- -- e3::[[Update]] extra equalities
+         -- let f_geq = getGEqFromEq (e2++e3) in
+         -- let g2 = pickGEq f in
+         -- print_DD True (-4) [("orig",show f),("sat",show sf),("sat2",show ns)
+         --                    ,("pickEq(norm)",show e2)
+         --                    ,("pickEq(sat)",show e3),("satGEq_f_Eq",show f_geq),("pickGEq",show g2)] >>
+
+getGEqFromEq :: [[Update]] -> [Formula]
+getGEqFromEq xs =  (concat (map (\ul -> [GEq ul,GEq (revSignM ul)]++weaken_const ul) xs))
+
+weaken_const :: [Update] -> [Formula]
+weaken_const ((Const c):ls) 
+  = if c<0 then [] 
+    else case ls of
+              [] -> []
+              [s] -> [GEq ((Const 0):(revSignM ls))]
+              _ -> [GEq (revSignM ls)]
+weaken_const _ = []
+
+satEq :: [[Update]] -> [[Update]]
+satEq ls = 
+  case ls of
+    [] -> []
+    x:ls -> (pairLSatEq x ls)++(satEq ls)
+
+pairLSatEq :: [Update] -> [[Update]] -> [[Update]]
+pairLSatEq x ls =
+  case ls of
+    [] -> []
+    x2:ls -> 
+      case (pairSatEq x x2) of
+        [] -> (pairLSatEq x ls)
+        l -> [l]++(pairLSatEq x ls)
+
+pairSatEq :: [Update] -> [Update] -> [Update]
+pairSatEq x1 x2 =
+  let (cm,c1,c2,r1,r2) = factorize x1 x2 in 
+  if cm==[]
+  then []
+  else normUpd (cm++(diff (mult c1 r1) (mult c2 r2)))
+
+revSignM xs = map revSign xs 
+
+-- return common, c1/c2, diff1, diff2
+factorize :: [Update] -> [Update] -> ([Update],Int,Int,[Update],[Update])
+factorize x y =
+  let no_comm = ([],0,0,x,y) in
+  case (getConst x,getConst y) of
+    (Just (c1,rest1), Just (c2,rest2)) -> 
+      if c1==c2 then (normUpd (rest1++(revSignM rest2)),1,1,[],[])
+      else if (c1>c2) then (normUpd ((Const (c1-c2)):rest1++(revSignM rest2)),1,1,[],[])
+           else (normUpd ((Const (c2-c1)):rest2++(revSignM rest1)),1,1,[],[])
+    (Nothing,Nothing) -> 
+      -- TODO WN : find common factors in two list wo constants.
+      no_comm
+    (_,_) -> no_comm
+
+
+-- normalise list of update in sorted order
+-- with const, followed by sorted coefficients
+normUpd :: [Update] -> [Update]
+normUpd ls = 
+  let sl = sortBy compUpd ls in
+  mkPositive sl
+
+mkPositive :: [Update] -> [Update]
+mkPositive inp@((Const c):rest) 
+  = if c<0 then (Const (-c)):(revSignM rest)
+    else inp
+mkPositive inp = inp 
+
+getConst :: [Update] -> Maybe (Int,[Update])
+getConst ls = 
+  helper ls 
+  where
+    helper ((Const c):rest) = Just (c,rest)
+    helper _ = Nothing
+
+find_common :: [Update] -> [Update] -> ([Update],[Update],[Update],[Update])
+find_common x y = 
+  helper x y
+  where
+    helper [] y = ([],y,[],[])
+    helper x [] = (x,[],[],[])
+    helper oldx@(a1:x) oldy@(a2:y)  = 
+      let cmp = compUpd a1 a2 in
+      if cmp ==EQ 
+      then 
+        let (a,b,c,d)=helper x y in
+        (a,b,a1:c,a2:d)
+      else
+        if cmp ==LT 
+        then 
+          let (a,b,c,d)=helper x oldy in
+          (a1:a,b,c,d)
+        else
+          let (a,b,c,d)=helper oldx y in
+          (a,a2:b,c,d)
+
+compUpd (Const _) (Const _)     = EQ
+compUpd (Coef v1 _) (Coef v2 _) = compare (show v1) (show v2)
+compUpd (Coef _ _) (Const _)    = GT
+compUpd (Const _) (Coef _ _)    = LT
+
+mult :: Int -> [Update] -> [Update]
+mult c1 [] = []
+mult c1 ((Const c):ls) = (Const (c*c1)):(mult c1 ls)
+mult c1 ((Coef v c):ls) = (Coef v (c*c1)):(mult c1 ls)
+
+diff :: [Update] -> [Update] -> [Update] 
+diff [] [] = []
+diff ((Const c1):ls1) ((Const c2):ls2)  = (Const (c1+c2)):(diff ls1 ls2)
+diff ((Coef v1 c1):ls1) ((Coef v2 c2):ls2) = 
+  if v1==v2 then (Coef v1 (c1*c1)):(diff ls1 ls2)
+  else error "mismatch arg for diff"
+diff _ _ = error "mismatch arg for diff"
+  
+sat2 :: Formula -> [Formula]
+sat2 f =
+  helper f 
+  where
+    helper f = 
+      case f of
+        And fs ->
+          concat (map helper fs)
+        Or fs -> 
+          concat (map helper fs)
+        Exists vars ff -> [] 
+        GEq us -> []
+        -- below will remove 0=0
+        EqK [Const _] -> []
+        EqK us -> [GEq us,GEq (map revSign us)]
+        _ -> []
+
+{-
+ pickEq:[[(-x),-1],[(-res),-1]]
+ pickEq:[[(-res),0],[(-x),0]]
+-}
+-- pickEqD :: Formula -> [[Formula]]
+-- pickEqD f =
+--   let g = getDisjuncts f in
+--   map pickEq g
+  
+pickEq f =
+  let r = helper f in 
+  map normUpd r
+  where
+    helper f = 
+      case f of
+        And fs ->
+          concat (map helper fs)
+        EqK [Const 0] -> []
+        EqK us -> [us]
+        -- Exists vars ff -> [] 
+        -- GEq us -> []
+        _ -> []
+
+pickGEq :: Formula -> [Formula]
+pickGEq f =
+  helper f 
+  where
+    helper f = 
+      case f of
+        And fs ->
+          concat (map helper fs)
+        GEq us -> [GEq us]
+        _ -> []
 
 {-
 template formula = case formula of

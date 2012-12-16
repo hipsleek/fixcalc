@@ -246,7 +246,7 @@ This is a special case where a set of
 disjuncts all have the same affinity with
 each other. It indicates that they
 are likely very similar formula, so there
-is not point keeping them apart!
+is not point keeping them apart.
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
