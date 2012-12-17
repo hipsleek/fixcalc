@@ -147,6 +147,7 @@ ParseFormula1:
       let heur = case $11 of {"SimHeur" -> SimilarityHeur; 
                              "DiffHeur" -> DifferenceHeur; 
                              "HausHeur" -> HausdorffHeur; 
+                             "InterHeur" -> SimInteractiveHeur; 
                              lit -> error ("Heuristic not implemented - "++lit)} 
       in
   	  bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 

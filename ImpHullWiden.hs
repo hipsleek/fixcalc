@@ -144,17 +144,17 @@ iterateHalfMx (m,heur) fbase_ls disjM affinMx =
   putStrFS_DD 2 "!!iterateHalfMx" >> 
   getFlags >>= \flags -> 
   (putStrFS_DD 2 ("SelHullMatrix " ++ showAffinMx affinMx)) >>
-  chooseElem heur affinMx >>= \(i,j) ->
-  chooseAllMax heur affinMx >>= \max_ls ->
+  -- chooseElem heur affinMx >>= \(i,j) ->
+  chooseAllMax disjM heur affinMx >>= \max_ls ->
   let (dist_pairs,all_elems) = chooseDistElems max_ls in
   (putStrFS_DD 2 ("OrigMatrix :" ++ show (disjM))) >>
-  (putStrFS_DD 2 ("Chosen elem is: " ++ show (i+1,j+1))) >>
+  -- (putStrFS_DD 2 ("Chosen elem is: " ++ show (i+1,j+1))) >>
   (putStrFS_DD 2 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
   (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
   (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
-  when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
+  -- when (showDebugMSG flags >=1 && (affinMx!(i,j))<100) (putStrFS ("SelHull chose disjuncts with less than 100% affinity: "++ show (affinMx!(i,j)))) >>
   -- replaceRelated disjM (i,j) >>= \replDisjM ->
-  replaceRelated_either fbase_ls disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
+  replaceRelated_either fbase_ls disjM dist_pairs all_elems >>= \(replDisjM,hull_list,elm_list) ->
   (putStrFS_DD 2 ("List elems hulled: " ++ show (norm_list hull_list))) >>
   (putStrFS_DD 2 ("List elems merged: " ++ show (norm_elem elm_list))) >>
   let new_m = length (catMaybes replDisjM) in
@@ -223,11 +223,11 @@ replaceRelated_list fbase disj ls =
       replaceRelated fbase disj p >>= \new_disj ->
       helper new_disj ls
 
-replaceRelated_either :: [Formula] -> [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> (Int,Int) -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
+replaceRelated_either :: [Formula] -> [Maybe Disjunct] -> [(Int,Int)] -> [Int] -> FS ([Maybe Disjunct],[(Int,Int)],[Int])
 -- requires: (0<=i,j<length disj)
 -- ensures: length res=length disj
 -- returns also a list of rows to be nullified
-replaceRelated_either fbase disj ls elms p = 
+replaceRelated_either fbase disj ls elms = 
   putStrFS_debug "replaceRelated_either" >> 
   if elms==[] 
   then replaceRelated_list fbase disj ls >>= \ a -> return (a,ls,[])
@@ -252,9 +252,26 @@ comb2Widen f1 f2 =
   return ans
   
 -- WN to fix
-moreSelHull x y heur ys =
-  if x<y then combSelHull (x,heur) ys undefined
-  else return ys
+moreSelHull xs ys heur =
+  putStrFS_debug "moreSelHull(widen)" >> 
+  helper xs ys
+  where
+    helper xs ys =
+      let x_len = length xs in
+      let y_len = length ys in
+      when (not (x_len == y_len)) 
+          (putStrFS_DD 2 ("WARNING: hulling applied to widening two formula of different disjuncts\n"
+                         ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
+      if x_len==y_len 
+      then return (xs,ys)
+      else
+        if x_len<y_len 
+        then
+          combSelHull (x_len,heur) ys [] >>= \new_ys ->
+          helper xs new_ys
+        else
+          combSelHull (y_len,heur) xs [] >>= \new_xs ->
+          helper new_xs ys 
 
 ----------------------------------
 --------Widening powersets--------
@@ -264,12 +281,11 @@ widen :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- ensures (length res)=(length xs)
 widen heur fbase_ls (xs,ys) =
   -- let fbase_ls = getConjunctsN fbase in
+  putStrFS_debug "widen!" >> 
   getFlags >>= \flags ->
-  let x_len = length xs in
-  let y_len = length ys in
-  moreSelHull x_len y_len heur ys >>= \ ys ->
-  when (not (x_len == length ys)) (error("ERROR: widen requires two formuale with same number of disjuncts\n"
-                                            ++showSet (Or xs) ++ "\n" ++ showSet(Or ys))) >>
+  -- let x_len = length xs in
+  -- let y_len = length ys in
+  moreSelHull xs ys heur >>= \ (xs,ys) ->
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
   addOmegaStr ("Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
@@ -287,7 +303,7 @@ widen heur fbase_ls (xs,ys) =
 computeMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> FS AffinMx
 -- requires: length disjCrt = length disjNxt
 computeMx_full heur fbase_ls (disjCrt,disjNxt) =
-  putStrFS_DD 2 "!! computeMx" >>
+  putStrFS_debug "!! computeMx" >>
   let n = length disjCrt-1 in 
   let mx = initAffinMx n in
   computeMx1 heur fbase_ls mx (n,n) 0 (disjCrt,disjNxt)
@@ -317,11 +333,12 @@ computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) =
 -- called by widening!...
 iterateMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx_full heur fbase_ls (disjCrt,disjNxt) affinMx partIJs = 
+  putStrFS_debug "iterateMx_full!" >> 
   getFlags >>= \flags -> 
   (putStrFS_DD 2 ("####Widening 2 arguments, each with "++show (length (disjCrt)) 
             ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> showSet mf) (disjCrt++disjNxt)))) >>
   (putStrFS_DD 1 ("WidenMatrix "++showAffinMx affinMx)) >>
-  chooseElem heur affinMx >>= \(i,j) ->
+  chooseElem disjCrt disjNxt heur affinMx >>= \(i,j) ->
   -- chooseAllMax heur affinMx >>= \max_ls ->
   -- let (dist_pairs,all_elems) = chooseDistElems max_ls in  
   (putStrFS_DD 1 ("Chosen elem is: " ++ show (i+1,j+1))) >>
@@ -506,29 +523,44 @@ norm_elem:: [Int] -> [Int]
 norm_elem ls = map (\x -> x+1) ls
 
 -- |Returns the indices of either the maximum element in the matrix or chosen by the user with SimInteractiveHeur.
-chooseElem:: Heur -> AffinMx -> FS (Int,Int)
-chooseElem heur mat = 
+chooseElem :: [Disjunct] -> [Disjunct] -> Heur -> AffinMx -> FS (Int,Int)
+chooseElem disjMcurr disjMnext heur mat = 
   let firstMax = ((0,0),mat!(0,0)) in
   let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> if val>=amax then ((i,j),val) else ((mi,mj),amax)) firstMax (assocs mat) in
   case heur of
-    SimInteractiveHeur -> 
-      putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
-      putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
-      return (getIndices str (fst maxe))
-    _ -> return (fst maxe)
+    SimInteractiveHeur ->
+      if snd maxe>=100 
+      then return (fst maxe)
+      else
+        putStrFS ("Widen(Curr):"++ show disjMcurr) >>
+        putStrFS ("Widen(Next):"++ show disjMnext) >>
+        putStrFS ("Affin Matrix\n"++ showAffinMx mat) >>
+        putStrFS ("maxe:"++show maxe) >>
+        putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
+        putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
+        --return (getIndices str (fst maxe))
+        return (fst maxe)
+    _ -> 
+      return (fst maxe)
 
 -- |Returns all maximum elements in the matrix or chosen by the user with SimInteractiveHeur.
-chooseAllMax:: Heur -> AffinMx -> FS [(Int,Int)]
-chooseAllMax heur mat = 
+chooseAllMax :: [Maybe Disjunct] -> Heur -> AffinMx -> FS [(Int,Int)]
+chooseAllMax disjM heur mat = 
   let firstMax = ([],0) in
   let maxe = foldl (\(curr_ls,amax) -> \((i,j),val) -> if val>=amax then (if val>amax then ([(i,j)],val) else (([(i,j)]++curr_ls),val)) else (curr_ls,amax)) firstMax (assocs mat) in
   case heur of
     SimInteractiveHeur ->
+      putStrFS ("Formulae\n"++ show disjM) >>
+      putStrFS ("Affin Matrix\n"++ showAffinMx mat) >>
       let ls = norm_list (fst maxe) in
-      putStrFS ("MAX elem is: " ++ show ls) >>
-      putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
-      return [(getIndices str (head ls))]
-    _ -> return (fst maxe)
+      putStrFS ("MAX elems: " ++ show ls) >>
+      putStrNoLnFS ("Choose an elem: ") >> 
+      hFlushStdoutFS >> 
+      getLineFS >>= \str -> 
+      -- return [(getIndices str (head ls))]
+      return (fst maxe)
+    _ -> 
+      return (fst maxe)
 
 -- choose only distinct pairs of elements
 chooseDist:: [(Int,Int)] -> [(Int,Int)]

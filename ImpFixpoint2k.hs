@@ -203,6 +203,7 @@ iterBU2k_n :: DictOK -> (Id -> (Int,Heur,[Formula])) -> [(Id,Formula)] -> Int ->
 iterBU2k_n dict fbase_dict scrt cnt =
   -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
   -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
+  putStrFS_debug "iterBU2k_n!" >> 
   if (cnt>maxIter) 
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
@@ -212,14 +213,14 @@ iterBU2k_n dict fbase_dict scrt cnt =
     subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
-    putStrFS_DD 2 "!!iterBU2k_n -> combSelHull" >>
+    putStrFS_debug "iterBU2k_n! -> combSelHull" >>
     mapM (\(id,f3r) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
            combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
                return (id,new_f)) fnext >>= \hull_f -> 
     -- hullf :: [(Id,(Formula))]
     let zip1 = zipId scrt hull_f in
-    putStrFS_DD 2 "!!iterBU2k_n -> widen" >>
+    putStrFS_debug "iterBU2k_n! -> widen" >>
     mapM (\(id,(sc,fnextHMany)) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
            widen heur fbase_ls (getDisjuncts sc,fnextHMany) >>= \new_f ->
@@ -227,7 +228,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
     let n_fdict = extend_fdict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
-    putStrFS_DD 2 "!!iterBU2k_n -> fixTestBU_n" >>
+    putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
            fixTestBU_n n_fdict recpost (Or snext) >>= \fixok ->
