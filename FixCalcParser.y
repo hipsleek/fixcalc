@@ -82,27 +82,42 @@ Command:
              $3 env >>= \rhs ->
              putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=" )>>
              case rhs of {
-               R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
-               F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
-            putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=2") >>
-	       return (extendRelEnv env ($1,renamedRHS))}
+               R (RecPost _ f triple) -> 
+                 return (R (RecPost $1 f triple)); 
+               F f -> 
+                 simplify f >>= \sf -> 
+                 return (F sf)} >>= \renamedRHS ->
+                 putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=2") >>
+                 return (extendRelEnv env ($1,renamedRHS))}
   |  lit ':=' ParseFormula1 ';'                                    
     {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
              $3 env >>= \fl -> 
-	mapM (\rhs ->
+	       mapM (\rhs ->
              case rhs of {
-             R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
-	     (F f) -> simplify f >>= \fsimpl -> putStrFS(show fsimpl) >> return (F fsimpl)}) fl >>= \rhs1 -> 
-	     foldM (\env1 -> \rhs2 -> return (extendRelEnv env1 ($1,rhs2))) env rhs1
-    }
+               R (RecPost _ f triple) -> 
+                 return (R (RecPost $1 f triple)); 
+               (F f) -> 
+                 simplify f >>= \fsimpl -> 
+                 putStrFS(show fsimpl) >> 
+                 return (F fsimpl)}) fl >>= \rhs1 -> 
+                 foldM (\env1 -> \rhs2 -> 
+                 return (extendRelEnv env1 ($1,rhs2))) env rhs1
+              }
   | ParseFormula1 ';'                                           
     {\env -> $1 env >>= \fl -> 
-	mapM (\rhs ->
+	   mapM (\rhs ->
              case rhs of
-	     (F f) -> simplify f >>= \fsimpl -> putStrFS(show fsimpl) >> return (F fsimpl)
-	     (R recpost) -> putStrFS(show recpost) >> return rhs) fl >>= \rhs1 -> 
-	     foldM (\env1 -> \rhs2 -> return (extendRelEnv env1 (" ",rhs2))) env rhs1
-    }
+               (F f) -> 
+                 simplify f >>= \fsimpl -> 
+                 putStrFS(show fsimpl) >> 
+                 return (F fsimpl)
+               (R recpost) -> 
+                 putStrFS(show recpost) >> 
+                 return rhs
+             ) fl >>= \rhs1 -> 
+	   foldM (\env1 -> \rhs2 -> 
+       return (extendRelEnv env1 (" ",rhs2))) env rhs1
+     }
   | ParseFormula ';'                                           
     {\env -> $1 env >>= \rhs -> 
              case rhs of
