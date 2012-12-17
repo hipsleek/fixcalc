@@ -89,20 +89,26 @@ Command:
                  return (F sf)} >>= \renamedRHS ->
                  putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=2") >>
                  return (extendRelEnv env ($1,renamedRHS))}
-  |  lit ':=' ParseFormula1 ';'                                    
-    {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
-             $3 env >>= \fl -> 
-	       mapM (\rhs ->
+  |  '[' Llit2 ']' ':=' ParseFormula1 ';'                                    
+    {\env -> 
+           $5 env >>= \fl ->
+        if (length fl /= length $2)
+        then error "Mismatch in number of LHS and RHS"
+        else 
+           let new_fl = zip $2 fl in
+             mapM (\(id,rhs) ->
              case rhs of {
                R (RecPost _ f triple) -> 
-                 return (R (RecPost $1 f triple)); 
+                 return (R (RecPost id f triple)); 
                (F f) -> 
                  simplify f >>= \fsimpl -> 
                  putStrFS(show fsimpl) >> 
-                 return (F fsimpl)}) fl >>= \rhs1 -> 
-                 foldM (\env1 -> \rhs2 -> 
-                 return (extendRelEnv env1 ($1,rhs2))) env rhs1
-              }
+                 return (F fsimpl)}) new_fl >>= \rhs1 -> 
+           let rhs_new = zip $2 rhs1 in
+           foldM (\env1 -> \(id,rhs2) -> 
+               putStrNoLnFSOpt ("# " ++ (show id) ++ ":="++"...") >>
+               return (extendRelEnv env1 (id,rhs2))) env rhs_new
+    }
   | ParseFormula1 ';'                                           
     {\env -> $1 env >>= \fl -> 
 	   mapM (\rhs ->
@@ -296,6 +302,11 @@ Llit: lit {
        Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
        Nothing -> error ("Variable not declared - "++$1++"\n")
        Just (R recpost) -> recpost:($3 env)}
+
+Llit2:: {[Lit]}
+Llit2: lit { [$1] }
+  | lit ',' Llit2 { $1:$3}
+
 
 LInt::{[Int]}
 LInt: intNum {[$1]}
