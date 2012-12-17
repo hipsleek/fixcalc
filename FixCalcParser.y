@@ -91,7 +91,7 @@ Command:
                  return (extendRelEnv env ($1,renamedRHS))}
   |  '[' Llit2 ']' ':=' ParseFormula1 ';'                                    
     {\env -> 
-           $5 env >>= \fl ->
+        $5 env >>= \fl ->
         if (length fl /= length $2)
         then error "Mismatch in number of LHS and RHS"
         else 
@@ -102,12 +102,16 @@ Command:
                  return (R (RecPost id f triple)); 
                (F f) -> 
                  simplify f >>= \fsimpl -> 
-                 putStrFS(show fsimpl) >> 
+                 -- putStrFS(show fsimpl) >>  
                  return (F fsimpl)}) new_fl >>= \rhs1 -> 
            let rhs_new = zip $2 rhs1 in
-           foldM (\env1 -> \(id,rhs2) -> 
-               putStrNoLnFSOpt ("# " ++ (show id) ++ ":="++"...") >>
-               return (extendRelEnv env1 (id,rhs2))) env rhs_new
+           foldM (\env1 -> \(id,rhs2) ->
+              case rhs2 of
+                 F f -> 
+                  putStrNoLnFSOpt ("# " ++ id ++ ":="++(show f)++"\n") >>
+                  return (extendRelEnv env1 (id,rhs2))
+                 _ -> error "impossible : should be a formula"
+                ) env rhs_new
     }
   | ParseFormula1 ';'                                           
     {\env -> $1 env >>= \fl -> 
