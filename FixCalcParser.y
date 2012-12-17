@@ -227,7 +227,7 @@ ParseFormula:
                  case (lookupVar $3 env,lookupVar $5 env) of
                    (Just (F f1),Just (F f2)) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
-                     widen heur (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                     widen heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
                      return (F (Or disj))
                    (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
                    (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
