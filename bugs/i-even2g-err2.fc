@@ -7,7 +7,7 @@ R1:={[x] -> [res] -> []: ((x=0 && res=0) ||
 
 Fix:=bottomup(R1, 2, SimHeur); Fix;
 
-Res1:=bottomupgen([R1],[3,4],SimHeur); Res1;
+Res1:=bottomupgen([R1],[3],SimHeur); Res1;
 bottomupgen([R1],[3],SimHeur);
 #disj 2 : ((res + 1 >= x && res >= 0) && x >= res)
 #disj 1 : ((res + 1 >= x && res >= 0) && x >= res)
