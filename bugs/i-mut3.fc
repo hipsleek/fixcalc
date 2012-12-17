@@ -2,9 +2,9 @@ R2:={[x] -> [res] -> []: ((x=0 && res=0) ||  (exists (res1: (exists (x1:((res=re
 };
 R1:={[x] -> [res] -> []: ((x=0 && res=1) ||  (exists (x1: (exists (res1:((res=res1+2 && (x=x1+1 && 0<x)) && R2(x1,res1)))) )) )
 };
-[T1,T2]:=bottomupgen([R2,R1], [2,2], SimHeur);
-T1; T2;
-bottomupgen([R2,R1], [1,1], SimHeur);
+[T1,T2]:=bottomupgen([R2,R1], [2,2], InterHeur);
+#T1; T2;
+#bottomupgen([R2,R1], [1,1], SimHeur);
 
 #((res >= 1 && x >= 0) || ((x >= 0 && 2 >= x) && 1 + res >= 3x))
 #((res >= 2 + x && res >= 3) || (x >= 0 && res >= 0))

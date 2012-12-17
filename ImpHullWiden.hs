@@ -391,7 +391,7 @@ widenOne fbase_ls (fcrt,fnext) =
   let fcrts' = zip new_ls suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let fwid = fAnd (map fst fcrt') in
-  print_DD True (2) [("WidenOne(fscrt",show fcrt),
+  print_DD True (2) [("WidenOne(fscrt)",show fcrt),
                       ("WidenOne(fnext)",show fnext),
                       ("fbase_ls",show fbase_ls),
                       ("Sat(fcrt)",show satf_l),
@@ -532,9 +532,9 @@ chooseElem disjMcurr disjMnext heur mat =
       if snd maxe>=100 
       then return (fst maxe)
       else
-        putStrFS ("Widen(Curr):"++ show disjMcurr) >>
-        putStrFS ("Widen(Next):"++ show disjMnext) >>
-        putStrFS ("Affin Matrix\n"++ showAffinMx mat) >>
+        putStrFS ("Widen(Curr):\n"++ showNumForm2 disjMcurr) >>
+        putStrFS ("Widen(Next):\n"++ showNumForm2 disjMnext) >>
+        putStrFS ("Affin Matrix:\n"++ showAffinMx mat) >>
         putStrFS ("maxe:"++show maxe) >>
         putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
         putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
@@ -550,11 +550,11 @@ chooseAllMax disjM heur mat =
   let maxe = foldl (\(curr_ls,amax) -> \((i,j),val) -> if val>=amax then (if val>amax then ([(i,j)],val) else (([(i,j)]++curr_ls),val)) else (curr_ls,amax)) firstMax (assocs mat) in
   case heur of
     SimInteractiveHeur ->
-      putStrFS ("Formulae\n"++ show disjM) >>
+      putStrFS ("Formulae\n"++ showNumForm disjM) >>
       putStrFS ("Affin Matrix\n"++ showAffinMx mat) >>
       let ls = norm_list (fst maxe) in
       putStrFS ("MAX elems: " ++ show ls) >>
-      putStrNoLnFS ("Choose an elem: ") >> 
+      putStrNoLnFS ("Choose sublist of elems: ") >> 
       hFlushStdoutFS >> 
       getLineFS >>= \str -> 
       -- return [(getIndices str (head ls))]
@@ -588,10 +588,23 @@ getIndices str givenmax =
     (digitToInt (str!!1)-1, digitToInt (str!!3)-1)
   else givenmax
 
+showNumForm:: [Maybe Formula] -> String
+showNumForm s = 
+  helper s 1
+  where              
+    helper [] n = ""
+    helper (x:xs) n =
+      (show n)++":"++(case x of {Just f -> show f; _ -> "None"})++
+        (if xs==[] then "" else "\n")
+        ++(helper xs (n+1))
+
+showNumForm2 s = showNumForm ((map (\s->Just s)) s)
+
 showAffinMx:: AffinMx -> String
 showAffinMx mat = 
   let ((_,_),(m,n)) = bounds mat in 
-    ("- noRows: "++show (m+1) ++ ", noCols: "++show (n+1)++"\n") ++  showMatrix mat (m,n) 0
+    -- ("- noRows: "++show (m+1) ++ ", noCols: "++show (n+1)++"\n") ++  
+    showMatrix mat (m,n) 0
   where
     showMatrix:: AffinMx -> (Int,Int) -> Int -> String
     showMatrix mat (m,n) i | i==m = showRow mat (m,n) i 0
