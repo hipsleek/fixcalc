@@ -80,10 +80,21 @@ Command:
     lit ':=' ParseFormula ';'                                    
     {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
              $3 env >>= \rhs ->
+             putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=" )>>
              case rhs of {
                R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
                F f -> simplify f >>= \sf -> return (F sf)} >>= \renamedRHS ->
+            putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=2") >>
 	       return (extendRelEnv env ($1,renamedRHS))}
+  |  lit ':=' ParseFormula1 ';'                                    
+    {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
+             $3 env >>= \fl -> 
+	mapM (\rhs ->
+             case rhs of {
+             R (RecPost _ f triple) -> return (R (RecPost $1 f triple)); 
+	     (F f) -> simplify f >>= \fsimpl -> putStrFS(show fsimpl) >> return (F fsimpl)}) fl >>= \rhs1 -> 
+	     foldM (\env1 -> \rhs2 -> return (extendRelEnv env1 ($1,rhs2))) env rhs1
+    }
   | ParseFormula1 ';'                                           
     {\env -> $1 env >>= \fl -> 
 	mapM (\rhs ->
@@ -148,7 +159,7 @@ ParseFormula1:
                              "DiffHeur" -> DifferenceHeur; 
                              "HausHeur" -> HausdorffHeur; 
                              "InterHeur" -> SimInteractiveHeur; 
-                             lit -> error ("Heuristic not implemented - "++lit)} 
+                             lit -> error ("Heuristic not implemented parser.y - "++lit)} 
       in
   	  bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
 	     >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
@@ -180,7 +191,7 @@ ParseFormula:
                    Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y2 - "++lit)} in
                      bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
   | bottomup_mr '(' lit ',' lit ')'
         {\env -> putStrFS ("bottomup_mr(" ++ $3 ++ "," ++ $5 ++ ");") >>
@@ -199,7 +210,7 @@ ParseFormula:
                    Just (F f) -> error ("Argument of topdown is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
                      topDown2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
@@ -207,7 +218,7 @@ ParseFormula:
                    Just (R recpost) -> error ("Argument of selhull is not a formula\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (F f) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y4 - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
   | manualhull '(' lit ',' '[' LInt ']' ')'
         {\env -> putStrFSOpt ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
@@ -227,7 +238,7 @@ ParseFormula:
         {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
                    (Just (F f1),Just (F f2)) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented - "++lit)} in
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y5 - "++lit)} in
                      widen heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
                      return (F (Or disj))
                    (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")

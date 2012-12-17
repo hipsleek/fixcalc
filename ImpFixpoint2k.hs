@@ -156,7 +156,7 @@ subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formu
 subrec_genN str i j dict f_ls =
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- WN : line below cause a LOOP!
-  -- addOmegaStr("Subst for " ++ (show str) ++ ":") >>
+   addOmegaStr("Subst for " ++ (show str) ++ ":") >>
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- addOmegaStr(str) >>
   if (i>j) 
