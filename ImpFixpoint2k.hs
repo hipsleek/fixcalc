@@ -110,7 +110,7 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
   if (cnt>maxIter) then return (fTrue,-1)
   else
 -- 3nd widening strategy: iterate using scrt (fcrt is not used anymore)
-    putStrFS "iterBU2k" >>
+    putStrFS_debug "iterBU2k" >>
     subrecN "R_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
     widen heur fbase (scrt,fnextHMany) >>= \snext ->
