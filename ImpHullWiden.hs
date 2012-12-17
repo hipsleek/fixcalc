@@ -45,10 +45,12 @@ combSelHull (m,heur) disj fbase_ls =
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
-      (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes disjM))
+      (putStrFS_DD 2 ("####combSelHull with "++show (length (catMaybes disjM))++ " disjuncts, --> "++(show m)
                                    ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) disjM))) >>
       computeHalfMx heur fbase_ls disjM >>= \affinMx ->
       iterateHalfMx (m,heur) fbase_ls disjM affinMx >>= \relatedDisjM ->
+      (putStrFS_DD 2 ("####combSelHull target :\n"
+                      ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) relatedDisjM))) >>
       return (catMaybes relatedDisjM)
   ) >>= \res ->
   -- putStrFS ("Disj :"++(showSet (Or disj))) >>
@@ -78,6 +80,7 @@ keepProp fbase hulled = return hulled
 computeHalfMx :: Heur -> [Formula] -> [Maybe Disjunct] -> FS AffinMx
 -- ensures: (n,n)=length res, where n=length disj
 computeHalfMx heur fbase_ls disj = 
+  putStrFS_debug "computeHalfMx!" >> 
   let n = length disj-1 in 
   let mx = initAffinMx n in
   computeHalfMx1 heur mx (n,n) 0 disj
@@ -124,9 +127,10 @@ computeHalfElems heur fbase_ls mat replDisjM dim (i:ls) =
   recomputeRow heur fbase_ls mat2 i replDisjM dim
 
 -- computes Affinities for upper-half of column j, between rows i(first call uses j-1) and 0
-computeHalfList:: Heur -> [Formula] -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
+computeHalfList :: Heur -> [Formula] -> AffinMx -> [Maybe Disjunct] -> Int -> [(Int,Int)] -> FS AffinMx
 computeHalfList heur fbase_ls mat _ dim [] = return mat
 computeHalfList heur fbase_ls affinMx replDisjM dim ((i,j):ls) = 
+  putStrFS_DD 2 "!!computeHalfList" >> 
   mkZero affinMx j dim >>= \affinMx1 ->
   recomputeRow heur fbase_ls affinMx1 i replDisjM dim >>= \affinMx2 ->
   -- computeHalfRow heur affinMx (length replDisjM-1,length replDisjM-1) i (i+1) replDisjM >>= \affinMx1->
@@ -137,7 +141,7 @@ computeHalfList heur fbase_ls affinMx replDisjM dim ((i,j):ls) =
 
 iterateHalfMx :: FixFlags -> [Formula] -> [Maybe Disjunct] -> AffinMx -> FS [Maybe Disjunct]
 iterateHalfMx (m,heur) fbase_ls disjM affinMx = 
-  putStrFS_debug "iterateHalfMx!" >> 
+  putStrFS_DD 2 "!!iterateHalfMx" >> 
   getFlags >>= \flags -> 
   (putStrFS_DD 2 ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
@@ -153,13 +157,13 @@ iterateHalfMx (m,heur) fbase_ls disjM affinMx =
   replaceRelated_either fbase_ls disjM dist_pairs all_elems (i,j) >>= \(replDisjM,hull_list,elm_list) ->
   (putStrFS_DD 2 ("List elems hulled: " ++ show (norm_list hull_list))) >>
   (putStrFS_DD 2 ("List elems merged: " ++ show (norm_elem elm_list))) >>
-  (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes replDisjM))
-                               ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
   let new_m = length (catMaybes replDisjM) in
   if new_m<=m then
     {- WN : to change m to a smaller value -}
     return replDisjM
   else
+    -- (putStrFS_DD 2 ("####SelHull with "++show (length (catMaybes replDisjM))
+    --     ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) replDisjM))) >>
     let dim = length replDisjM-1 in
     computeHalfList heur fbase_ls affinMx replDisjM dim hull_list >>= \affinMx1 -> 
     computeHalfElems heur fbase_ls affinMx1 replDisjM dim elm_list >>= \affinMx4 -> 
@@ -270,62 +274,80 @@ widen heur fbase_ls (xs,ys) =
   mapM hullExistentials ys >>= \ysNoEx ->
   addOmegaStr ("Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
   addOmegaStr ("Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
-  let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
-  computeMx heur (mxs,mys) >>= \affinMx ->
-  iterateMx heur (mxs,mys) affinMx [] >>= \ijs ->
+  -- let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
+  let (mxs,mys) = (xsNoEx,ysNoEx) in
+  computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
+  iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
+  print_DD True 2 [("affixMx(widen)",show affinMx),("list(widen)",show ijs)] >>
   mapM (\(i,j) -> widenOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   -- WN :causing LOOP?
   addOmegaStr ("WidenOUT:=" ++ showSet(Or res)) >> 
   return res
   
-computeMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
+computeMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> FS AffinMx
 -- requires: length disjCrt = length disjNxt
-computeMx heur (disjCrt,disjNxt) = 
+computeMx_full heur fbase_ls (disjCrt,disjNxt) =
+  putStrFS_DD 2 "!! computeMx" >>
   let n = length disjCrt-1 in 
   let mx = initAffinMx n in
-  computeMx1 heur mx (n,n) 0 (disjCrt,disjNxt)
+  computeMx1 heur fbase_ls mx (n,n) 0 (disjCrt,disjNxt)
   where
-      computeMx1:: Heur -> AffinMx -> (Int,Int) -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
-      computeMx1 heur mat (m,n) i (disjCrt,disjNxt) | i>n = return mat
-      computeMx1 heur mat (m,n) i (disjCrt,disjNxt) = 
-        computeRow heur [] mat (m,n) i 0 (disjCrt,disjNxt) >>= \mat1 ->
-        computeMx1 heur mat1 (m,n) (i+1) (disjCrt,disjNxt)
+      computeMx1:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
+      computeMx1 heur fbase_ls mat (m,n) i (disjCrt,disjNxt) | i>n = return mat
+      computeMx1 heur fbase_ls mat (m,n) i (disjCrt,disjNxt) = 
+        computeRow heur fbase_ls mat (m,n) i 0 (disjCrt,disjNxt) >>= \mat1 ->
+        computeMx1 heur fbase_ls mat1 (m,n) (i+1) (disjCrt,disjNxt)
 
 -- computes Affinities for row i
-computeRow:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
+computeRow:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
 computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | j>n = return mat
 computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (disjCrt!!i) (disjNxt!!j) heur fbase_ls comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
+  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls comb2Widen (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
   computeRow heur fbase_ls newmat (m,n) i (j+1) (disjCrt,disjNxt)
 
 -- computes Affinities for col j
-computeCol :: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Maybe Disjunct],[Maybe Disjunct]) -> FS AffinMx
+computeCol :: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
 computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | i>n = return mat
 computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (disjCrt!!i) (disjNxt!!j) heur fbase_ls comb2Widen (nub $ concatMap fqsv (catMaybes (disjCrt++disjNxt))) >>= \affinIJ -> 
+  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls comb2Widen (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
   computeCol heur fbase_ls newmat (m,n) (i+1) j (disjCrt,disjNxt)
 
-iterateMx:: Heur -> ([Maybe Disjunct],[Maybe Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
-iterateMx heur (disjCrt,disjNxt) affinMx partIJs = 
+-- called by widening!...
+iterateMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
+iterateMx_full heur fbase_ls (disjCrt,disjNxt) affinMx partIJs = 
   getFlags >>= \flags -> 
-  (putStrFS_DD 2 ("####Widening 2 arguments, each with "++show (length (catMaybes disjCrt)) 
-            ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> case mf of {Nothing -> "Nothing";Just f -> showSet f}) (disjCrt++disjNxt)))) >>
+  (putStrFS_DD 2 ("####Widening 2 arguments, each with "++show (length (disjCrt)) 
+            ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> showSet mf) (disjCrt++disjNxt)))) >>
   (putStrFS_DD 1 ("WidenMatrix "++showAffinMx affinMx)) >>
   chooseElem heur affinMx >>= \(i,j) ->
-  chooseAllMax heur affinMx >>= \max_ls ->
-  let (dist_pairs,all_elems) = chooseDistElems max_ls in  
+  -- chooseAllMax heur affinMx >>= \max_ls ->
+  -- let (dist_pairs,all_elems) = chooseDistElems max_ls in  
   (putStrFS_DD 1 ("Chosen elem is: " ++ show (i+1,j+1))) >>
-  (putStrFS_DD 1 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
-  (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
-  (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
-  replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
-  if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
-  else 
-    computeRow heur [] affinMx (length replDisjCrt-1,length replDisjCrt-1) i 0 (replDisjCrt,replDisjNxt) >>= \affinMx1->
-    computeCol heur [] affinMx1 (length replDisjCrt-1,length replDisjCrt-1) 0 j (replDisjCrt,replDisjNxt) >>= \affinMx2->
-    iterateMx heur (replDisjCrt,replDisjNxt) affinMx2 ((i,j):partIJs)
+  let mat_len = length disjCrt in
+  let new_partIJs = (i,j):partIJs in
+  if length new_partIJs == mat_len then
+    return new_partIJs
+  else
+    let new_affixMx = removeAffMx mat_len affinMx i j in
+    iterateMx_full heur fbase_ls (disjCrt,disjNxt) new_affixMx new_partIJs 
+  -- (putStrFS_DD 1 ("Chosen max elems are: " ++ show (norm_list max_ls))) >>
+  -- (putStrFS_DD 2 ("Chosen dist_pairs are: " ++ show (norm_list dist_pairs))) >>
+  -- (putStrFS_DD 2 ("Chosen all_elems are: " ++ show (norm_elem all_elems))) >>
+  -- replaceRelatedWithNoth (Just disjCrt,Just disjNxt) (i,j) >>= \(replDisjCrt,replDisjNxt) ->
+  -- if (length (catMaybes replDisjCrt))==0 then return ((i,j):partIJs)
+  -- else 
+  --   computeRow heur fbase_ls affinMx (length replDisjCrt-1,length replDisjCrt-1) i 0 (replDisjCrt,replDisjNxt) >>= \affinMx1->
+  --   computeCol heur fbase_ls affinMx1 (length replDisjCrt-1,length replDisjCrt-1) 0 j (replDisjCrt,replDisjNxt) >>= \affinMx2->
+  --   iterateMx_full heur fbase_ls (replDisjCrt,replDisjNxt) affinMx2 ((i,j):partIJs)
+
+removeAffMx :: Int -> AffinMx -> Int -> Int -> AffinMx
+removeAffMx dim a i j = 
+  let ls = [0..(dim-1)] in
+  let rows = [((i,k),identityA)|k<-ls] in
+  let cols = [((k,j),identityA)|k<-ls] in
+  a // (rows++cols)
 
 -- replaces two related disjuncts with Nothing
 replaceRelatedWithNoth:: ([Maybe Disjunct],[Maybe Disjunct]) -> (Int,Int) -> FS ([Maybe Disjunct],[Maybe Disjunct])
@@ -346,16 +368,19 @@ widenOne fbase_ls (fcrt,fnext) =
   addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
   saturateFS fcrt >>= \satf ->    -- 
   let satf_l = getConjunctsN satf in
-  closure fcrt >>= \fcrts ->    --
-  print_DD True (-8) [("orig",show fcrt),
-                      ("fbase_ls",show fbase_ls),
-                      ("sat(fcrt)",show satf_l),
-                      ("closure",show fcrts)] >>
+  -- closure fcrt >>= \fcrts ->    --
   let new_ls = (satf_l++fbase_ls) in
   mapM (subset fnext) new_ls >>= \suboks ->
   let fcrts' = zip new_ls suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let fwid = fAnd (map fst fcrt') in
+  print_DD True (2) [("WidenOne(fscrt",show fcrt),
+                      ("WidenOne(fnext)",show fnext),
+                      ("fbase_ls",show fbase_ls),
+                      ("Sat(fcrt)",show satf_l),
+                      ("WidenOne(output)",show fwid)
+                      -- ,("closure",show fcrts)
+                     ] >>
   addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
   return fwid
 
