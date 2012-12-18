@@ -516,9 +516,15 @@ initAffinMx n =
 
 norm_pair:: (Int,Int) -> (Int,Int)
 norm_pair (i,j) = (i+1,j+1)
-                  
+
+rev_norm_pair:: (Int,Int) -> (Int,Int)
+rev_norm_pair (i,j) = (i-1,j-1)
+
 norm_list:: [(Int,Int)] -> [(Int,Int)]
 norm_list ls = map norm_pair ls
+
+rev_norm_list:: [(Int,Int)] -> [(Int,Int)]
+rev_norm_list ls = map rev_norm_pair ls
 
 norm_elem:: [Int] -> [Int]
 norm_elem ls = map (\x -> x+1) ls
@@ -539,24 +545,45 @@ chooseElem disjMcurr disjMnext heur mat =
         putStrFS ("maxe:"++show maxe) >>
         putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
         putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
-        --return (getIndices str (fst maxe))
-        return (fst maxe)
+        stringToArray str >>= \ans ->
+        case ans of
+          [] ->
+            return (fst maxe)
+             --return (getIndices str (fst maxe))
+          _ ->
+            let b=head ans in 
+            return b
     _ -> 
       return (fst maxe)
   
 stringToArray :: String -> FS [(Int,Int)]
 stringToArray s =
-   case s of
+  helper s >>= \ans ->
+  return (rev_norm_list ans)
+  where 
+    helper s =
+      case s of
         "" -> 
+          putStrFS ("You choice: NULL") >>  
           return []
-        _  -> foldM (\(c,d,final) -> \si -> if (isDigit si) then return (si:c,d,final) 
-                                            else if si==',' then return ("",c,final)
-                                            else if si==')' then return ("","",(read d,read c):final) 
-                                            else return (c,d,final) )  ("","",[]) s >>= \ar 
-                                            -> let (_,_,t)=ar in 
-                                               --mapM (\(x,y) ->  putStrFS ("Bach" ++ show x ++ show y )) t >>                    
-                                               --return t
-                                               return t                            
+        _  -> 
+          foldM (\(c,d,final) -> \si ->
+                  if (isDigit si) 
+                  then return (si:c,d,final) 
+                  else 
+                    if si==',' 
+                    then return ("",c,final)
+                    else 
+                      if si==')' 
+                      then return ("","",(read d,read c):final) 
+                      else 
+                        return (c,d,final))  ("","",[]) s >>= \ar ->
+          let (_,_,t)=ar in
+          let v=reverse t in
+          putStrFS ("Your Choice:"++(show v)) >>
+          --mapM (\(x,y) ->  putStrFS ("Bach" ++ show x ++ show y )) t >>
+          --return t
+          return t
 
 
 
@@ -589,8 +616,10 @@ chooseAllMax disjM heur mat =
       getLineFS >>= \str ->
       -- return [(getIndices str (head ls))]
       stringToArray str >>= \a ->
-        if((length a) == 0) then   putStrFS ("NULL chosen...") >> return (fst maxe)
-        else mapM (\c -> return c) a >>= \b -> return b
+        if((length a) == 0) then
+          return (fst maxe)
+        else 
+          return a
     _ -> 
       return (fst maxe)
 
