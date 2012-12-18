@@ -304,10 +304,12 @@ widen heur fbase_ls (xs,ys) =
 computeMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> FS AffinMx
 -- requires: length disjCrt = length disjNxt
 computeMx_full heur fbase_ls (disjCrt,disjNxt) =
-  putStrFS_debug "!! computeMx" >>
+  putStrFS_debug "computeMx_full" >>
   let n = length disjCrt-1 in 
   let mx = initAffinMx n in
-  computeMx1 heur fbase_ls mx (n,n) 0 (disjCrt,disjNxt)
+  computeMx1 heur fbase_ls mx (n,n) 0 (disjCrt,disjNxt) >>= \r ->
+  putStrFS_debug ("computeMx_full(ans):"++(show r)) >>
+  return r
   where
       computeMx1:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
       computeMx1 heur fbase_ls mat (m,n) i (disjCrt,disjNxt) | i>n = return mat
@@ -334,7 +336,7 @@ computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) =
 -- called by widening!...
 iterateMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> AffinMx -> [(Int,Int)] -> FS [(Int,Int)]
 iterateMx_full heur fbase_ls (disjCrt,disjNxt) affinMx partIJs = 
-  putStrFS_debug "iterateMx_full!" >> 
+  putStrFS_debug "iterateMx_full" >> 
   getFlags >>= \flags -> 
   (putStrFS_DD 2 ("####Widening 2 arguments, each with "++show (length (disjCrt)) 
             ++ " disjuncts:\n" ++ concatSepBy "\n" (map (\mf -> showSet mf) (disjCrt++disjNxt)))) >>
@@ -533,17 +535,22 @@ norm_elem ls = map (\x -> x+1) ls
 chooseElem :: [Disjunct] -> [Disjunct] -> Heur -> AffinMx -> FS (Int,Int)
 chooseElem disjMcurr disjMnext heur mat = 
   let firstMax = ((0,0),mat!(0,0)) in
-  let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> if val>=amax then ((i,j),val) else ((mi,mj),amax)) firstMax (assocs mat) in
+  let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> 
+                     if val>=amax 
+                     then ((i,j),val) 
+                     else ((mi,mj),amax)) firstMax (assocs mat) in
   case heur of
     SimInteractiveHeur ->
+      putStrFS ("Widen(Curr):\n"++ showNumForm2 disjMcurr) >>
+      putStrFS ("Widen(Next):\n"++ showNumForm2 disjMnext) >>
+      putStrFS ("Affin Matrix:\n"++ showAffinMx mat) >>
+      putStrFS ("maxe:"++show maxe) >>
+      putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
       if snd maxe>=100 
-      then return (fst maxe)
+      then 
+        putStrFS ("Max element automatically chosen!") >> hFlushStdoutFS >> 
+        return (fst maxe)
       else
-        putStrFS ("Widen(Curr):\n"++ showNumForm2 disjMcurr) >>
-        putStrFS ("Widen(Next):\n"++ showNumForm2 disjMnext) >>
-        putStrFS ("Affin Matrix:\n"++ showAffinMx mat) >>
-        putStrFS ("maxe:"++show maxe) >>
-        putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
         putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
         stringToArray str >>= \ans ->
         case ans of
