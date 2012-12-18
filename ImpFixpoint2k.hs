@@ -156,7 +156,7 @@ subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formu
 subrec_genN str i j dict f_ls =
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- WN : line below cause a LOOP!
-   addOmegaStr("Subst for " ++ (show str) ++ ":") >>
+  -- addOmegaStr("Subst for " ++ (show str) ++ ":") >>
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- addOmegaStr(str) >>
   if (i>j) 
@@ -380,7 +380,7 @@ iterate2k recpost (m,heur) scrt cnt =
     putStrFS_debug "iterate2k" >>
     subrec_z recpost (Or scrt) >>= \fn -> simplify fn >>= \fnext ->
     addOmegaStr ("# F"++ show cnt ++ ":="++showSet fnext) >>
-    combSelHull (m,heur) (getDisjuncts fnext) undefined >>= \snext ->
+    combSelHull (m,heur) (getDisjuncts fnext) [] >>= \snext ->
     fixTestBU recpost (Or snext) >>= \fixok -> 
 --    when (not fixok) (putStrFS ("not a Reductive point at "++show cnt)) >>
 --    putStrFS("    Post" ++ show cnt ++ ":=" ++ showSet (Or snext)) >>
@@ -603,7 +603,7 @@ topDown2k recpost (m,heur) postFromBU =
   addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
 --  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
-  combSelHull (mdisj,heur) (getDisjuncts g2) undefined >>= \disjG2 ->
+  combSelHull (mdisj,heur) (getDisjuncts g2) [] >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 
 iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
@@ -613,7 +613,7 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
     compose (Or gcrt) oneStep >>= \gcomp ->
     simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
     addOmegaStr ("# G" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
-    combSelHull (m,heur) (getDisjuncts gcompPlusOne) undefined >>= \gnext ->
+    combSelHull (m,heur) (getDisjuncts gcompPlusOne) [] >>= \gnext ->
     widen heur [] (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)

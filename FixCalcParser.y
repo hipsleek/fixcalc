@@ -244,7 +244,7 @@ ParseFormula:
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y4 - "++lit)} in
-                     combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
+                     combSelHull ($5,heur) (getDisjuncts f) [] >>= \disj -> return (F (Or disj))}
   | manualhull '(' lit ',' '[' LInt ']' ')'
         {\env -> putStrFSOpt ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
                  case lookupVar $3 env of

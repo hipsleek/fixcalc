@@ -39,9 +39,14 @@ combSelHull (m,heur) disj fbase_ls =
   putStrFS_debug "CombSelHull!" >> 
   getFlags >>= \flags ->
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
-  (if length disj <= m then return disj
+  (if length disj <= m 
+  then 
+    return disj
   else case m of
-    1 -> combHull fbase_ls disj >>= \h -> return [h]
+    1 -> 
+      putStrFS_debug "CombSelHull! ==> m=1" >> 
+      combHull fbase_ls disj >>= \h -> 
+      return [h]
     _ -> -- assert (1<m<(length disj))
       mapM hullExistentials disj >>= \disjNoEx ->
       let disjM = map (\d -> Just d) disjNoEx in
@@ -62,7 +67,7 @@ combSelHull (m,heur) disj fbase_ls =
 combHull :: [Formula] -> DisjFormula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 combHull fbase_ls disj =
-  putStrFS_debug "combHull" >>
+  putStrFS_debug ("combHull"++(show disj)) >>
   hull (Or disj) >>= \hulled ->
   if fbase_ls==[] 
   then 
@@ -943,10 +948,13 @@ countConjuncts formula = case formula of
   _ -> error ("countConjuncts: unexpected argument: "++show formula)
 
 hullExistentials:: Formula -> FS Formula
-hullExistentials disj = 
+hullExistentials disj =
+  putStrFS_debug "hullExistentials!" >>
   getFlags >>= \flags -> 
-  if (noExistentialsInDisjuncts==True) && (countExis disj > 0) then 
-    (putStrFS_DD 1 ("EXISTENTIAL that will be hulled:="++showSet disj)) >>
+  if (noExistentialsInDisjuncts==True) && (countExis disj > 0) 
+  then 
+    putStrFS_debug "hullExistentials! ==> hulled" >>    
+    putStrFS_DD 1 ("EXISTENTIAL that will be hulled:="++showSet disj) >>
     hull disj
   else return disj
 
