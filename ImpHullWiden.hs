@@ -546,8 +546,8 @@ chooseElem disjMcurr disjMnext heur mat =
       putStrFS ("Widen(Curr):\n"++ showNumForm2 disjMcurr) >>
       putStrFS ("Widen(Next):\n"++ showNumForm2 disjMnext) >>
       putStrFS ("Affin Matrix:\n"++ showAffinMx mat) >>
-      putStrFS ("maxe:"++show maxe) >>
-      putStrFS ("MAX matching oair is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
+      -- putStrFS ("maxe:"++show maxe) >>
+      putStrFS ("MAX matching pair is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
       if aff>=100 || npos<=1 
       then 
         putStrFS ("Matching pair automatically chosen!") >> hFlushStdoutFS >> 
@@ -688,13 +688,19 @@ removeEQ f1 =
              EqK _ -> False
              _ -> True
          ) f1
-remove_useless f1 =
+
+remove_uselessFS :: [Formula] -> FS [Formula]
+remove_uselessFS f1 =
   -- let f2 = removeEQ f1 in
-  filter (\e -> case e of
-             EqK _ -> False
+  let ans = filter (\e -> 
+           case e of
+             -- EqK _ -> False
+             EqK [Const _] -> False
              GEq [Const e] -> False
              _ -> True
-         ) f1
+         ) f1 in
+  print_DD True (-9) [("before",show f1),("after useless",show ans)] >>
+  return ans
 
 elim_dupl fs =
   let nl = map (\e -> (e,show e)) fs in
@@ -718,8 +724,8 @@ merge_set :: [Formula] -> Formula -> Formula -> Formula -> FS ([Formula],[Formul
 merge_set fbase_ls f1 f2 foperation =
         putStrFS_debug "merge_set" >>
         let (conjf1,conjf2) = (getConjuncts f1,getConjuncts f2) in
-        let conjf1x = remove_useless conjf1 in
-        let conjf2x = remove_useless conjf2 in
+        remove_uselessFS conjf1 >>= \ conjf1x ->
+        remove_uselessFS conjf2 >>= \ conjf2x ->
         let conjf1y = elim_dupl conjf1x in
         let conjf2y = elim_dupl conjf2x in
         let combined_set = (conjf1y `union` conjf2y) in
@@ -738,6 +744,7 @@ merge_set fbase_ls f1 f2 foperation =
 
 affinity :: Maybe Formula -> Maybe Formula -> Heur -> [Formula] -> (Formula -> Formula -> FS Formula) -> [QSizeVar] -> FS Int
 -- requires: f1,f2 represent conjunctive formulae
+-- TODO WN : should give higher weightage to infinity 
 affinity f1 f2 heur fbase_ls operation fsv =
   helper f1 f2 heur
   where
@@ -799,12 +806,13 @@ affinity f1 f2 heur fbase_ls operation fsv =
                     let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
                     merge_set fbase_ls f1 f2 foperation >>= \(mSet,mSetFB,num_of_orig) ->
                     let cmset = length mSet in
-                    let cmsetFB = 
-                          let n = length mSetFB in
-                          if num_of_orig == 0 then n*3
-                          else n in
+                    let cmsetFB = length mSetFB in
+                          -- let n = length mSetFB in
+                          -- if num_of_orig == 0 then n*3
+                          -- else n in
                     let fblen = length fbase_ls in
-                    let rr = if fblen == 0 then cmset else 2*cmset+cmsetFB in
+                    -- let rr = if fblen == 0 then cmset else 2*cmset+cmsetFB in
+                    let rr = cmset+cmsetFB in
                     let frac = (((fromIntegral (rr) / (fromIntegral (num_of_orig+fblen{- cf1+cf2 -}
                                                            )))*98)+1) in
                     when (frac>=100) (putStrFS_DD 0 ("WARNING frac >100: "++(show frac))) >>
