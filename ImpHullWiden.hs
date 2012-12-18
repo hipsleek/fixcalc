@@ -534,34 +534,35 @@ norm_elem ls = map (\x -> x+1) ls
 -- |Returns the indices of either the maximum element in the matrix or chosen by the user with SimInteractiveHeur.
 chooseElem :: [Disjunct] -> [Disjunct] -> Heur -> AffinMx -> FS (Int,Int)
 chooseElem disjMcurr disjMnext heur mat = 
-  let firstMax = ((0,0),mat!(0,0)) in
-  let maxe = foldl (\((mi,mj),amax) -> \((i,j),val) -> 
+  let firstMax = ((0,0),(mat!(0,0),0)) in
+  let maxe = foldl (\((mi,mj),(amax,npos)) -> \((i,j),val) -> 
+                     let nn = if val>=0 then npos+1 else npos in
                      if val>=amax 
-                     then ((i,j),val) 
-                     else ((mi,mj),amax)) firstMax (assocs mat) in
+                     then ((i,j),(val,nn)) 
+                     else ((mi,mj),(amax,nn))) firstMax (assocs mat) in
+  let (s_pair,(aff,npos))=maxe in
   case heur of
     SimInteractiveHeur ->
       putStrFS ("Widen(Curr):\n"++ showNumForm2 disjMcurr) >>
       putStrFS ("Widen(Next):\n"++ showNumForm2 disjMnext) >>
       putStrFS ("Affin Matrix:\n"++ showAffinMx mat) >>
       putStrFS ("maxe:"++show maxe) >>
-      putStrFS ("MAX elem is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
-      if snd maxe>=100 
+      putStrFS ("MAX matching oair is: " ++ show ( fst (fst maxe)+1,snd (fst maxe)+1 )) >>
+      if aff>=100 || npos<=1 
       then 
-        putStrFS ("Max element automatically chosen!") >> hFlushStdoutFS >> 
-        return (fst maxe)
+        putStrFS ("Matching pair automatically chosen!") >> hFlushStdoutFS >> 
+        return (s_pair)
       else
         putStrNoLnFS ("Choose an elem: ") >> hFlushStdoutFS >> getLineFS >>= \str -> 
         stringToArray str >>= \ans ->
         case ans of
           [] ->
-            return (fst maxe)
+            return (s_pair)
              --return (getIndices str (fst maxe))
-          _ ->
-            let b=head ans in 
+          b:_ ->
             return b
     _ -> 
-      return (fst maxe)
+      return (s_pair)
   
 stringToArray :: String -> FS [(Int,Int)]
 stringToArray s =
