@@ -80,14 +80,14 @@ Command:
     lit ':=' ParseFormula ';'                                    
     {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
              $3 env >>= \rhs ->
-             putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=" )>>
+             putStrFS_debug ("# " ++ $1 ++ ":=" )>>
              case rhs of {
                R (RecPost _ f triple) -> 
                  return (R (RecPost $1 f triple)); 
                F f -> 
                  simplify f >>= \sf -> 
                  return (F sf)} >>= \renamedRHS ->
-                 putStrFS_debug ("#bach bottomup " ++ $1 ++ ":=2") >>
+                 putStrFS_debug ("#bottomup " ++ $1 ++ ":=") >>
                  return (extendRelEnv env ($1,renamedRHS))}
   |  '[' Llit2 ']' ':=' ParseFormula1 ';'                                    
     {\env -> 
@@ -102,7 +102,7 @@ Command:
                  return (R (RecPost id f triple)); 
                (F f) -> 
                  simplify f >>= \fsimpl -> 
-                 -- putStrFS(show fsimpl) >>  
+                 --putStrFS(show fsimpl) >>  
                  return (F fsimpl)}) new_fl >>= \rhs1 -> 
            let rhs_new = zip $2 rhs1 in
            foldM (\env1 -> \(id,rhs2) ->

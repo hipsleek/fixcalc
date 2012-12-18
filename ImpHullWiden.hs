@@ -146,6 +146,7 @@ iterateHalfMx (m,heur) fbase_ls disjM affinMx =
   (putStrFS_DD 2 ("SelHullMatrix " ++ showAffinMx affinMx)) >>
   -- chooseElem heur affinMx >>= \(i,j) ->
   chooseAllMax disjM heur affinMx >>= \max_ls ->
+  --putStrFS ("IterateHalfMx") >>
   let (dist_pairs,all_elems) = chooseDistElems max_ls in
   (putStrFS_DD 2 ("OrigMatrix :" ++ show (disjM))) >>
   -- (putStrFS_DD 2 ("Chosen elem is: " ++ show (i+1,j+1))) >>
@@ -542,6 +543,35 @@ chooseElem disjMcurr disjMnext heur mat =
         return (fst maxe)
     _ -> 
       return (fst maxe)
+  
+stringToArray :: String -> FS [(Int,Int)]
+stringToArray s =
+   case s of
+        "" -> 
+          return []
+        _  -> foldM (\(c,d,final) -> \si -> if (isDigit si) then return (si:c,d,final) 
+                                            else if si==',' then return ("",c,final)
+                                            else if si==')' then return ("","",(read d,read c):final) 
+                                            else return (c,d,final) )  ("","",[]) s >>= \ar 
+                                            -> let (_,_,t)=ar in 
+                                               --mapM (\(x,y) ->  putStrFS ("Bach" ++ show x ++ show y )) t >>                    
+                                               --return t
+                                               return t                            
+
+
+
+{-stringToArray1 :: String -> FS [(Int,Int)]
+stringToArray1 s =
+   case s of
+        "" -> 
+          return []
+        _  -> 
+          foldM (\(c,d,final) si -> 
+                  return (c,d,final) ) ("","",[]) s >>= \a ->
+          putStrFS ("maxe:"++show a) >> 
+          let (_,_,t)=a in
+          return t
+-}
 
 -- |Returns all maximum elements in the matrix or chosen by the user with SimInteractiveHeur.
 chooseAllMax :: [Maybe Disjunct] -> Heur -> AffinMx -> FS [(Int,Int)]
@@ -556,9 +586,11 @@ chooseAllMax disjM heur mat =
       putStrFS ("MAX elems: " ++ show ls) >>
       putStrNoLnFS ("Choose sublist of elems: ") >> 
       hFlushStdoutFS >> 
-      getLineFS >>= \str -> 
+      getLineFS >>= \str ->
       -- return [(getIndices str (head ls))]
-      return (fst maxe)
+      stringToArray str >>= \a ->
+        if((length a) == 0) then   putStrFS ("NULL chosen...") >> return (fst maxe)
+        else mapM (\c -> return c) a >>= \b -> return b
     _ -> 
       return (fst maxe)
 
