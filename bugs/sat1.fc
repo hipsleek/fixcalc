@@ -1,0 +1,18 @@
+R1:={[x,res]: x=0 && res=1};
+
+R2:=PickEQfromEQ(R1);  
+# R2:= {[x,res]:x+1=res};
+
+R3:=PickGEQfromEQ(R2);  
+#R3:= {[x,res]:x+1>=res & res>=x+1 & res>=x};
+
+PickGEQfromEQ(R2);  
+# same as above
+
+# above should be easy to support as operations
+# already implemented.
+
+
+
+
+

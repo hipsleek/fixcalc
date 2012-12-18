@@ -387,7 +387,7 @@ iterate2k recpost (m,heur) scrt cnt =
     if (cnt>maxIter) then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterate2k recpost (m,heur) snext (cnt+1)  
 
-fixTestBU_n:: FDict -> RecPost -> Formula -> FS Bool
+fixTestBU_n :: FDict -> RecPost -> Formula -> FS Bool
 fixTestBU_n fdict recpost candidate = 
     putStrFS_debug "fixTestBU_n" >>
     addOmegaStr ("#\tObtained postcondition?") >>
@@ -408,6 +408,15 @@ fixTestBU_mr recpost1 respost2 candidate1 candidate2 =
     addOmegaStr ("#\tObtained postcondition?") >>
     subrec_mr recpost1 respost2 candidate1 candidate2 >>= \fnext -> 
     subset fnext candidate1
+
+fixTestBU_gen :: DictOK -> [(Id,Formula)] -> FS [(Id,Bool)]
+fixTestBU_gen post_dict f_dict = 
+    let new_fdict = extend_fdict f_dict in
+    mapM (\(id,snext) ->
+           let (recpost,_)=post_dict id in
+           fixTestBU_n new_fdict recpost snext >>= \fixok ->
+               return (id,fixok)) f_dict >>= \fixok_f -> 
+    return fixok_f
 
 {-
 fixTestBU_gen:: [RecPost] -> [Formula] -> FS [Bool]
@@ -1026,8 +1035,8 @@ closureFS f =
 pickDisjSatEq :: Formula -> FS [Formula]
 pickDisjSatEq f =
   let ds = getDisjuncts f in
-  let rs = map pickEq ds in
-  let rs2 = map satEq rs in
+  let rs = map getEq ds in
+  let rs2 = map pickEqFromEq rs in
   let ans = concat (rs++rs2) in
   let f_geq = getGEqFromEq ans in
   print_DD True (-4) [("orig2",show f),("eq",show rs),
@@ -1039,11 +1048,27 @@ pickDisjSatEq f =
       generates x=y (intermediate)
       then returns
            x<=0 & x>=0 & y>=0 & y<=0 & x>=y & x<=y
+
+ -- these 3 functions already present in ImpFixpoint2k.hs
+ PickEQfromEQ   - pick EQ from EQ
+ PickGEQfromEQ  - pick GEQ from EQ
+ PickGEQfromGEQ - pick GEQ from GEQ
+
+ -- these 3 functions need to be written
+    with the Pick* functions generalised to return 
+    not selected elements
+ satEQfromEQ f - add EQ from EQ 
+ satGEQfromEQ f - add GEQ from EQ 
+ satGEQfromGEQ f - add GEQ from GEQ 
+ 
+
 -}
-pickGEqfromEQ :: Formula -> FS [Formula]
-pickGEqfromEQ f =
-  let rs = pickEq f in
-  let rs2 = satEq rs in
+  
+
+pickGEQfromEQ :: Formula -> FS [Formula]
+pickGEQfromEQ f =
+  let rs = getEq f in
+  let rs2 = pickEqFromEq rs in
   let ans = (rs++rs2) in
   let f_geq = getGEqFromEq ans in
   print_DD True (-6) [("orig(pickSatEq)",show f),("eq",show rs),
@@ -1065,16 +1090,16 @@ pickGEqfromEQ f =
     which should yield only non-redundant implied formuta
 
 -}
-saturateEQ :: Formula -> FS [Formula]
-saturateEQ f =
-  pickGEqfromEQ f >>= \fs ->
-  print_DD True (-5) [("orig5",show f),("sat(GEq)",show fs)] >>
-  return fs
+-- saturateEQ :: Formula -> FS [Formula]
+-- saturateEQ f =
+--   pickGEQfromEQ f >>= \fs ->
+--   print_DD True (-5) [("orig5",show f),("sat(GEq)",show fs)] >>
+--   return fs
   
 saturateIdList :: [(Id,Formula)] -> FS [(Id,[Formula])] 
 saturateIdList ls =
   mapM (\(i,f) -> 
-         saturateEQ f >>= \fs ->
+         pickGEQfromEQ f >>= \fs ->
          return (i,fs)) ls
          -- let ns = sat2 f in
          -- let e2 = pickEq f in
@@ -1099,11 +1124,11 @@ weaken_const ((Const c):ls)
               _ -> [GEq (revSignM ls)]
 weaken_const _ = []
 
-satEq :: [[Update]] -> [[Update]]
-satEq ls = 
+pickEqFromEq :: [[Update]] -> [[Update]]
+pickEqFromEq ls = 
   case ls of
     [] -> []
-    x:ls -> (pairLSatEq x ls)++(satEq ls)
+    x:ls -> (pairLSatEq x ls)++(pickEqFromEq ls)
 
 pairLSatEq :: [Update] -> [[Update]] -> [[Update]]
 pairLSatEq x ls =
@@ -1223,7 +1248,7 @@ sat2 f =
 --   let g = getDisjuncts f in
 --   map pickEq g
   
-pickEq f =
+getEq f =
   let r = helper f in 
   map normUpd r
   where
