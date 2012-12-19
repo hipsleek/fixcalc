@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ)
 import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -58,7 +58,8 @@ import Monad(foldM)
   hull    {TkKwHull}
   fixtestpost {TkKwFixtestpost}
   fixtestinv {TkKwFixtestinv}
-
+  pickEqFromEq {TkKwPickEqFromEq}
+  pickGEqFromEq {TkKwPickGEqFromEq}
 %left '||'
 %left '&&'
 %nonassoc '>' '<' '>=' '<=' '='
@@ -89,18 +90,25 @@ Command:
                  return (F sf)} >>= \renamedRHS ->
                  putStrFS_debug ("#bottomup " ++ $1 ++ ":=") >>
                  return (extendRelEnv env ($1,renamedRHS))}
+  | ParseFormula2 ';'
+    {\env -> $1 env >>= \res ->
+               return res
+    }
   |  '[' Llit2 ']' ':=' ParseFormula1 ';'                                    
     {\env -> 
         $5 env >>= \fl ->
-        if (length fl /= length $2)
-        then error "Mismatch in number of LHS and RHS"
+        if (length fl /= length $2)  
+        then 
+            error "Mismatch in number of LHS and RHS"
         else 
            let new_fl = zip $2 fl in
              mapM (\(id,rhs) ->
              case rhs of {
                R (RecPost _ f triple) -> 
+                 putStrFS_debug("bach_f_rec="++ show f) >>  
                  return (R (RecPost id f triple)); 
                (F f) -> 
+                 putStrFS_debug("bach_f="++ show f) >>  
                  simplify f >>= \fsimpl -> 
                  --putStrFS(show fsimpl) >>  
                  return (F fsimpl)}) new_fl >>= \rhs1 -> 
@@ -108,6 +116,7 @@ Command:
            foldM (\env1 -> \(id,rhs2) ->
               case rhs2 of
                  F f -> 
+                  putStrFS_debug ("#bach_gen " ++ id ++ ":="++(show f)++"\n") >>
                   putStrNoLnFSOpt ("# " ++ id ++ ":="++(show f)++"\n") >>
                   return (extendRelEnv env1 (id,rhs2))
                  _ -> error "impossible : should be a formula"
@@ -189,6 +198,43 @@ ParseFormula1:
   	  bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
 	     >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
 
+ParseFormula2::{RelEnv -> FS RelEnv}
+ParseFormula2:
+  lit ':=' pickEqFromEq '(' lit ')'
+  {\env ->
+      case (lookupVar $5 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("PickEqFromEq sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#After parse Formula: "++show (fl)) >>
+      let rs1=getEq fl in
+      putStrFS_debug("#getEq: "++show (rs1)) >>
+      let eq_udt_list =pickEqFromEq rs1 in
+      putStrFS_debug("#list eq after pick="++show (eq_udt_list)) >>
+      let rhs=concat (map (\x -> return (EqK x)) eq_udt_list) in
+      putStrFS_debug("#concat="++show (rhs)) >>
+      foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs       
+      --return env
+   }
+ | lit ':=' pickGEqFromEq '(' lit ')'
+  {\env ->
+      case (lookupVar $5 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("PickGEqFromEq sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#After parse Formula GEq: "++show (fl)) >>
+      pickGEQfromEQ fl >>= \gEq ->
+      mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
+      let rhs=concat (mapM (\x -> return x) gEq) in
+      --putStrFS_debug("#concat="++show (rhs)) >>
+      foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs       
+      --return env
+   }
+
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
     '{' '[' LPorUSizeVar ']' ':' Formula '}'      
@@ -244,7 +290,7 @@ ParseFormula:
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y4 - "++lit)} in
-                     combSelHull ($5,heur) (getDisjuncts f) [] >>= \disj -> return (F (Or disj))}
+                     combSelHull ($5,heur) (getDisjuncts f) undefined >>= \disj -> return (F (Or disj))}
   | manualhull '(' lit ',' '[' LInt ']' ')'
         {\env -> putStrFSOpt ("manualhull(" ++ $3 ++ "," ++ show $6 ++ ");") >>
                  case lookupVar $3 env of
