@@ -7,7 +7,7 @@ R3:=PickGEQfromEQ(R2);
 R3;
 #R3:= {[x,res]:x+1>=res & res>=x+1 & res>=x};
 
-#PickGEQfromEQ(R2);  
+PickGEQfromEQ(R2);  
 # same as above
 
 # above should be easy to support as operations
