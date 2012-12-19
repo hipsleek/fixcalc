@@ -155,7 +155,7 @@ extend_fdict ls id =
 subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
 subrec_genN str i j dict f_ls =
   subrec_genN_x str i j dict f_ls >>= \res ->
-  print_RES "subrec_genN" 3 [("num",show (j-i+1)),("orig",show f_ls),("res(subrec_gen)",show res)] >>
+  print_RES "subrec_genN" 3 [("num",show (j-i+1)),("orig",show f_ls),("res(subrec)",show res)] >>
   return res
 
 subrec_genN_x :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
@@ -553,7 +553,9 @@ subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
             Nothing ->
                 error ("bad mutual recursion detected :"++(show actualMN))
             Just body ->
-                if not (length (formalI++formalO) == length actualIO) 
+                let fp = formalI++formalO in
+                print_DD True 100 [("formal",show fp),("actual",show actualIO)] >>
+                if not (length (fp) == length actualIO) 
                 then
                     error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
                 else

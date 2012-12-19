@@ -118,7 +118,7 @@ getUnsafeUserChecks = FS (\st -> return (st,unsafeUserChecks st))
 putStrFS :: String -> FS ()
 putStrFS str = FS (\st -> putStrLn str >> return (st,()))
 
-putStrFS_debug:: String -> FS ()
+putStrFS_debug :: String -> FS ()
 putStrFS_debug s = 
   getFlags >>= \flags ->
   when (showDebugMSG flags>=100) (putStrFS ("DEBUG:"++s)) >>
