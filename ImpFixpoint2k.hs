@@ -15,7 +15,7 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,print_RES,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula
@@ -154,20 +154,28 @@ extend_fdict ls id =
 
 subrec_genN :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
 subrec_genN str i j dict f_ls =
+  subrec_genN_x str i j dict f_ls >>= \res ->
+  print_RES "subrec_genN" 3 [("num",show (j-i+1)),("orig",show f_ls),("res(subrec_gen)",show res)] >>
+  return res
+
+subrec_genN_x :: String -> Int -> Int -> DictOK -> [(Id,Formula)] -> FS [(Id,Formula)] 
+subrec_genN_x str i j dict f_ls =
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- WN : line below cause a LOOP!
   -- addOmegaStr("Subst for " ++ (show str) ++ ":") >>
   -- addOmegaStr("+++++++++++++++++++++++++++++") >>
   -- addOmegaStr(str) >>
   if (i>j) 
-  then return f_ls
+  then 
+    mapM (\f2 -> simplify_n f2) f_ls >>= \res ->
+    return res
   else
-    let str = str++(show i)++"_" in
+    -- let str = str++(show i)++"_" in ### circular LOOP here!####
     subrec_g dict f_ls >>= \f1 -> 
-    mapM (\f2 -> simplify_n f2) f1 >>= \f1 ->
+    -- mapM (\f2 -> simplify_n f2) f1 >>= \f1 ->
     -- infinite loop when str is used below
-    mapM (\(id,f) -> addOmegaStr ("F_init"++id++" :="++showSet f)) f1 >>
-    subrec_genN str (i+1) j dict f1
+    mapM (\(id,f) -> addOmegaStr (str++"_"++id++":="++showSet f)) f1 >>
+    subrec_genN_x str (i+1) j dict f1
     where
       simplify_n x@(id,f) = 
           simplify f >>= \nf ->

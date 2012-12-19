@@ -1,7 +1,17 @@
 R1:={[x,k] -> [res] -> []: ((x=0 && res=0 && 0<=k<=1) ||  (exists (res1: (exists (x1,k1:((res=res1+1 && (x=x1+1 && 0<x)) && (k=1 && k1=0 || k=0 && k1=1) && R1(x1,res1,k1)))) )) )
 };
-[T1]:=bottomupgen([R1], [2], InterHeur);
-T1;
+[T1]:=bottomupgen([R1], [1], SimHeur);
+[T2]:=bottomupgen([R1], [2], SimHeur);
+T1 subset T2;
+T2 subset T1;
+T1;T2;
+
+T3:={[x,res,k]:(((1 >= k && 2x >= res) && k + x >= res) && x >= 0 && 1>=k>=0 && res>=0)};
+
+fixtestPost(R1,T1);
+fixtestPost(R1,T2);
+fixtestPost(R1,T3);
+
 #bottomupgen([R2,R1], [1,1], SimHeur);
 
 

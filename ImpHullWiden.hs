@@ -11,7 +11,7 @@ module ImpHullWiden(
   Disjunct,       -- |Conjunctive formula. The Or constructor is not used.
   DisjFormula     -- |Formula in DNF form equivalent to (Or [Formula]). The Or constructor is not used in any Formula in the list.
 ) where
-import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags,putStrFS_debug,putStrFS_DD,print_DD)
+import Fresh(FS,addOmegaStr,putStrFS,putStrNoLnFS,getLineFS,hFlushStdoutFS,getFlags,putStrFS_debug,putStrFS_DD,print_DD,print_RES)
 import ImpAST
 import System.IO.Unsafe(unsafePerformIO)
 import ImpConfig(noExistentialsInDisjuncts,showDebugMSG,Heur(..),FixFlags)
@@ -70,19 +70,25 @@ combHull fbase_ls disj =
   let dd = Or disj in
   putStrFS_debug ("combHull"++(show dd)) >>
   hull (dd) >>= \hulled ->
-  if fbase_ls==[] 
-  then 
-      putStrFS_debug ("combHull(res)"++(show hulled)) >>
-    return hulled
-  else
-    keepProp fbase_ls hulled >>= \new_hulled ->
-    print_DD True (-13) [("fbase",show fbase_ls),("hulled",show hulled),("new_hull",show new_hulled)] >>
-    return new_hulled 
+  -- if fbase_ls==[] 
+  -- then 
+  --     putStrFS_debug ("combHull(res)"++(show hulled)) >>
+  --   return hulled
+  -- else
+  keepProp fbase_ls dd >>= \ext_f ->
+  let ans = And (hulled:ext_f) in
+  print_RES "combHull" (3) [("fbase_ls",show fbase_ls),("hulled",show hulled),("ext_f",show ext_f),("ans",show ans)] >>
+  return ans 
 
 -- TODO WN 
-keepProp:: [Formula] -> Formula -> FS Formula
+keepProp:: [Formula] -> Formula -> FS [Formula]
 -- requires: disj represents the DNF-form of a formula f (Or fs)
-keepProp fbase hulled = return hulled
+keepProp fbase orig = 
+  mapM (subset orig) fbase >>= \suboks ->
+  let fcrts' = zip fbase suboks in
+  let fcrt' = filter (\(f,ok) -> ok) fcrts' in
+  let ans = (map fst fcrt') in
+  return ans
 
 computeHalfMx :: Heur -> [Formula] -> [Maybe Disjunct] -> FS AffinMx
 -- ensures: (n,n)=length res, where n=length disj
@@ -250,9 +256,9 @@ comb2Hull f1 f2 =
                       ] >>
   return ans
 
-comb2Widen:: Formula -> Formula -> FS Formula
-comb2Widen f1 f2 = 
-  widenOne [] (f1,f2) >>= \ ans ->
+comb2Widen :: [Formula] -> Formula -> Formula -> FS Formula
+comb2Widen fbase_ls f1 f2 = 
+  widenOne fbase_ls (f1,f2) >>= \ ans ->
   print_DD True (-8) [("widenOne(F1)",show f1),
                       ("widenOne(F2)",show f2),
                       ("widenOne(ans)",show ans)
@@ -302,10 +308,11 @@ widen heur fbase_ls (xs,ys) =
   let (mxs,mys) = (xsNoEx,ysNoEx) in
   computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
-  print_DD True 2 [("affixMx(widen)",show affinMx),("list(widen)",show ijs)] >>
   mapM (\(i,j) -> widenOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   -- WN :causing LOOP?
-  addOmegaStr ("WidenOUT:=" ++ showSet(Or res)) >> 
+  let ans = Or res in
+  print_DD True 2 [("widen(affixMx)",show affinMx),("widen(list)",show ijs),("widen(res)",show ans)] >>
+  addOmegaStr ("WidenOUT:=" ++ showSet(ans)) >> 
   return res
   
 computeMx_full :: Heur -> [Formula] -> ([Disjunct],[Disjunct]) -> FS AffinMx
@@ -328,7 +335,7 @@ computeMx_full heur fbase_ls (disjCrt,disjNxt) =
 computeRow:: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
 computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | j>n = return mat
 computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls comb2Widen (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
+  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls (comb2Widen fbase_ls) (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
   computeRow heur fbase_ls newmat (m,n) i (j+1) (disjCrt,disjNxt)
 
@@ -336,7 +343,7 @@ computeRow heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) =
 computeCol :: Heur -> [Formula] -> AffinMx -> (Int,Int) -> Int -> Int -> ([Disjunct],[Disjunct]) -> FS AffinMx
 computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) | i>n = return mat
 computeCol heur fbase_ls mat (m,n) i j (disjCrt,disjNxt) = 
-  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls comb2Widen (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
+  affinity (Just (disjCrt!!i)) (Just (disjNxt!!j)) heur fbase_ls (comb2Widen fbase_ls) (nub $ concatMap fqsv ((disjCrt++disjNxt))) >>= \affinIJ -> 
   let newmat = mat // [((i,j),affinIJ)] in
   computeCol heur fbase_ls newmat (m,n) (i+1) j (disjCrt,disjNxt)
 
@@ -397,15 +404,13 @@ widenOne fbase_ls (fcrt,fnext) =
   let satf_l = getConjunctsN satf in
   -- closure fcrt >>= \fcrts ->    --
   let new_ls = (satf_l++fbase_ls) in
-  mapM (subset fnext) new_ls >>= \suboks ->
-  let fcrts' = zip new_ls suboks in
-  let fcrt' = filter (\(f,ok) -> ok) fcrts' in
-  let fwid = fAnd (map fst fcrt') in
-  print_DD True (2) [("WidenOne(fscrt)",show fcrt),
-                      ("WidenOne(fnext)",show fnext),
+  keepProp new_ls fnext >>= \implied_ls ->
+  let fwid = fAnd (implied_ls) in
+  print_RES "widenOne" (3) [("fcrt",show fcrt),
+                      ("fnext",show fnext),
                       ("fbase_ls",show fbase_ls),
                       ("Sat(fcrt)",show satf_l),
-                      ("WidenOne(output)",show fwid)
+                      ("result",show fwid)
                       -- ,("closure",show fcrts)
                      ] >>
   addOmegaStr ("WidenRes:=" ++ showSet fwid) >>

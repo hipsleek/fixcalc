@@ -134,6 +134,13 @@ print_DD flag dno lst =
       else
         return ()
 
+print_RES :: String -> Int -> [(String,String)] -> FS ()
+print_RES str dno lst =
+    putStrFS_DD dno (">>>>>>>>"++str++">>>>>>>>") >>
+    print_DD True dno lst >>
+    putStrFS_DD dno ("<<<<<<<<"++str++"<<<<<<<<")
+
+
 -- print exact if d is negative; otherwise print when exceed
 putStrFS_DD:: Int -> String -> FS ()
 putStrFS_DD d s = 
