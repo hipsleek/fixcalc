@@ -67,10 +67,12 @@ combSelHull (m,heur) disj fbase_ls =
 combHull :: [Formula] -> DisjFormula -> FS Formula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 combHull fbase_ls disj =
-  putStrFS_debug ("combHull"++(show disj)) >>
-  hull (Or disj) >>= \hulled ->
+  let dd = Or disj in
+  putStrFS_debug ("combHull"++(show dd)) >>
+  hull (dd) >>= \hulled ->
   if fbase_ls==[] 
   then 
+      putStrFS_debug ("combHull(res)"++(show hulled)) >>
     return hulled
   else
     keepProp fbase_ls hulled >>= \new_hulled ->
