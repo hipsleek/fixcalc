@@ -147,16 +147,16 @@ putStrFS_DD d s =
   getFlags >>= \flags ->
   let m = showDebugMSG flags in
   let (flag,str)= 
-        if d<0 then (m==d,"") 
-        else if m>9 then (d>=m,"DD_"++(show d)++":") 
-             else if m<5 then (m>=d,"")
-                  else if d>=10 then (True,"DD_"++(show d)++":")
+        if d<0 then (m==d,"EXACT:") 
+        else if m>50 then (d>=m,"DD_"++":") 
+             else if m<10 then (m>=d,"")
+                  else if d>=50 then (True,"DD_"++(show d)++":")
                        else (m>=d,"")
-  -- -v:5-9 (for details + all tracing + omega)
-  -- -v:1-4 (for details only)
-  -- -v:10.. (for tracing only)
+  -- -v:10-50 (for details + all tracing + omega)
+  -- -v:1-9 (for details only)
+  -- -v:51.. (for tracing only)
   -- -v:-1 (minimal tracing)
-  -- -v:-2..(exact tracing)
+  -- -v:-2..(exact tracing only)
   in
   when flag (putStrFS (str++s)) >>
   return ()
