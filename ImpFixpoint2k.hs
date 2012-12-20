@@ -19,7 +19,7 @@ module ImpFixpoint2k(
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
 ) where
-import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,getCPUTimeFS)
+import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,print_RES,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula
@@ -1096,7 +1096,17 @@ pickDisjSatEq f =
  
 
 -}
-  
+
+
+
+satEQfromEQ :: Formula -> FS [Formula]
+satEQfromEQ f =
+  let rs = getEq f in
+  let rs2 = pickEqFromEq rs in
+  let ans = (rs++rs2) in
+  let res = map (\ u -> EqK u) ans in
+  print_RES "satEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
+  return (res)
 
 pickGEQfromEQ :: Formula -> FS [Formula]
 pickGEQfromEQ f =

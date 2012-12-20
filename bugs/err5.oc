@@ -32,5 +32,14 @@ K6;
 
 ConvexHull K6;
 #{[x,1,res]: 1 <= x <= 5}
+K1a := {[x,res]: 1 + 3res = 2x};
+K1b := {[x,res]: res=1 && x=1};
+K1a;K1b;
+P1:=K1a union K1b;
+K1a intersection K1b;
+#hull P1;
+ConvexHull P1;
 
-
+P2 := K1 union K3;
+P2 subset {[x,k,res]:res>=0 && 1<=x<=5 && k=1};
+ConvexHull P2;
