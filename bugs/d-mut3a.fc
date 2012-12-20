@@ -9,7 +9,7 @@ R1:={[x,k] -> [res] -> []: ((x=0 && res=1 && k=0) ||  (exists (x1: (exists (res1
 # T2:=(x >= 0 && res >= x)
 # T1:=(x >= 0 && res >= 1 + x)
 
-fixtestPost([R2,R1],[T2,T1]);
+fixtestPost([R2,R1],[T2,T1,T1]);
 fixtestPost([R2,R1],[T2,T1]);
 #fixtestPost(R2,T1);
 # above is a mutual rec fix-point test that would

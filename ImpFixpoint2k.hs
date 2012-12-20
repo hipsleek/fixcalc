@@ -147,11 +147,9 @@ subrec_g dict f_ls =
         Nothing -> Nothing
         Just (_,body) -> Just body 
 
-extend_fdict :: [(Id,Formula)] -> Id -> Maybe Formula
-extend_fdict ls id =
-  -- case (fdict id) of
-  --   Just a -> Just a
-  --   Nothing ->
+--mk_maybe_dict :: (Eq a) => [(Id,Formula)] -> Id -> Maybe Formula
+mk_maybe_dict :: (Eq a) => [(a,b)] -> a -> Maybe b
+mk_maybe_dict ls id =
       case (find (\(i,_) -> id==i) ls) of
         Nothing -> Nothing
         Just (_,f) -> Just f
@@ -231,7 +229,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
-    let n_fdict = extend_fdict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
+    let n_fdict = mk_maybe_dict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
     putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
@@ -415,7 +413,7 @@ fixTestBU_mr recpost1 respost2 candidate1 candidate2 =
 
 fixTestBU_gen :: DictOK -> [(Id,Formula)] -> FS [(Id,Bool)]
 fixTestBU_gen post_dict f_dict = 
-    let new_fdict = extend_fdict f_dict in
+    let new_fdict = mk_maybe_dict f_dict in
     mapM (\(id,snext) ->
            let (recpost,_)=post_dict id in
            fixTestBU_n new_fdict recpost snext >>= \fixok ->
@@ -427,19 +425,23 @@ subrec_gen recpostL candidates=
   let ziprc=zip recpostL candidates in
   mapM (\(rc,cd)-> subrec_z rc cd) ziprc
 
+mk_dict :: (Eq a,Show a) => [(a,b)] -> a -> b
 mk_dict ls id =
       case (find (\(i,_) -> id==i) ls) of
-        Nothing -> error ("bad recursion : cannot find "++id)
+        Nothing -> error ("bad recursion : cannot find "++(show id))
         Just (_,f) -> f
 
 
 fixTestBU_Lgen :: [RecPost] -> [Formula] -> FS [Bool]
 fixTestBU_Lgen recpostL candidates = 
   putStrFS_debug "fixTestBU_Lgen" >>
-  -- getFlags >>= \flags ->
   let fixf = (1,SimilarityHeur) in
   let iL = map (\(RecPost id _ _ ) -> id) recpostL in
   let rp_l = map (\x@(RecPost id _ _ ) -> (id,(x,fixf))) recpostL in
+  -- if length iL /= length candidates 
+  -- then
+  --   error "fixTestPost:mismatch in two args"
+  -- else
   let ncand = zip iL candidates in
   let ndict = mk_dict rp_l in
   fixTestBU_gen ndict ncand >>= \ans ->
