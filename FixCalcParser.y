@@ -170,7 +170,8 @@ Command:
                              _->  error ("Arguments of fixtest are incorrect"))  $4
           in 
           fixTestBU_Lgen rcp mf >>= \fixok ->
-          mapM (\fok -> putStrFSOpt("\n# " ++ show fok ++ "\n")) fixok >>
+          putStrFSOpt("\n# " ++ show fixok ++ "\n") >>
+          -- mapM (\fok -> putStrFSOpt("\n# " ++ show fok ++ "\n")) fixok >>
           return env
         else 
           error ("Mismatch numbers of [] and [] in RHS!")

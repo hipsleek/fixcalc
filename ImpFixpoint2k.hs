@@ -426,11 +426,28 @@ subrec_gen:: [RecPost]->[Formula]-> FS [Formula]
 subrec_gen recpostL candidates=
   let ziprc=zip recpostL candidates in
   mapM (\(rc,cd)-> subrec_z rc cd) ziprc
-  
+
+mk_dict ls id =
+      case (find (\(i,_) -> id==i) ls) of
+        Nothing -> error ("bad recursion : cannot find "++id)
+        Just (_,f) -> f
+
+
 fixTestBU_Lgen :: [RecPost] -> [Formula] -> FS [Bool]
 fixTestBU_Lgen recpostL candidates = 
-  subrec_gen recpostL candidates >>=
-  \f -> let zipf = zip f candidates in mapM (\(f,c) -> (subset f c)) zipf
+  putStrFS_debug "fixTestBU_Lgen" >>
+  -- getFlags >>= \flags ->
+  let fixf = (1,SimilarityHeur) in
+  let iL = map (\(RecPost id _ _ ) -> id) recpostL in
+  let rp_l = map (\x@(RecPost id _ _ ) -> (id,(x,fixf))) recpostL in
+  let ncand = zip iL candidates in
+  let ndict = mk_dict rp_l in
+  fixTestBU_gen ndict ncand >>= \ans ->
+  let bdict = mk_dict ans in
+  let res = map (\i -> bdict i) iL in
+  return res
+  -- subrec_gen recpostL candidates >>=
+  -- \f -> let zipf = zip f candidates in mapM (\(f,c) -> (subset f c)) zipf
                                       
 {-
 fixTestBU_gen:: [RecPost] -> [Formula] -> FS [Bool]

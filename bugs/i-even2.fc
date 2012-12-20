@@ -19,7 +19,7 @@ Fix subset Res2;
 
 #PairWiseCheck Res2; not supported?
 
-fixtestPost([R1,R1],[Fix,Res2]);
+fixtestPost([R1],[Fix]);
 
 #fixtestPost(R1,Res2);
 
