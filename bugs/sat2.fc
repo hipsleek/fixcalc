@@ -1,7 +1,7 @@
 R1:={[x,res]: x=0 && res=1};
 
 R2:=SatEQfromEQ(R1);  
-#R2:= {[x,res]:x=0 && res=1 && x+1=res};
+R2:= {[x,res]:x=0 && res=1 && x+1=res};
 
 
 SatGEQfromEQ(R2);  

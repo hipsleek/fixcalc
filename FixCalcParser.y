@@ -244,7 +244,7 @@ ParseFormula2:
         Just (F f) -> 
           simplify f >>= \f1 ->
           return f1
-        _ -> error ("PickEqFromEq sorely supports Formula")
+        _ -> error ("PickEqFromEq solely supports Formula")
       >>= \fl -> 
       putStrFS_debug("#After parse Formula: "++show (fl)) >>
       let rs1=getEq fl in
@@ -254,8 +254,9 @@ ParseFormula2:
       let rhs=concat (map (\x -> return (EqK x)) eq_udt_list) in
       putStrFS_debug("#concat="++show (rhs)) >>
       --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?     
-      putStrFS("#pickEqFromEq of "++$3++" : "++show (And rhs)) >>
-	  return (extendRelEnv env (" ",(F (And rhs))))
+      putStrFS_DD 0 ("# pickEqFromEq("++$3++")") >>
+      putStrFS(show (And rhs)) >>
+      return (extendRelEnv env (" ",(F (And rhs))))
       --return env
    }  
  | lit ':=' pickGEqFromEq '(' lit ')'
