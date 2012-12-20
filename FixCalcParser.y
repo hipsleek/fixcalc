@@ -254,6 +254,7 @@ ParseFormula2:
       let rhs=concat (map (\x -> return (EqK x)) eq_udt_list) in
       putStrFS_debug("#concat="++show (rhs)) >>
       --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?     
+      putStrFS("#pickEqFromEq of "++$3++" : "++show (And rhs)) >>
 	  return (extendRelEnv env (" ",(F (And rhs))))
       --return env
    }  
@@ -287,7 +288,8 @@ ParseFormula2:
       mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
       let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>
-      --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?     
+      --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?
+      putStrFS("#pickGEqFromEq of "++$3++" : "++show (And rhs)) >>     
 	  return (extendRelEnv env (" ",(F (And rhs))))
       --return env
    }	
