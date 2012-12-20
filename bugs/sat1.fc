@@ -7,17 +7,17 @@ R3:=PickGEQfromEQ(R2);
 R3;
 #R3:= {[x,res]:x+1>=res & res>=x+1 & res>=x};
 
-PickGEQfromEQ(R2);  
+#PickGEQfromEQ(R2);  
 # same as above
 
 
-T1:={[x,res,k]: x=0 && res=1 && k=0};
-T2:=PickEQfromEQ(T1);
-T2;
+#T1:={[x,res,k]: x=0 && res=1 && k=0};
+#T2:=PickEQfromEQ(T1);
+#T2;
 
 # below does not print!
-PickEQfromEQ(T1); 
-T2;
+#PickEQfromEQ(T1); 
+#T2;
 # above should be easy to support as operations
 # already implemented.
 

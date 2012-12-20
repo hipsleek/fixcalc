@@ -1,10 +1,12 @@
 R1:={[x,res]: x=0 && res=1};
 
-R2:=SatEQfromEQ(R1);  
-R2:= {[x,res]:x=0 && res=1 && x+1=res};
+R2:=SatEQfromEQ(R1); 
+#SatEQfromEQ(R1);  
+#R2:= {[x,res]:x=0 && res=1 && x+1=res};
 
-
-SatGEQfromEQ(R2);  
+R3:=SatGEQfromEQ(R2);
+R3;
+SatGEQfromEQ(R2);
 #R3:= {[x,res]:x>=0 & 0>=x & res>=1 && 1<=res && res>=0 && x+1>=res & res>=x+1 & res>=x};
 
 

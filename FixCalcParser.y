@@ -60,6 +60,8 @@ import Monad(foldM)
   fixtestinv {TkKwFixtestinv}
   pickEqFromEq {TkKwPickEqFromEq}
   pickGEqFromEq {TkKwPickGEqFromEq}
+  SatEQfromEQ {TkKwSatEQfromEQ}
+  SatGEQfromEQ {TkKwSatGEQfromEQ}
 %left '||'
 %left '&&'
 %nonassoc '>' '<' '>=' '<=' '='
@@ -171,7 +173,6 @@ Command:
           in 
           fixTestBU_Lgen rcp mf >>= \fixok ->
           putStrFSOpt("\n# " ++ show fixok ++ "\n") >>
-          -- mapM (\fok -> putStrFSOpt("\n# " ++ show fok ++ "\n")) fixok >>
           return env
         else 
           error ("Mismatch numbers of [] and [] in RHS!")
@@ -270,7 +271,7 @@ ParseFormula2:
       >>= \fl -> 
       putStrFS_debug("#After parse Formula GEq: "++show (fl)) >>
       pickGEQfromEQ fl >>= \gEq ->
-      mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
+      --mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
       let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>
       --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?     
@@ -287,14 +288,94 @@ ParseFormula2:
       >>= \fl -> 
       putStrFS_debug("#After parse Formula GEq: "++show (fl)) >>
       pickGEQfromEQ fl >>= \gEq ->
-      mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
+      --mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
       let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>
       --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?
       putStrFS("#pickGEqFromEq of "++$3++" : "++show (And rhs)) >>     
 	  return (extendRelEnv env (" ",(F (And rhs))))
       --return env
-   }	
+   }
+ | lit ':=' SatEQfromEQ '(' lit ')'
+  {\env -> 
+       case (lookupVar $5 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("satEQfromEQ sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#satEQEQ After parse Formula: "++show (fl)) >>
+      let rs1=getEq fl in
+      putStrFS_debug("#getEq: "++show (rs1)) >>
+      let eq_udt_list =pickEqFromEq rs1 in
+      putStrFS_debug("#list eq after pick="++show (eq_udt_list)) >>
+      let rhs1=concat (map (\x -> return (EqK x)) eq_udt_list) in
+	  let rhs2=concat (map (\x -> return (EqK x)) rs1) in
+	  let rhs_aux=map (\x->x:rhs2) rhs1 in
+	  let rhs= concat rhs_aux in
+      putStrFS_debug("#rhs1="++show (rhs1)) >>
+	  putStrFS_debug("#rhs2="++show (rhs2)) >>
+	  putStrFS_debug("#satEqEq="++show (rhs)) >>     
+	  return (extendRelEnv env ($1,(F (And rhs))))
+	  --return env
+   }
+ | SatEQfromEQ '(' lit ')'
+  {\env -> 
+       case (lookupVar $3 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("satEQfromEQ sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#satEQEQ After parse Formula: "++show (fl)) >>
+      let rs1=getEq fl in
+      putStrFS_debug("#getEq: "++show (rs1)) >>
+      let eq_udt_list =pickEqFromEq rs1 in
+      putStrFS_debug("#list eq after pick="++show (eq_udt_list)) >>
+      let rhs1=concat (map (\x -> return (EqK x)) eq_udt_list) in
+	  let rhs2=concat (map (\x -> return (EqK x)) rs1) in
+	  let rhs_aux=map (\x->x:rhs2) rhs1 in
+	  let rhs= concat rhs_aux in
+      putStrFS_debug("#rhs1="++show (rhs1)) >>
+	  putStrFS_debug("#rhs2="++show (rhs2)) >>
+	  putStrFS_debug("#satEqEq="++show (rhs)) >>
+      putStrFS("#SatEQfromEQ of " ++ $3 ++ show (And rhs)) >>
+	  return (extendRelEnv env (" ",(F (And rhs))))
+	  --return env
+   }  
+ | lit ':=' SatGEQfromEQ '(' lit ')'
+  {\env ->
+      case (lookupVar $5 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("satGEQFromEQ sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#saeGEQEQ After parse Formula GEq: "++show (fl)) >>
+      pickGEQfromEQ fl >>= \gEq ->
+      --mapM (\g1 ->putStrFS("#list GEq after pick="++show (g1))) gEq >>
+      let rhs=concat (mapM (\x -> return x) gEq) in
+      putStrFS_debug("#SatGEQEQ="++show (rhs)) >>  
+	  return (extendRelEnv env ($1,(F (And rhs))))
+      --return env
+   }
+ | SatGEQfromEQ '(' lit ')'
+  {\env ->
+      case (lookupVar $3 env) of 
+        Just (F f) -> 
+          simplify f >>= \f1 ->
+          return f1
+        _ -> error ("satGEQFromEQ sorely supports Formula")
+      >>= \fl -> 
+      putStrFS_debug("#saeGEQEQ After parse Formula GEq: "++show (fl)) >>
+      pickGEQfromEQ fl >>= \gEq ->
+      --mapM (\g1 ->putStrFS("#list GEq after pick="++show (g1))) gEq >>
+      let rhs=concat (mapM (\x -> return x) gEq) in
+      putStrFS_debug("#SatGEQEQ="++show (rhs)) >>  
+	  putStrFS("#SatGEQfromEQ of " ++$3++ show (And rhs)) >>
+	  return (extendRelEnv env (" ",(F (And rhs))))
+      --return env
+   }        
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
     '{' '[' LPorUSizeVar ']' ':' Formula '}'      
