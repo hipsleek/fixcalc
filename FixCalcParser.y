@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ,fixTestBU_Lgen)
 import ImpFormula(simplify,subset,pairwiseCheck,hull)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -105,10 +105,10 @@ Command:
              mapM (\(id,rhs) ->
              case rhs of {
                R (RecPost _ f triple) -> 
-                 putStrFS_debug("bach_f_rec="++ show f) >>  
+                 --putStrFS_debug("bach_f_rec="++ show f) >>  
                  return (R (RecPost id f triple)); 
                (F f) -> 
-                 putStrFS_debug("bach_f="++ show f) >>  
+                 --putStrFS_debug("bach_f="++ show f) >>  
                  simplify f >>= \fsimpl -> 
                  --putStrFS(show fsimpl) >>  
                  return (F fsimpl)}) new_fl >>= \rhs1 -> 
@@ -116,7 +116,7 @@ Command:
            foldM (\env1 -> \(id,rhs2) ->
               case rhs2 of
                  F f -> 
-                  putStrFS_debug ("#bach_gen " ++ id ++ ":="++(show f)++"\n") >>
+                  --putStrFS_debug ("#bach_gen " ++ id ++ ":="++(show f)++"\n") >>
                   putStrNoLnFSOpt ("# " ++ id ++ ":="++(show f)++"\n") >>
                   return (extendRelEnv env1 (id,rhs2))
                  _ -> error "impossible : should be a formula"
@@ -148,7 +148,7 @@ Command:
                   putStrFS ("\n" ++ show recpost ++ "\n") >> 
                   return env
     }
-  | fixtestpost '(' lit ',' lit ')' ';'
+  {-| fixtestpost '(' lit ',' lit ')' ';' --fixtestpost '(' '['Llit ']'',' '['Llit ']'')' ';'
     {\env -> putStrFS("# fixtestPost("++ $3 ++ "," ++ $5 ++ ");") >> 
              case (lookupVar $3 env,lookupVar $5 env) of
                (Just (R recpost),Just (F f)) ->
@@ -156,6 +156,25 @@ Command:
                   putStrFSOpt("\n# " ++ show fixok ++ "\n") >> 
                   return env
                (_,_) -> error ("Arguments of fixtest are incorrect")}
+  -}
+  | fixtestpost '(' '['Llit2 ']'',' '['Llit2 ']'')' ';'
+    {\env -> --putStrFS("# fixtestPost("++ (show $4) ++ "," ++ (show $8) ++ ");") >> 
+        if(length $4 ==length $8) 
+        then
+          let mf=map (\x -> case lookupVar x env of
+                             Just (F f) -> f
+                             _->  error ("Arguments of fixtest are incorrect")) $8
+          in
+          let rcp=map (\x -> case lookupVar x env of
+                             Just (R recpost)-> recpost
+                             _->  error ("Arguments of fixtest are incorrect"))  $4
+          in 
+          fixTestBU_Lgen rcp mf >>= \fixok ->
+          mapM (\fok -> putStrFSOpt("\n# " ++ show fok ++ "\n")) fixok >>
+          return env
+        else 
+          error ("Mismatch numbers of [] and [] in RHS!")
+    }
   | fixtestinv '(' lit ',' lit ')' ';'
     {\env -> putStrFS("# fixtestInv("++ $3 ++ "," ++ $5 ++ ");") >> 
              case (lookupVar $3 env,lookupVar $5 env) of

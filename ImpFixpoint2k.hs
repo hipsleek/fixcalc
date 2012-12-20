@@ -10,6 +10,7 @@ module ImpFixpoint2k(
   getEq,
   pickEqFromEq,
   pickGEQfromEQ,
+  fixTestBU_Lgen,
   fixTestBU,
   fixTestTD,
   getOneStep,
@@ -421,6 +422,16 @@ fixTestBU_gen post_dict f_dict =
                return (id,fixok)) f_dict >>= \fixok_f -> 
     return fixok_f
 
+subrec_gen:: [RecPost]->[Formula]-> FS [Formula]
+subrec_gen recpostL candidates=
+  let ziprc=zip recpostL candidates in
+  mapM (\(rc,cd)-> subrec_z rc cd) ziprc
+  
+fixTestBU_Lgen :: [RecPost] -> [Formula] -> FS [Bool]
+fixTestBU_Lgen recpostL candidates = 
+  subrec_gen recpostL candidates >>=
+  \f -> let zipf = zip f candidates in mapM (\(f,c) -> (subset f c)) zipf
+                                      
 {-
 fixTestBU_gen:: [RecPost] -> [Formula] -> FS [Bool]
 fixTestBU_gen recpost candidate = 
