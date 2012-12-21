@@ -164,7 +164,7 @@ subrec_genN str i j dict f_ls =
   if (i>j) 
   then return f_ls
   else
-    let str = str++(show i)++"_" in
+    -- let str = str++(show i)++"_" in
     subrec_g dict f_ls >>= \f1 -> 
     mapM (\f2 -> simplify_n f2) f1 >>= \f1 ->
     -- infinite loop when str is used below
@@ -438,10 +438,7 @@ fixTestBU_Lgen recpostL candidates =
   let fixf = (1,SimilarityHeur) in
   let iL = map (\(RecPost id _ _ ) -> id) recpostL in
   let rp_l = map (\x@(RecPost id _ _ ) -> (id,(x,fixf))) recpostL in
-  -- if length iL /= length candidates 
-  -- then
-  --   error "fixTestPost:mismatch in two args"
-  -- else
+  -- if length iL /= length candidates (already checked)
   let ncand = zip iL candidates in
   let ndict = mk_dict rp_l in
   fixTestBU_gen ndict ncand >>= \ans ->
