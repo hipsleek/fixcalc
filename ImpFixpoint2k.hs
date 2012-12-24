@@ -1105,6 +1105,15 @@ satEQfromEQ f =
   print_RES "satEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
   return (res)
 
+satGEQfromEQ :: Formula -> FS [Formula]
+satGEQfromEQ f =
+  let rs = getEq f in
+  let rs2 = pickEqFromEq rs in
+  let ans = (rs++rs2) in
+  let res = map (\ u -> EqK u) ans in
+  print_RES "satEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
+  return (res)
+
 pickGEQfromEQ :: Formula -> FS [Formula]
 pickGEQfromEQ f =
   let rs = getEq f in
