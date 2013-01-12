@@ -84,3 +84,13 @@ orig(pickSatEq):(0 = 0 && 0 = res && 0 = x)
 eq:[[0,(-res)],[0,(-x)]]
 sat:[[(-res),x]]
 satGEq_f_Eq:[0 >= res,res >= 0,res >= 0,0 >= x,x >= 0,x >= 0,x >= res,res >= x]
+
+// sort2e.fc
+
+@ presence of spurious vars in bottom-up fixpoint with recursion
+
+# P:={ ... };
+# R0:={ ... };
+((0 = 0 && a = b) || (b >= 1 + a && a_675 >= r_674))
+a_675 >= r_674
+

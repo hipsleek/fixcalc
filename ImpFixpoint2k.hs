@@ -134,7 +134,7 @@ subrec_g dict f_ls =
   putStrFS_debug ("subrec_g:"++ (show f_ls)) >>
   mapM (\(id,body) ->
          let (rp,_) = dict id in
-         subrec_n rp new_dc >>= \nbody ->
+         subrec_n_mut rp new_dc dict >>= \nbody ->
          return (id,nbody)
        ) f_ls >>= \new_f_ls ->
   return (new_f_ls)
@@ -233,7 +233,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
     putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
-           fixTestBU_n n_fdict recpost (Or snext) >>= \fixok ->
+           fixTestBU_n n_fdict dict recpost (Or snext) >>= \fixok ->
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
     let reach_fixpt = all (\(_,(_,b))->b) fixok_f in
@@ -389,11 +389,11 @@ iterate2k recpost (m,heur) scrt cnt =
     if (cnt>maxIter) then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterate2k recpost (m,heur) snext (cnt+1)  
 
-fixTestBU_n :: FDict -> RecPost -> Formula -> FS Bool
-fixTestBU_n fdict recpost candidate = 
+fixTestBU_n :: FDict -> DictOK -> RecPost -> Formula -> FS Bool
+fixTestBU_n fdict dict recpost candidate = 
     putStrFS_debug "fixTestBU_n" >>
     addOmegaStr ("#\tObtained postcondition?") >>
-    subrec_n recpost fdict >>= \fnext -> 
+    subrec_n_mut recpost fdict dict >>= \fnext -> 
     subset fnext candidate
 
 {- |Given CAbst and F, returns True if F is a reductive point of CAbst: CAbst(F) => F. -}
@@ -416,7 +416,7 @@ fixTestBU_gen post_dict f_dict =
     let new_fdict = mk_maybe_dict f_dict in
     mapM (\(id,snext) ->
            let (recpost,_)=post_dict id in
-           fixTestBU_n new_fdict recpost snext >>= \fixok ->
+           fixTestBU_n new_fdict post_dict recpost snext >>= \fixok ->
                return (id,fixok)) f_dict >>= \fixok_f -> 
     return fixok_f
 
@@ -551,10 +551,16 @@ subrec_gen :: [RecPost] -> [Formula] -> FS [Formula]
 subrec_gen rp f  = mapM (\x -> subrec_gen1 x rp f) rp
 -}
 
+
+{-
+-- does not work properly with mutual recursion
 subrec_n :: RecPost -> (Id -> Maybe Formula) -> FS Formula
-subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
+subrec_n rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
+  helper f1 >>= \res ->
   putStrFS_debug ("subrec_n:"++formalMN) >>
-  helper f1
+  putStrFS_debug ("subrec_n(rp):"++(show rp)) >>
+  putStrFS_debug ("subrec_n(res):"++(show res)) >>
+  return res
   where
   helper :: Formula -> FS Formula
   helper f = 
@@ -580,8 +586,50 @@ subrec_n (RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc =
                     error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
                 else
                     let rho = zip (formalI++formalO) actualIO in
+                    putStrFS_debug ("subrec_n(rho):"++(show rho)) >>
                     debugApply rho body >>= \rhoG ->
                     return $ fAnd [rhoG,noChange qsvByVal]
+      _ -> error ("subrec_n : unexpected argument: "++show f)
+-}
+
+subrec_n_mut :: RecPost -> (Id -> Maybe Formula) -> DictOK ->  FS Formula
+subrec_n_mut rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc dict =
+  helper f1 >>= \res ->
+  putStrFS_debug ("subrec_n_mut:"++formalMN) >>
+  putStrFS_debug ("subrec_n_mut(rp):"++(show rp)) >>
+  putStrFS_debug ("subrec_n_mut(res):"++(show res)) >>
+  return res
+  where
+  helper :: Formula -> FS Formula
+  helper f = 
+    case f of 
+      And fs -> 
+          mapM (\x -> helper x) fs >>= \res -> 
+          return (And res)
+      Or fs -> 
+          mapM (\x -> helper x) fs >>= \res -> 
+          return (Or res)
+      Exists vars ff -> 
+          helper ff >>= \res -> 
+          return (Exists vars res)
+      GEq us -> return f
+      EqK us -> return f
+      AppRecPost actualMN actualIO ->
+          case (dc actualMN) of
+            Nothing ->
+                error ("bad mutual recursion detected :"++(show actualMN))
+            Just body ->
+              let (recpost,_) = dict actualMN in
+              case recpost of
+                RecPost _ _ (formalI,formalO,qsvByVal) ->
+                    if not (length (formalI++formalO) == length actualIO) 
+                    then
+                        error $ "subrec: found different no of QSVs for CAbst:\n " ++ show f
+                    else
+                        let rho = zip (formalI++formalO) actualIO in
+                        putStrFS_debug ("subrec_n_mut(rho):"++(show rho)) >>
+                        debugApply rho body >>= \rhoG ->
+                        return $ fAnd [rhoG,noChange qsvByVal]
       _ -> error ("subrec_n : unexpected argument: "++show f)
 
 
@@ -591,9 +639,13 @@ subrec_z :: RecPost -> Formula -> FS Formula
 -- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
 subrec_z rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
   putStrFS_debug ("subrec_z:"++show f1++" "++show f2) >>
-  subrec_n rp dc
+  getFlags >>= \flags ->
+  subrec_n_mut rp dc (dict flags) 
   where
     dc id = if (formalMN==id) then Just f2 else Nothing
+    dict flags id = 
+      if (formalMN==id) then (rp,fixFlags flags) 
+      else error "subrec_z : only for self-rec"
 
 -- subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
 --   subrec1 f1 f2
