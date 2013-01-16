@@ -10,6 +10,8 @@ module ImpFixpoint2k(
   getEq,
   pickEqFromEq,
   pickGEQfromEQ,
+  satEQfromEQ,
+  satGEQfromEQ,
   fixTestBU_Lgen,
   fixTestBU,
   fixTestTD,
@@ -1146,7 +1148,13 @@ pickDisjSatEq f =
 
 -}
 
-
+satGEQfromEQ :: Formula -> FS [Formula]
+satGEQfromEQ f =
+  pickGEQfromEQ f >>= \gEq ->
+  let ans=concat (mapM (\x -> return x) gEq) in
+  --putStrFS_debug("#SatGEQEQ="++show (ans)) >>  
+  print_RES "satGEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
+  return (ans)
 
 satEQfromEQ :: Formula -> FS [Formula]
 satEQfromEQ f =
@@ -1157,14 +1165,6 @@ satEQfromEQ f =
   print_RES "satEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
   return (res)
 
-satGEQfromEQ :: Formula -> FS [Formula]
-satGEQfromEQ f =
-  let rs = getEq f in
-  let rs2 = pickEqFromEq rs in
-  let ans = (rs++rs2) in
-  let res = map (\ u -> EqK u) ans in
-  print_RES "satEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
-  return (res)
 
 pickGEQfromEQ :: Formula -> FS [Formula]
 pickGEQfromEQ f =

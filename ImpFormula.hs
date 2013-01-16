@@ -1,7 +1,7 @@
 {- | Provides (1) Omega functions, (2) selector functions from annotated types and (3) functions that deal with Substitutions.
 -}
 module ImpFormula where
-import Fresh(FS(..),fresh,takeFresh,addOmegaStr,getFlags,putStrFS)
+import Fresh(FS(..),fresh,takeFresh,addOmegaStr,getFlags,putStrFS,putStrFS_debug)
 import ImpAST
 import ImpConfig(isIndirectionIntArray,whatHull,Hull(..))
 import InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impPairwiseCheck)

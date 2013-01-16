@@ -11,7 +11,7 @@ import qualified Omega_stub as Omega_stub
 -----------------------------
 import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),Test3(..),showTest3, SizeVar(..),PorU(..),MorM(..),
     fAnd,fOr,fExists,fForall,fFalse,stringToQsv)
-import Fresh(FS(..),fresh,addOmegaStr,putStrFS)
+import Fresh(FS(..),fresh,addOmegaStr,putStrFS,putStrFS_debug)
 import MyPrelude
 -----------------------------
 import Foreign(nullPtr,unsafePerformIO)

@@ -1,5 +1,5 @@
 # Speed and NoDebug for Omega libraries
-#BASEDIR=../omega
+# BASEDIR=../omega
 # Debug version of Omega libraries
 BASEDIR=/usr/local
 
@@ -29,10 +29,10 @@ Obj_main=Main.o
 SRCS = ImpMain.hs ImpParser.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	FixCalcLexer.hs FixCalcMain.hs FixCalcParser.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeInfer.hs ImpTypeCommon.hs ImpFixpoint2k.hs \
-	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs 
 OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 	ImpLexer.o Fresh.o MyPrelude.o InSolver.o ImpSugar.o ImpTypeInfer.o ImpTypeCommon.o ImpFixpoint2k.o \
-	ImpConfig.o ImpOutInfer.o ImpHullWiden.o ImpSTypeChecker.o
+	ImpConfig.o ImpOutInfer.o ImpHullWiden.o ImpSTypeChecker.o 
 .SUFFIXES : .o .hs .hi .lhs .hc .s
 
 #Standard suffix rules
@@ -40,10 +40,10 @@ OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 	@:
 
 .lhs.o:
-	$(HC) -c $< $(HC_OPTS)
+	$(HC) -c  $< $(HC_OPTS)
 
 .hs.o:
-	$(HC) -c $< $(HC_OPTS)
+	$(HC) -c  $< $(HC_OPTS)
 
 .y.hs:
 	happy -agci $<
@@ -65,7 +65,7 @@ doc: $(SRCS)
 	haddock -h -o doc --read-interface=http://www.haskell.org/ghc/docs/6.4.2/html/libraries/base/,/home/popeeaco/personal/research/base.haddock \
 	ImpMain.hs ImpTypeChecker.hs ImpFormula.hs ImpAST.hs \
 	ImpLexer.hs Fresh.hs MyPrelude.hs InSolver.hs ImpSugar.hs ImpTypeCommon.hs ImpFixpoint2k.hs \
-	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs ImpTypeInfer.hs
+	ImpConfig.hs ImpOutInfer.hs ImpHullWiden.hs ImpSTypeChecker.hs ImpTypeInfer.hs Pig.hs
 
 #####FixCalc
 FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpConfig.o ImpFixpoint2k.o ImpFormula.o InSolver.o ImpHullWiden.o
@@ -79,7 +79,7 @@ depend: ImpParser.hs FixCalcParser.hs
 	ghc -M $(HC_OPTS) -i$(RAZVAN_DIR_SRC_HS) $(SRCS)
 
 bsearch:
-	gcc -o bsearch Primitives.c BSearch.c a.c
+	gcc -o -O bsearch Primitives.c BSearch.c a.c
 
 initarr:
 	gcc -o initarr Primitives.c a.c

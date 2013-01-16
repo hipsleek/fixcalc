@@ -1,7 +1,7 @@
-R1:={[x,res]: x=0 && res=1};
+R1:={[x,res]: 0=x && res=1};
 
 R2:=PickEQfromEQ(R1);  
-# R2:= {[x,res]:x+1=res};
+#R2:= {[x,res]:x+1=res};
 R2;R1;
 R3:=PickGEQfromEQ(R1);  
 R3;

@@ -40,8 +40,8 @@ combSelHull (m,heur) disj fbase_ls =
   getFlags >>= \flags ->
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m 
-  then 
-    return disj
+  then
+     return disj
   else case m of
     1 -> 
       putStrFS_debug "CombSelHull! ==> m=1" >> 
@@ -110,6 +110,7 @@ computeHalfMx heur fbase_ls disj =
       computeHalfMx1 heur mat (m,n) i disj | i>n = return mat
       computeHalfMx1 heur mat (m,n) i disj = 
         computeHalfRow heur fbase_ls mat (m,n) i (i+1) disj >>= \mat1 ->
+        putStrFS_debug "HalfMx 1!" >> 
         computeHalfMx1 heur mat1 (m,n) (i+1) disj
 
 
@@ -766,10 +767,11 @@ affinity :: Maybe Formula -> Maybe Formula -> Heur -> [Formula] -> (Formula -> F
 -- requires: f1,f2 represent conjunctive formulae
 -- TODO WN : should give higher weightage to infinity 
 affinity f1 f2 heur fbase_ls operation fsv =
+     putStrFS_debug "affinity!" >> 
   helper f1 f2 heur
   where
-    helper Nothing _ _ = return identityA
-    helper _ Nothing _ = return identityA
+    helper Nothing _ _ =    return identityA
+    helper _ Nothing _ =    return identityA
     -- affinity Nothing _ heur _ _ = return identityA
     -- affinity _ Nothing heur _ _ = return identityA
     helper (Just f1) (Just f2) HausdorffHeur =
@@ -824,7 +826,7 @@ affinity f1 f2 heur fbase_ls operation fsv =
                     (putStrFS_DD 2("F1:="++showSet f1)) >> 
                     (putStrFS_DD 2("F2:="++showSet f2)) >>
                     let (cf1,cf2) = (countConjuncts f1,countConjuncts f2) in
-                    merge_set fbase_ls f1 f2 foperation >>= \(mSet,mSetFB,num_of_orig) ->
+                    merge_set fbase_ls f1 f2 foperation >>= \(mSet,mSetFB,num_of_orig) ->   
                     let cmset = length mSet in
                     let cmsetFB = length mSetFB in
                           -- let n = length mSetFB in
