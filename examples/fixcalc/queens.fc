@@ -18,7 +18,7 @@ F1:=test(F0);F1;
 F2:=test(F1);F2;
 F3:=test(F2);F3;F3H:=selhull(F3,3,SimHeur);F3H;
 F4:=test(F3H);F4;F4H:=selhull(F4,3,SimHeur);F4H;
-F3W:=widen(F3H,F4H,SimHeur);F3W;fixtestPost(test,F3W);
+F3W:=widen(F3H,F4H,SimHeur);F3W;fixtestPost([test],[F3W]);
 
 Fix1:=bottomup(test,1,SimHeur);
 #Fix2:=bottomup(test,2,SimHeur);
