@@ -27,7 +27,7 @@ F3H subset F3Haus; F3Haus subset F3;
 
 F4:=mnF(F3H); F4H:=selhull(F4,3,SimHeur);
 F3W:=widen(F3H,F4H,SimHeur); F3W;
-fixtestPost(mnF,F3W);
+fixtestPost([mnF],[F3W]);
 Fix:=bottomup(mnF,3,SimHeur); Fix;
 
 F3W subset Fix;

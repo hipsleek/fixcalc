@@ -11,8 +11,8 @@ Fix3:=bottomup(loop,3,SimHeur);Fix3; #Fix3 is more precise than Fix2
 Fix2 subset Fix3;
 Fix3 subset Fix2;
 
-fixtestPost(loop,Fix2);
-fixtestPost(loop,Fix3);
+fixtestPost([loop],[Fix2]);
+fixtestPost([loop],[Fix3]);
 
 
 loopB:={[x,i,z,y]->[Px,Pi,Pz] -> []: exists( i1,x1,z1:
@@ -27,7 +27,7 @@ FixB3:=bottomup(loopB,3,SimHeur);FixB3;
 Fix3 subset FixB3;
 FixB3 subset Fix3; #Both Fix2 and Fix3 are incomparable with Fix
 
-fixtestPost(loopB,FixB3);
+fixtestPost([loopB],[FixB3]);
 FixB3 subset FixB2;
 FixB2 subset FixB3;
 
@@ -40,7 +40,7 @@ Ideal:={[x,i,z,y,Px,Pi,Pz] :
 };
 
 Ideal; # ideal that I was expecting
-fixtestPost(loop,Ideal);
+fixtestPost([loop],[Ideal]);
 Ideal subset Fix2;
 Ideal subset FixB2;
 

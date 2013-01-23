@@ -11,8 +11,8 @@ Fix3:=bottomup(loop,3,SimHeur);Fix3;
 Fix2 subset Fix3;
 Fix3 subset Fix2;
 
-fixtestPost(loop,Fix2);
-fixtestPost(loop,Fix3); # same precision as Fix2
+fixtestPost([loop],[Fix2]);
+fixtestPost([loop],[Fix3]); # same precision as Fix2
 
 
 fs:={[x,y]->[Px,Py] -> []: exists(x1,y1:
@@ -30,8 +30,8 @@ idealfs:={[x,y,Px,Py]:x>50 && (y-1<0 && Px=x && Py=y-1
 	|| y-1>=0 && Px-x+1=y-Py &&  Py<0 && y-Py>1)};
 Fix2s;
 idealfs;
-fixtestPost(fs,idealfs);
-fixtestPost(fs,Fix2s);
+fixtestPost([fs],[idealfs]);
+fixtestPost([fs],[Fix2s]);
 idealfs subset Fix2s;
 Fix2s subset idealfs;
 
@@ -54,7 +54,7 @@ Fix3m subset Fix4m;
 Fix4m subset Fix2;
 Fix2 subset Fix4m;
 
-fixtestPost(loop,Fix4m);
+fixtestPost([loop],[Fix4m]);
 
 # (Px >= 1 + x && 0 >= 1 + Py && Px >= 0) || (x >= y + 49 && Px >= x && 0 >= 1 + Py && 2 >= y && Px >= 51) || (50 >= x && 0 >= 2 + y && x = Px && y = Py)
 

@@ -25,7 +25,7 @@ F3H:=selhull(F3,2,SimHeur);F3H;
 
 
 F2W:=widen(F2,F3H,SimHeur);F2W; 
-fixtestPost(fcnt,F2W);
+fixtestPost([fcnt],[F2W]);
 
 #################################
 #SelHull chooses wrong disjuncts. Fix2 is not precise: ((x >= 2 + res && x >= 1) || ((res + 4 >= x && x >= res) && 0 >= res))
