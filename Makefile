@@ -48,9 +48,11 @@ OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
   
 all: imp fixcalc
 
-imp : $(OBJS) ImpParser.y
+imp : $(OBJS) ImpParser.y ImpMain.hs
 	rm -f $@
-	ghc -o $@ $(HC_OPTS) -lstdc++ $(OBJS) $(LIBS) $(OMEGA_LIBS) $(RAZVAN_LIBS)
+	ghc -o $@ $(HC_OPTS) -lstdc++ ImpMain.hs $(LIBS) $(OMEGA_LIBS) $(RAZVAN_LIBS)
+
+#(OBJS)
 
 clean:
 	rm -f *.hi *.o *~ imp ImpParser.hs *.info a.omega a.all.c a.c a.out a.impi a.impt a.omega-err a.pre oc.out fixcalc FixCalcParser.hs log
