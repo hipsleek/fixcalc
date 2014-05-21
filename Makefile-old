@@ -20,7 +20,10 @@ RAZVAN_DIR_SRC_HS=../omega_stub/src.hs
 HC=ghc
 LIBS=-L$(BASEDIR)/lib
 OMEGA_LIBS=-lcode_gen -lomega -lm
-RAZVAN_LIBS= 	$(RAZVAN_DIR_C)/omega_stub.o $(RAZVAN_DIR_C)/Exit.o
+RAZVAN_LIBS= 	$(RAZVAN_DIR_C)/omega_stub.o $(RAZVAN_DIR_C)/Exit.o \
+		$(RAZVAN_DIR_HS)/Omega_stub.o $(RAZVAN_DIR_HS)/Omega_util.o	\
+		$(RAZVAN_DIR_HS)/Omega.o $(RAZVAN_DIR_HS)/PFOmega.o $(RAZVAN_DIR_HS)/Omega_types.o $(RAZVAN_DIR_HS)/Omega_tokens.o	\
+		$(RAZVAN_DIR_HS)/Omega_lexer.o $(RAZVAN_DIR_HS)/Omega_parser.o
 
 Obj_main=Main.o
 
@@ -70,7 +73,7 @@ FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpCon
 
 fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	rm -f fixcalc
-	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
+	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(FixCalcOBJS) $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
 #####
 
 
