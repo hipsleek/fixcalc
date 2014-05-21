@@ -3,7 +3,7 @@ import Fresh(getFlags,FS(..))
 import ImpConfig(isIndirectionIntArray,outputFile)
 import MyPrelude
 ------------------------------------------
-import List(nub,(\\),union)
+import Data.List(nub,(\\),union)
 import System.IO.Unsafe(unsafePerformIO)
 
 -------AST-------------------------

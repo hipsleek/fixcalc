@@ -9,7 +9,7 @@ import MyPrelude
 import System.CPUTime(getCPUTime)
 import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
-import Monad(when,foldM)
+import Control.Monad(when,foldM)
 -------FS Fresh---------------------------
 data St = MkState { 
   cnt :: Integer, -- ^Used for unique name generation.
