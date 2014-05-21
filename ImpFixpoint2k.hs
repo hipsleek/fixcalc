@@ -29,9 +29,9 @@ import ImpFormula
 import ImpHullWiden(closure,widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
-import List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
-import Maybe(catMaybes)
-import Monad(when,mapAndUnzipM,foldM)
+import Data.List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
+import Data.Maybe(catMaybes)
+import Control.Monad(when,mapAndUnzipM,foldM)
 
 maxIter::Int
 maxIter = 10

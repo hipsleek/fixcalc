@@ -4,8 +4,8 @@ import Fresh(FS,fresh,freshVar,freshLabel,putStrFS)
 import ImpTypeCommon(freshTy)
 import MyPrelude
 ------------------------------------------
-import Maybe(catMaybes)
-import Monad(when)
+import Data.Maybe(catMaybes)
+import Control.Monad(when)
 -------Specialization--------------    
 specialize:: Prog -> FS Prog
 specialize prog@(Prog incls prims meths) = 

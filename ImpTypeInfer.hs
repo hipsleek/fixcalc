@@ -16,9 +16,9 @@ import MyPrelude
 -----------------
 import Data.Array(assocs)
 import Data.Graph(SCC(..),stronglyConnComp,graphFromEdges,indegree)
-import List(union,unzip4,(\\),nub)
-import Maybe(catMaybes,fromJust)
-import Monad(when)
+import Data.List(union,unzip4,(\\),nub)
+import Data.Maybe(catMaybes,fromJust)
+import Control.Monad(when)
 
 
 typeInferSccs:: Prog -> [SCC Node] -> FS Prog

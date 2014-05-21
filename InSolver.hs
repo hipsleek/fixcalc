@@ -15,7 +15,7 @@ import Fresh(FS(..),fresh,addOmegaStr,putStrFS,putStrFS_debug)
 import MyPrelude
 -----------------------------
 import Foreign(nullPtr,unsafePerformIO)
-import List(union)
+import Data.List(union)
 
 impSimplify:: Relation -> FS Formula
 impSimplify (qsv1,[],f1) =

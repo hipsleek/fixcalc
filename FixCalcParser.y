@@ -10,7 +10,7 @@ import MyPrelude
 ------------------------------------------
 import Data.List(nub,elemIndex)
 import Data.Maybe(fromJust)
-import Monad(foldM)
+import Control.Monad(foldM)
 }
 
 %monad {P}

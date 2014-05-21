@@ -5,11 +5,11 @@ import MyPrelude
 import Fresh
 ------------------------------------------
 import Numeric(fromRat,showFFloat)
-import System(getArgs)
+import System.Environment(getArgs)
 import System.IO(hFlush,stdout)
 import System.CPUTime(getCPUTime)
 import System.Time(getClockTime,diffClockTimes)
-import Monad(when)
+import Control.Monad(when)
 
 
 main :: IO ()

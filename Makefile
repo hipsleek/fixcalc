@@ -10,8 +10,9 @@ BASEDIR=/usr/local
 
 # Without Haskell profiling information
 RAZVAN_DIR_HS=../omega_stub/lib.hs
+LOC_DIR_HS=../omega_stub/src.hs
 HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(RAZVAN_DIR_HS)
-
+#HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(LOC_DIR_HS)
 
 RAZVAN_DIR_C=../omega_stub/lib
 RAZVAN_DIR_SRC_HS=../omega_stub/src.hs
@@ -72,7 +73,7 @@ FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpCon
 
 fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	rm -f fixcalc
-	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(FixCalcOBJS) $(LIBS) $(OMEGA_LIBS) $(RAZVAN_LIBS)	
+	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(FixCalcOBJS) $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
 #####
 
 depend: ImpParser.hs FixCalcParser.hs

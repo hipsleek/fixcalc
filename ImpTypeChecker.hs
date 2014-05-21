@@ -13,9 +13,9 @@ import ImpTypeCommon(setsForParamPassing,equate,freshTy,genLabelArr,initArrFormu
    TypeEnv,extendTypeEnv,lookupVar,impFromTyEnv,impFromTy,initialTransFromTyEnv,initialTransFromTy)
 import MyPrelude
 -----------------
-import List(union,(\\),nub)
-import Maybe(fromJust)
-import Monad(when)
+import Data.List(union,(\\),nub)
+import Data.Maybe(fromJust)
+import Control.Monad(when)
 
 -------TypeChecking----------------
 typeCheckProg:: Prog -> FS Prog

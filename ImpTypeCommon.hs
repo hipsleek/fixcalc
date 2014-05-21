@@ -18,8 +18,8 @@ import Fresh(FS,fresh,takeFresh,getFlags,putStrFS)
 import ImpFormula(fsvTy,noChange,primeTheseQSizeVars,sameBaseTy,sizeVarsFromAnnTy)
 import MyPrelude(tr,concatMapM,snd3,fst3)
 ------------------------------------------
-import List(nub,union)
-import Maybe(fromJust)
+import Data.List(nub,union)
+import Data.Maybe(fromJust)
 
 -------TypeEnvironment-------------
 type TypeEnv = [(Lit,AnnoType)]

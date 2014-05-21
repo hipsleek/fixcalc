@@ -13,8 +13,8 @@ import ImpTypeInfer(typeInferSccs,methAdjacencies,getExternalMethods,setExternal
 import MyPrelude
 ------------------------------------------
 import Data.Graph(stronglyConnComp)
-import Monad(when)
-import System(getArgs)
+import Control.Monad(when)
+import System.Environment(getArgs)
 import System.CPUTime(getCPUTime)
 
 

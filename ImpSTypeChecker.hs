@@ -10,7 +10,7 @@ import ImpFormula(sameBaseTy)
 import ImpTypeCommon(TypeEnv,extendTypeEnv,lookupVar,freshTy)
 import MyPrelude(snd3,concatSepBy)
 ------------------------------------------
-import List(nub)
+import Data.List(nub)
 
 -----SimpleTypeChecking-------------------------------------------------
 -----and conversion of While/For to tail-recursive functions------------

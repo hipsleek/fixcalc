@@ -21,9 +21,9 @@ import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
 import Data.Char(digitToInt,isDigit)
-import List(nub,union,(\\),sortBy)
-import Maybe(catMaybes,fromJust)
-import Monad(filterM,when,foldM)
+import Data.List(nub,union,(\\),sortBy)
+import Data.Maybe(catMaybes,fromJust)
+import Control.Monad(filterM,when,foldM)
 
 type Disjunct = Formula 
 type DisjFormula = [Formula] 

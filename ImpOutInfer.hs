@@ -9,9 +9,9 @@ import ImpTypeCommon
 import MyPrelude
 -----------------
 import Data.Graph(SCC(..),stronglyConnComp)
-import List(union,unzip4,(\\),nub,delete)
-import Maybe(catMaybes,fromJust)
-import Monad(when,filterM)
+import Data.List(union,unzip4,(\\),nub,delete)
+import Data.Maybe(catMaybes,fromJust)
+import Control.Monad(when,filterM)
 
 type RecFlags = (Int,[Lit]) 
 {- ^RecFlags represents a pair of (whatPhase, nameOfRecFs).

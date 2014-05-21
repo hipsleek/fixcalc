@@ -7,8 +7,8 @@ import ImpConfig(isIndirectionIntArray,whatHull,Hull(..))
 import InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impPairwiseCheck)
 import MyPrelude
 ------------------------------------------
-import List(nub,(\\),intersect,union)
-import Maybe(catMaybes)
+import Data.List(nub,(\\),intersect,union)
+import Data.Maybe(catMaybes)
 
 equivalent:: Formula -> Formula -> FS Bool
 -- ^Tests whether two formulae are equivalent.
