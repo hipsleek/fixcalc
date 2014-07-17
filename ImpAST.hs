@@ -558,17 +558,17 @@ instance ShowImpp Formula where
 instance ShowImpp Update where
   showImpp (Const i) = show i
   showImpp (Coef qsv i) =
-      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "","") in
+      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "*","") in
       bef ++ showImpp qsv ++ aft
 
 instance ShowImpp QSizeVar where
   showImpp (sv,pORu) =
-	let pu = if pORu == Primed then "PRM" else if pORu == Recursive then "REC" else "" in
-	let str = case sv of
-			SizeVar ann -> ann
-			ArrSizeVar ann Min -> "DTm" ++ ann
-			ArrSizeVar ann Max -> "DTM" ++ ann
-	in (pu ++ str ++ [suffixVar])
+    let pu = if pORu == Primed then "PRM" else if pORu == Recursive then "REC" else "" in
+    let str = case sv of
+                  SizeVar ann -> ann
+                  ArrSizeVar ann Min -> "DTm" ++ ann
+                  ArrSizeVar ann Max -> "DTM" ++ ann
+    in (pu ++ str ++ [suffixVar])
 
 getUpsisFromProg (Prog _ _ meths) = 
     let (upsis,nos) = unzip (map getUpsisFromMeth meths) in
@@ -639,18 +639,18 @@ instance Show Update where
     show (Const i) = show i
     show (Coef qsv i) = 
       -- added a "*" so that 2n is displayed as 2*n
-      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "","") in
+      let (bef,aft) = if (i==1) then ("","") else if (i==(-1)) then ("(-",")") else ((show i) ++ "*","") in
       bef ++ (show (Test3 qsv)) ++ aft
 
-newtype Test3 = Test3 QSizeVar 	  
+newtype Test3 = Test3 QSizeVar
 instance Show Test3 where
   show (Test3(sv,pORu)) = 
-  	let pu = if pORu == Primed then "PRM" else if pORu == Recursive then "REC" else "" in
-  	let str = case sv of
-  			SizeVar ann -> ann
-  			ArrSizeVar ann Min -> "DTm" ++ ann
-  			ArrSizeVar ann Max -> "DTM" ++ ann
-  	in (pu ++ str)
+    let pu = if pORu == Primed then "PRM" else if pORu == Recursive then "REC" else "" in
+    let str = case sv of
+                  SizeVar ann -> ann
+                  ArrSizeVar ann Min -> "DTm" ++ ann
+                  ArrSizeVar ann Max -> "DTM" ++ ann
+    in (pu ++ str)
 
 ---- 2 different textual forms for QSizeVar: one from input file and the other from Omega (previously converted with show:: QSizeVar -> String)
 -- from input: s,s',  s^,  s.min,s.max,s.min', s.max', s.min^, s.max^
@@ -692,7 +692,7 @@ printProgImpt:: Prog -> FS ()
 printProgImpt prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".impt" in
-	(unsafePerformIO $ writeFile outFile (showImpp prog)) `seq` return ()
+  (unsafePerformIO $ writeFile outFile (showImpp prog)) `seq` return ()
 
 printProgImpi:: Prog -> FS ()
 printProgImpi prog = 
@@ -704,13 +704,13 @@ printProgC:: Prog -> FS()
 printProgC prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".c" in
-	(unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
+  (unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
 
 printProgCAll:: Prog -> FS()
 printProgCAll prog = 
   getFlags >>= \flags ->
   let outFile = outputFile flags ++ ".all.c" in
-	(unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
+  (unsafePerformIO $ writeFile outFile (showC prog)) `seq` return ()
 
 saturateFS :: Formula -> FS Formula
 saturateFS f = return (saturate f)
