@@ -92,11 +92,20 @@ combHull_x fbase_ls disj =
 keepProp:: [Formula] -> Formula -> FS [Formula]
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 keepProp fbase orig = 
+  let to_keep =  filter (isEqualF) (getConjunctsN orig) in
   mapM (subset orig) fbase >>= \suboks ->
   let fcrts' = zip fbase suboks in
   let fcrt' = filter (\(f,ok) -> ok) fcrts' in
   let ans = (map fst fcrt') in
-  return ans
+  let kept = filter (isEqualF) ans in
+  let ans2 =if kept==[] && length to_keep<2 then to_keep++ans else ans in
+  print_RES "keepProp" (3) [("fbase",show fbase),
+                      ("orig",show orig),
+                      ("to_keep",show to_keep),
+                      ("kept",show kept),
+                      ("result",show ans2)
+                     ] >>
+  return ans2
 
 computeHalfMx :: Heur -> [Formula] -> [Maybe Disjunct] -> FS AffinMx
 -- ensures: (n,n)=length res, where n=length disj
@@ -423,6 +432,8 @@ widenOne fbase_ls (fcrt,fnext) =
                       -- ,("closure",show fcrts)
                      ] >>
   addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
+  -- print_DD True 3 [("fbase_ls",show fbase_ls),("widenOne(before)",show fcrt),("widenOne(next)",show fnext)] >>
+  -- print_DD True 3 [("widenOne(result)",show fwid)]  >>
   return fwid
 
 closure:: Disjunct -> FS [Disjunct]

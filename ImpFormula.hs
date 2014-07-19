@@ -264,6 +264,11 @@ apply (s:ss) f = apply ss (applyOne (fst s,snd s) f)
     Const int -> up
     Coef otherSV int -> if otherSV==fromSV then Coef toSV int else up
 
+isEqualF:: Formula -> Bool
+isEqualF f = case f of
+  EqK _ -> True
+  _ -> False
+  
 getConjunctsN:: Formula -> [Formula]
 -- requires: formula is conjunctive
 getConjunctsN formula = case formula of

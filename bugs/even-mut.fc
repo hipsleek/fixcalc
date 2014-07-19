@@ -8,8 +8,8 @@ e1:={[n,i] -> [] -> []:  n=i+i && i>=0};
 o1:={[n,i] -> [] -> []:  n=i+i+1 && i>=0};
 
 bottomupgen([meven_new,modd_new], [1,1], SimHeur);
-bottomupgen([meven_new,modd_new], [2,2], SimHeur);
+#bottomupgen([meven_new,modd_new], [2,2], SimHeur);
 
-fixtestPost([meven_new,modd_new],[e1,o1]);
+#fixtestPost([meven_new,modd_new],[e1,o1]);
 #fixtestPost([meven_new],[e1]);
 
