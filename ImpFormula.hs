@@ -42,6 +42,12 @@ hull f =
   -- putStrFS ("Hull:="++(show res)) >>
   return res
     
+pairwiseCheck_disj:: [Formula] -> FS [Formula]
+pairwiseCheck_disj f = 
+  let fone = mkDisjunctsN f in
+  pairwiseCheck fone >>=
+  \ res -> return (getDisjunctsN res)
+
 pairwiseCheck:: Formula -> FS Formula
 pairwiseCheck f = impPairwiseCheck (fqsv f,[],f)
 
@@ -283,4 +289,14 @@ getConjunctsN formula = case formula of
     case fs of
       [x] -> getConjunctsN x
       _ -> []
+
+getDisjunctsN:: Formula -> [Formula]
+-- requires: formula is conjunctive
+getDisjunctsN formula = case formula of
+  Or fs -> fs
+  _ -> [formula]
+
+mkDisjunctsN:: [Formula] -> Formula
+-- requires: formula is conjunctive
+mkDisjunctsN fs = Or fs
 

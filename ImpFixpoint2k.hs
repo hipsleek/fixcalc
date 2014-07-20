@@ -120,6 +120,10 @@ iterBU2k recpost (m,heur) fcrt scrt fbase cnt =
     subrecN "R_init@" cnt cnt recpost (Or scrt) >>= \fnext ->
     combSelHull (m,heur) (getDisjuncts fnext) fbase >>= \fnextHMany ->
     widen heur fbase (scrt,fnextHMany) >>= \snext ->
+    print_RES "iterBU2k" (3) [("input(orig)",show (cnt,scrt)),
+                      ("selhull",show fnextHMany),
+                      ("widen",show snext)
+                     ] >>
     fixTestBU recpost (Or snext) >>= \fixok ->
     if fixok then pairwiseCheck (Or snext) >>= \pw -> return (pw,cnt)
     else iterBU2k recpost (m,heur) fnext snext fbase (cnt+1)  
@@ -231,6 +235,11 @@ iterBU2k_n dict fbase_dict scrt cnt =
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
+    -- let widen_new = if cnt>4 then widen_f e
+    print_RES "iterBU2k_n" (3) [("input(orig)",show (cnt,scrt)),
+                      ("selhull",show zip1),
+                      ("widen",show widen_f)
+                     ] >>
     let n_fdict = mk_maybe_dict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
     putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
@@ -268,6 +277,7 @@ bottomUp2k_gen_new recpost flagsl initFormula =
 
 bottomUp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 bottomUp2k_n dict initFS = 
+  let widen_index = 4 in
   putStrFS_DD 13 "bottomUp2k_n" >>
   addOmegaStr("+++++++++++++++++++++++++++") >> 
   addOmegaStr("  k_n M fix point iteration") >> 
@@ -275,7 +285,7 @@ bottomUp2k_n dict initFS =
   -- let fdict x = Nothing in
   getFlags >>= \flags -> 
   subrec_genN "K_init" 1 1 dict initFS >>= \initFS1 ->
-  subrec_genN "K_init" 2 3 dict initFS1 >>= \initFS3 ->
+  subrec_genN "K_init" 2 widen_index dict initFS1 >>= \initFS3 ->
   saturateIdList initFS1 >>= \initS ->
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
@@ -294,7 +304,7 @@ bottomUp2k_n dict initFS =
          combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
-  iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) 4
+  iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) (widen_index+1)
 
 
 bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 

@@ -35,9 +35,10 @@ combSelHull :: FixFlags -> DisjFormula -> [Formula] -> FS DisjFormula
 -- requires: disj represents the DNF-form of a formula f (Or fs)
 -- requires: m>=1
 -- ensures: length(res)=m
-combSelHull (m,heur) disj fbase_ls = 
+combSelHull (m,heur) disj_in fbase_ls = 
   putStrFS_debug "CombSelHull!" >> 
   getFlags >>= \flags ->
+  pairwiseCheck_disj disj_in >>= \disj ->
   addOmegaStr ("# SelhullIN:=" ++ showSet(Or disj)) >> 
   (if length disj <= m 
   then
@@ -62,6 +63,12 @@ combSelHull (m,heur) disj fbase_ls =
   -- putStrFS ("Base :"++(show fbase)) >>
   -- putStrFS ("SHull :"++(showSet (Or res))) >>
   addOmegaStr("# SelhullOUT:=" ++ showSet(Or res)) >> 
+  print_RES "combSelHull" (3) [("Disj(orig)",showSet (Or disj_in)),
+                      ("Disj_exact",showSet (Or disj)),
+                      ("Base",show fbase_ls),
+                      ("SHull",showSet (Or res))
+                      -- ,("closure",show fcrts)
+                     ] >>
   return res
 
 combHull :: [Formula] -> DisjFormula -> FS Formula
