@@ -3,7 +3,7 @@ module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
 import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
-import ImpFormula(simplify,subset,pairwiseCheck,hull)
+import ImpFormula(simplify,subset,pairwiseCheck,hull,apply,debugApply)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
@@ -89,7 +89,11 @@ Command:
                  return (R (RecPost $1 f triple)); 
                F f -> 
                  simplify f >>= \sf -> 
-                 return (F sf)} >>= \renamedRHS ->
+                 return (F sf);
+               QF (qv,f) ->
+                 simplify f >>= \sf ->
+                 return (QF (qv,sf))
+             } >>= \renamedRHS ->
                  putStrFS_debug ("#bottomup " ++ $1 ++ ":=") >>
                  return (extendRelEnv env ($1,renamedRHS))}
   | ParseFormula2 ';'
@@ -105,15 +109,21 @@ Command:
         else 
            let new_fl = zip $2 fl in
              mapM (\(id,rhs) ->
-             case rhs of {
-               R (RecPost _ f triple) -> 
-                 --putStrFS_debug("bach_f_rec="++ show f) >>  
-                 return (R (RecPost id f triple)); 
-               (F f) -> 
-                 --putStrFS_debug("bach_f="++ show f) >>  
-                 simplify f >>= \fsimpl -> 
-                 --putStrFS(show fsimpl) >>  
-                 return (F fsimpl)}) new_fl >>= \rhs1 -> 
+               case rhs of {
+                 R (RecPost _ f triple) -> 
+                   --putStrFS_debug("bach_f_rec="++ show f) >>  
+                   return (R (RecPost id f triple)); 
+                 (F f) -> 
+                   --putStrFS_debug("bach_f="++ show f) >>  
+                   simplify f >>= \fsimpl -> 
+                   --putStrFS(show fsimpl) >>  
+                   return (F fsimpl);
+                 (QF (qv,f)) -> 
+                   --putStrFS_debug("bach_f="++ show f) >>  
+                   simplify f >>= \fsimpl -> 
+                   --putStrFS(show fsimpl) >>  
+                   return (QF (qv,fsimpl))}
+             ) new_fl >>= \rhs1 -> 
            let rhs_new = zip $2 rhs1 in
            foldM (\env1 -> \(id,rhs2) ->
               case rhs2 of
@@ -124,27 +134,35 @@ Command:
                  _ -> error "impossible : should be a formula"
                 ) env rhs_new
     }
-  | ParseFormula1 ';'                                           
+  | ParseFormula1 ';'
     {\env -> $1 env >>= \fl -> 
-	   mapM (\rhs ->
+         mapM (\rhs ->
              case rhs of
                (F f) -> 
                  simplify f >>= \fsimpl -> 
                  putStrFS(show fsimpl) >> 
                  return (F fsimpl)
+               (QF (qv,f)) -> 
+                 simplify f >>= \fsimpl -> 
+                 putStrFS(show (qv,fsimpl)) >> 
+                 return (QF (qv,fsimpl))
                (R recpost) -> 
                  putStrFS(show recpost) >> 
                  return rhs
              ) fl >>= \rhs1 -> 
-	   foldM (\env1 -> \rhs2 -> 
+         foldM (\env1 -> \rhs2 -> 
        return (extendRelEnv env1 (" ",rhs2))) env rhs1
      }
-  | ParseFormula ';'                                           
+  | ParseFormula ';'
     {\env -> $1 env >>= \rhs -> 
              case rhs of
                (F f) -> 
                   simplify f >>= \fsimpl ->
                   putStrFSOpt("\n" ++ showSet fsimpl ++ "\n") >> 
+                  return env
+               (QF (qv,f)) -> 
+                  simplify f >>= \fsimpl ->
+                  putStrFSOpt("\n{[" ++ show qv ++ "] : " ++  showSet fsimpl ++ "}\n") >> 
                   return env
                (R recpost) -> 
                   putStrFS ("\n" ++ show recpost ++ "\n") >> 
@@ -163,14 +181,17 @@ Command:
     {\env -> --putStrFS("# fixtestPost("++ (show $4) ++ "," ++ (show $8) ++ ");") >> 
         if(length $4 ==length $8) 
         then
-          let mf=map (\x -> case lookupVar x env of
-                             Just (F f) -> f
-                             _->  error ("Arguments of fixtest are incorrect")) $8
+          let (qvr,rcp) = unzip (map (\x -> case lookupVar x env of
+                            Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),recpost)
+                            _ ->  error ("Arguments of fixtest are incorrect")) $4)
           in
-          let rcp=map (\x -> case lookupVar x env of
-                             Just (R recpost)-> recpost
-                             _->  error ("Arguments of fixtest are incorrect"))  $4
-          in 
+          let mf = map (\(x,qv1) -> case lookupVar x env of
+                    Just (F f) -> f;
+                    Just (QF (qv2,f)) ->
+                      let subs = zip qv2 qv1 in
+                      apply subs f
+                    _->  error ("Arguments of fixtest are incorrect")) $ (zip $8 qvr) 
+          in
           fixTestBU_Lgen rcp mf >>= \fixok ->
           putStrFSOpt("\n# " ++ show fixok ++ "\n") >>
           return env
@@ -185,15 +206,31 @@ Command:
                   fixTestTD oneStep f >>= \fixok -> 
                   putStrFSOpt("\n# " ++ show fixok ++ "\n") >> 
                   return env
+               (Just (R recpost@(RecPost _ _ (sv1,sv2,_))),Just (QF (qv2,f))) ->
+                  getOneStep recpost fTrue >>= \oneStep ->
+                  let qv1 = sv1++sv2 in
+                  let subs = zip qv2 qv1 in
+                  let sf = apply subs f in
+                  fixTestTD oneStep sf >>= \fixok -> 
+                  putStrFSOpt("\n# " ++ show fixok ++ "\n") >> 
+                  return env
                (_,_) -> error ("Arguments of fixtestInv are incorrect")}
-  | lit subset lit ';'                                
+  | lit subset lit ';' 
     {\env -> putStrFSOpt("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
              case (lookupVar $1 env,lookupVar $3 env) of
                (Just (F f1),Just (F f2)) ->
-                  subset f1 f2 >>= \subok -> 
-                  putStrFSOpt("\n# " ++ show subok ++ "\n") >> 
-                  return env
-               (_,_) -> error ("Argument of subset is not a valid formula\n")
+                 subset f1 f2 >>= \subok -> 
+                 putStrFSOpt("\n# " ++ show subok ++ "\n") >> 
+                 return env
+               (Just (QF (qv1,f1)),Just (QF (qv2,f2))) ->
+                 if (length qv1) == (length qv2) then
+                   let subs = zip qv2 qv1 in
+                   let sf2 = apply subs f2 in
+                   subset f1 sf2 >>= \subok -> 
+                   putStrFSOpt("\n# " ++ show subok ++ "\n") >> 
+                   return env
+                 else error ("Arguments of subset are not valid QFormulas\n")
+               (_,_) -> error ("Arguments of subset are not valid\n")
      }
   | lit ';'
     {\env -> putStrFSOpt("\n# "++ $1 ++ ";") >>
@@ -202,8 +239,10 @@ Command:
                  return env
                Just (F f) -> putStrFS("\n" ++ show f ++ "\n") >> 
                  return env
+               Just (QF qf) -> putStrFS("\n" ++ show qf ++ "\n") >> 
+                 return env
                Nothing -> error ("# Variable not declared - "++$1++"\n")
-    }                   
+    }
 
 
 ParseFormula1::{RelEnv -> FS [Value]}
@@ -216,8 +255,8 @@ ParseFormula1:
                              "InterHeur" -> SimInteractiveHeur; 
                              lit -> error ("Heuristic not implemented parser.y - "++lit)} 
       in
-  	  bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
-	     >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
+      bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
+      >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
 
 ParseFormula2::{RelEnv -> FS RelEnv}
 ParseFormula2:
@@ -237,7 +276,7 @@ ParseFormula2:
       let rhs=concat (map (\x -> return (EqK x)) eq_udt_list) in
       putStrFS_debug("#concat="++show (rhs)) >>
       --foldM (\env1 -> \rhs1 -> return (extendRelEnv env1 ($1,(F rhs1)))) env rhs  --formula in which are disj or conj => needs to be modified here?     
-	  return (extendRelEnv env ($1,(F (And rhs))))
+      return (extendRelEnv env ($1,(F (And rhs))))
       --return env
    }
  |  pickEqFromEq '(' lit ')'
@@ -273,7 +312,7 @@ ParseFormula2:
       --mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
       let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>    
-	  return (extendRelEnv env ($1,(F (And rhs))))
+      return (extendRelEnv env ($1,(F (And rhs))))
       --return env
    }
  | pickGEqFromEq '(' lit ')'
@@ -290,7 +329,7 @@ ParseFormula2:
       let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>
       putStrFS("#pickGEqFromEq of "++$3++" : "++show (And rhs)) >>     
-	  return (extendRelEnv env (" ",(F (And rhs))))
+      return (extendRelEnv env (" ",(F (And rhs))))
       --return env
    }
  | lit ':=' SatEQfromEQ '(' lit ')'
@@ -301,10 +340,9 @@ ParseFormula2:
           return f1
         _ -> error ("satEQfromEQ sorely supports Formula")
       >>= \fl -> 
-	  --putStrFS_debug("#satEQEQ After parse Formula: "++show (fl)) >>
-	  satEQfromEQ fl >>= \fsatEQ ->
-	  return (extendRelEnv env ($1,(F (And fsatEQ))))
-	  --return env
+      --putStrFS_debug("#satEQEQ After parse Formula: "++show (fl)) >>
+      satEQfromEQ fl >>= \fsatEQ -> return (extendRelEnv env ($1,(F (And fsatEQ))))
+      --return env
    }
  | SatEQfromEQ '(' lit ')'
   {\env -> 
@@ -315,9 +353,8 @@ ParseFormula2:
         _ -> error ("satEQfromEQ sorely supports Formula")
       >>= \fl -> 
       --putStrFS_debug("#satEQEQ After parse Formula: "++show (fl)) >>
-	  satEQfromEQ fl >>= \fsatEQ ->
-	  return (extendRelEnv env (" ",(F (And fsatEQ))))
-	  --return env
+      satEQfromEQ fl >>= \fsatEQ -> return (extendRelEnv env (" ",(F (And fsatEQ))))
+      --return env
    }  
  | lit ':=' SatGEQfromEQ '(' lit ')'
   {\env ->
@@ -330,8 +367,7 @@ ParseFormula2:
         _ -> error ("satGEQFromEQ sorely supports Formula")
       >>= \fl -> 
       --putStrFS_debug("#saeGEQEQ After parse Formula GEq: "++show (fl)) >>
-      satGEQfromEQ fl >>= \rhs ->
-	  return (extendRelEnv env ($1,(F (And rhs))))
+      satGEQfromEQ fl >>= \rhs -> return (extendRelEnv env ($1,(F (And rhs))))
       --return env
    }
  | SatGEQfromEQ '(' lit ')'
@@ -343,54 +379,74 @@ ParseFormula2:
         _ -> error ("satGEQFromEQ sorely supports Formula")
       >>= \fl -> 
       --putStrFS_debug("#saeGEQEQ After parse Formula GEq: "++show (fl)) >>
-      satGEQfromEQ fl >>= \rhs ->
-	  return (extendRelEnv env (" ",(F (And rhs))))
+      satGEQfromEQ fl >>= \rhs -> return (extendRelEnv env (" ",(F (And rhs))))
       --return env
    }        
 ParseFormula::{RelEnv -> FS Value}
 ParseFormula:
-    '{' '[' LPorUSizeVar ']' ':' Formula '}'      
+    '{' Formula '}'      
+                  {\env -> putStrFSOpt ("{ ... };") >>
+                           if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $2)) then 
+                             error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
+                           else return (F $2)} 
+  | '{' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFSOpt ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
-                           else return (F $6)} 
+                           else return (QF (reverse $3,$6))}
   | '{' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFSOpt ("{ ... };") >> 
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $16)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
                            else return (R (RecPost "dummy" $16 (reverse $3,reverse $8,reverse $13)))}
   | lit '(' lit ')'
-                {\env -> putStrFSOpt ($1 ++ "(" ++ $3 ++ ");") >>
-                         let cabst = case lookupVar $1 env of {Just (R recpost) -> recpost; 
-                                                               Just (F f) -> error ("Argument of subrec is not a constraint abstraction\n"); 
-                                                               Nothing -> error ("Variable not declared - "++$1++"\n")} in
-                         let f = case lookupVar $3 env of {Just (F f) -> f;
-                                                           Just (R recpost) -> error ("Argument of subrec is not a formula\n"); 
-                                                           Nothing -> error ("Variable not declared - "++$3++"\n")} in
-                         subrec_z cabst f >>= \fn -> simplify fn >>= \fnext -> return (F fnext)}
+        {\env -> putStrFSOpt ($1 ++ "(" ++ $3 ++ ");") >>
+                 let (cabst,qv1) = case lookupVar $1 env of {
+                     Just (R recpost@(RecPost _ _ (sv1,sv2,_))) -> (recpost, sv1++sv2); 
+                     Just (F f) -> error ("Argument of subrec is not a constraint abstraction\n"); 
+                     Just (QF qf) -> error ("Argument of subrec is not a constraint abstraction\n"); 
+                     Nothing -> error ("Variable not declared - "++$1++"\n")} in
+                 case lookupVar $3 env of {
+                     Just (F f) -> 
+                         subrec_z cabst f >>= \fn -> simplify fn >>= \fnext -> return (F fnext);
+                     Just (QF (qv2,f)) ->
+                         let subs = zip qv2 qv1 in
+                         let sf = apply subs f in
+                         {-- print_DD True 2 [("== QF qv1 = ", show qv1)] >>
+                         print_DD True 2 [("== QF qv2 = ", show qv2)] >>
+                         print_DD True 2 [("== QF subs = ", show subs)] >>
+                         print_DD True 2 [("== QF f   = ", show f)] >>
+                         print_DD True 2 [("== QF sf  = ", show sf)] >> --}
+                         subrec_z cabst sf >>= \fn -> simplify fn >>= \fnext -> return (F fnext);
+                     Just (R recpost) -> error ("Argument of subrec is not a formula\n"); 
+                     Nothing -> error ("Variable not declared - "++$3++"\n")
+                 }}
   | bottomup '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("bottomup(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
                    Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
+                   Just (QF qf) -> error ("Argument of bottomup is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
-                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y2 - "++lit)} in
-                     bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
+                       let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y2 - "++lit)} in
+                       bottomUp2k recpost ($5,heur) fFalse >>= \(post,cnt) -> return (F post)}
   | bottomup_mr '(' lit ',' lit ')'
         {\env -> putStrFS ("bottomup_mr(" ++ $3 ++ "," ++ $5 ++ ");") >>
-	case lookupVar $3 env of
-	    Just (F f) -> error ("First argument of bottomup_mr is not a constraint abstraction\n")
-	    Nothing -> error ("Variable not declared - "++$3++"\n")
-	    Just (R recpost1) -> 
-	      case lookupVar $5 env of 
-	    	    Just (F f) -> error ("Second argument of bottomup_mr is not a constraint abstraction\n")
-	    	    Nothing -> error ("Variable not declared - "++$5++"\n")
-	            Just (R recpost2) -> 
-		      bottomUp_mr recpost1 recpost2  >>= \(post,cnt) -> return (F post)}
+                 case lookupVar $3 env of
+                   Just (F f) -> error ("First argument of bottomup_mr is not a constraint abstraction\n")
+                   Just (QF qf) -> error ("First argument of bottomup_mr is not a constraint abstraction\n")
+                   Nothing -> error ("Variable not declared - "++$3++"\n")
+                   Just (R recpost1) -> 
+                       case lookupVar $5 env of 
+                         Just (F f) -> error ("Second argument of bottomup_mr is not a constraint abstraction\n")
+                         Just (QF qf) -> error ("Second argument of bottomup_mr is not a constraint abstraction\n")
+                         Nothing -> error ("Variable not declared - "++$5++"\n")
+                         Just (R recpost2) -> bottomUp_mr recpost1 recpost2  >>= \(post,cnt) -> return (F post)}
   | topdown '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("topdown(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
                    Just (F f) -> error ("Argument of topdown is not a constraint abstraction\n")
+                   Just (QF qf) -> error ("Argument of topdown is not a constraint abstraction\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
@@ -400,6 +456,7 @@ ParseFormula:
                  case lookupVar $3 env of
                    Just (R recpost) -> error ("Argument of selhull is not a formula\n")
                    Nothing -> error ("Variable not declared - "++$3++"\n")
+                   Just (QF qf) -> error ("Argument of selhull is not a formula\n")
                    Just (F f) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y4 - "++lit)} in
                      combSelHull ($5,heur) (getDisjuncts f) [] >>= \disj -> return (F (Or disj))}
@@ -415,7 +472,6 @@ ParseFormula:
                       else
                         error ("Length of the list " ++ show $6 ++ " is different than the number of disjuncts in formula.")
                     _ -> error ("First argument of manualhull is not a formula.")
-                      
         }
   | widen '(' lit ',' lit ',' lit ')' 
         {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
@@ -426,6 +482,8 @@ ParseFormula:
                      return (F (Or disj))
                    (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
                    (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
+                   (Just (QF qf),_) -> error ("Argument of widen is not a formula\n")
+                   (_,Just (QF qf)) -> error ("Argument of widen is not a formula\n")
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
   | lit intersection lit
@@ -456,12 +514,14 @@ Llit:: {RelEnv -> [RecPost]}
 Llit: lit {
      \env -> case lookupVar $1 env of
        Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
+       Just (QF qf) -> error ("Argument of bottomup is not a constraint abstraction\n")
        Nothing -> error ("Variable not declared - "++$1++"\n")
        Just (R recpost) -> [recpost]
   }
  | lit ',' Llit {
      \env -> case lookupVar $1 env of
        Just (F f) -> error ("Argument of bottomup is not a constraint abstraction\n")
+       Just (QF qf) -> error ("Argument of bottomup is not a constraint abstraction\n")
        Nothing -> error ("Variable not declared - "++$1++"\n")
        Just (R recpost) -> recpost:($3 env)}
 
@@ -625,7 +685,9 @@ parse s flags =
   runFS (initialState flags) parseFuncFS >>= \lastenv -> return ()
 
 type RelEnv = [(Lit,Value)]
-data Value = F Formula
+
+data Value = QF QFormula
+  | F Formula
   | R RecPost
 
 emptyRelEnv :: RelEnv
