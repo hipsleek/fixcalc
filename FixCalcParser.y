@@ -431,7 +431,7 @@ ParseFormula:
                      Nothing -> error ("Variable not declared - "++$1++"\n")} in
                  if(length $4 ==length $8) then
                      let (mqv,mrp) = unzip (map (\x -> case lookupVar x env of
-                                       Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),rp)
+                                       Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),recpost)
                                        _ ->  error ("Relation arguments of subrec are incorrect")) $4 )
                      in
                      let mf = map (\(x,qv1) -> case lookupVar x env of
