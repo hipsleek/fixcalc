@@ -17,6 +17,7 @@ module ImpFixpoint2k(
   fixTestTD,
   getOneStep,
   subrec_z,
+  subrec_z_mut,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
@@ -640,7 +641,9 @@ subrec_z :: RecPost -> Formula -> FS Formula
 -- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
 -- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
 subrec_z rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
-  putStrFS_debug ("subrec_z:"++show f1++" "++show f2) >>
+  putStrFS_debug ("subrec_z, f1: "++show f1) >>
+  putStrFS_debug ("subrec_z, f2: "++show f2) >>
+  putStrFS_debug ("subrec_z, formalMN: "++show formalMN) >>
   getFlags >>= \flags ->
   subrec_n_mut rp dc (dict flags) 
   where
@@ -648,6 +651,27 @@ subrec_z rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
     dict flags id = 
       if (formalMN==id) then (rp,fixFlags flags) 
       else error "subrec_z : only for self-rec"
+
+subrec_z_mut :: RecPost -> [(RecPost,Formula)] -> FS Formula
+-- ^Given CAbst and F, returns CAbst(F). 
+-- More precisely: subrec (RecPost foo (...foo(f0,f1)...) ([i,s],_,[i])) (i<s) = (...(f0<f1 && PRMf0=f0)...)
+-- Function subrec is related to ImpOutInfer.replaceLblWithFormula.
+subrec_z_mut rp@(RecPost formalMN f (formalI,formalO,qsvByVal)) f_input =
+  putStrFS_debug ("subrec_z_mut, f: "++show f) >>
+  putStrFS_debug ("subrec_z_mut, f_input: "++show f_input) >>
+  putStrFS_debug ("subrec_z_mut, formalMN: "++show formalMN) >>
+  getFlags >>= \flags ->
+  subrec_n_mut rp dc (dict flags)
+  where
+    dc id = case (find (\ (r@(RecPost x _ _),_) -> id==x) f_input) of
+              Nothing -> Nothing
+              Just (_,body) -> Just body
+    dict flags id =
+      let rp = case (find (\ (r@(RecPost x _ _),_) -> id==x) f_input) of
+              Nothing -> error "subrec_z_mut : cannot find recpost"
+              Just (r,_) -> r
+      in
+      (rp,fixFlags flags)
 
 -- subrec (RecPost formalMN f1 (formalI,formalO,qsvByVal)) f2 =
 --   subrec1 f1 f2

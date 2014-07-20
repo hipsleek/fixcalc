@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,subrec_z_mut,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
 import ImpFormula(simplify,subset,pairwiseCheck,hull,apply,debugApply)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -393,6 +393,7 @@ ParseFormula:
                   {\env -> putStrFSOpt ("{ ... };") >>
                            if "f_" `elem` (map (\(SizeVar anno,_) -> take 2 anno) (fqsv $6)) then 
                              error ("Free variables of formula should not start with \"f_\" (\"f_\" are fresh variables)")
+                           else if (length $3 == 0) then return (F $6)
                            else return (QF (reverse $3,$6))}
   | '{' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' '-' '>' '[' LPorUSizeVar ']' ':' Formula '}'      
                   {\env -> putStrFSOpt ("{ ... };") >> 
@@ -421,6 +422,30 @@ ParseFormula:
                      Just (R recpost) -> error ("Argument of subrec is not a formula\n"); 
                      Nothing -> error ("Variable not declared - "++$3++"\n")
                  }}
+  | lit '(' '[' Llit2 ']' ',' '[' Llit2 ']' ')'
+        {\env -> putStrFSOpt ($1 ++ "([" ++ show $4 ++ "],[" ++ show $8 ++ "]);") >>
+                 let (cabst,qv1) = case lookupVar $1 env of {
+                     Just (R recpost@(RecPost _ _ (sv1,sv2,_))) -> (recpost, sv1++sv2); 
+                     Just (F f) -> error ("Argument of subrec is not a constraint abstraction\n"); 
+                     Just (QF qf) -> error ("Argument of subrec is not a constraint abstraction\n"); 
+                     Nothing -> error ("Variable not declared - "++$1++"\n")} in
+                 if(length $4 ==length $8) then
+                     let (mqv,mrp) = unzip (map (\x -> case lookupVar x env of
+                                       Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),rp)
+                                       _ ->  error ("Relation arguments of subrec are incorrect")) $4 )
+                     in
+                     let mf = map (\(x,qv1) -> case lookupVar x env of
+                                Just (F f) -> f;
+                                Just (QF (qv2,f)) ->
+                                    let subs = zip qv2 qv1 in
+                                    apply subs f
+                                _->  error ("Formula arguments of subrec are incorrect")) $ (zip $8 mqv) 
+                     in
+                     let r_input = zip mrp mf in
+                     subrec_z_mut cabst r_input >>= \fn -> simplify fn >>= \fnext -> return (F fnext);
+                 else 
+                     error ("Mismatch numbers of [] and [] in RHS!")
+                 }
   | bottomup '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("bottomup(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of

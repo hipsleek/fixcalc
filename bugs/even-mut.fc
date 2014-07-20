@@ -7,14 +7,25 @@ modd_new:={[n_64,i_65] -> [] -> []:  exists (i_17,flted_23_16,Anon_13: ( meven_n
 e1:={[n,i] :  n=i+i && i>=0};
 o1:={[n,i] :  n=i+i+1 && i>=0};
 
-#bottomupgen([meven_new,modd_new], [1,1], SimHeur);
+e2:={1=0};
+o2:={1=0};
+
+[EV1,OD1] :=bottomupgen([meven_new,modd_new], [1,1], SimHeur);
 #bottomupgen([meven_new,modd_new], [2,2], SimHeur);
 
 #fixtestPost([meven_new,modd_new],[e1,o1]);
 #fixtestPost([meven_new],[e1]);
 
+#bottomupgen([meven_new,modd_new],[e2,o2]);
+
 F0:={[]: 0=1}; 
-OD1 := modd_new(F0); 
+# incorrect way to call mutual recursive
+# OD1 := modd_new(F0); 
+# correct way to call: input a list of relation and corresponding value
+OD1 := modd_new([meven_new],[F0]); OD1;
+OD2 := modd_new([meven_new],[e1]); OD2;
+# OD1 := modd_new([meven_new,modd_new],[F0,F1]);
+
 #OD1;
 #EV1 := meven_new(F0); EV1;
 
