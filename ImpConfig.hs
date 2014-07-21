@@ -14,6 +14,8 @@ module ImpConfig(
   simulateOldFixpoint
 ) where
 
+-- import Text.Regex.Base
+
 data Hull = Hull | ConvexHull deriving Show
 data Prederivation = WeakPD | StrongPD | SelectivePD | PostPD | DualPD deriving (Show,Eq)
 data Postcondition = StrongPost | WeakPost deriving (Show,Eq)
@@ -25,7 +27,7 @@ data Flags = Flags {
   checkingAfterInference:: Bool,
   isIndirectionIntArray:: Bool, -- ^Collect constraints regarding Min and Max values of the array elements. Default is False.
   outputFile:: String,
-  showDebugMSG:: Int ,
+  showDebugMSG :: Int ,
 {- | 0 -> do not show any fixpoint messages
      1 -> show only loss-of-precision messages
      2 -> show loss-of-precision and hull-widening messages -}
@@ -39,7 +41,7 @@ data Flags = Flags {
 ---- derive 2 stronger preconditions that need specialization for recursive functions
 ---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
-  dre :: String,                  -- for method-level debugging
+  showDRE :: Maybe String,                  -- for method-level debugging
   useSelectiveHull:: Bool,       -- ^Used by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
   widenEarly:: Bool              -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
 } deriving Show
@@ -58,7 +60,7 @@ defaultFlags = Flags {
   whatHull = Hull,
   simplifyCAbst = False,
   separateFstFromRec = False,
-  dre = "widenOne",
+  showDRE = Nothing,
   useSelectiveHull = False,
   widenEarly = True
 }

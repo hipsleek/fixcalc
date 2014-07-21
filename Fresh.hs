@@ -3,7 +3,7 @@
   Mainly used for unique name generation.
 -}
 module Fresh where
-import ImpConfig(Flags,showDebugMSG,outputFile)
+import ImpConfig(Flags,showDebugMSG,showDRE,outputFile)
 import MyPrelude
 ------------------------------------------
 import System.CPUTime(getCPUTime)
@@ -91,6 +91,12 @@ addOmegaS newStr =
 getFlags:: FS Flags
 getFlags = FS (\st -> return (st,flags st))
 
+getDRE:: FS (Maybe String)
+getDRE = 
+  getFlags >>= \flags ->
+  return (showDRE flags)
+  
+
 incSafePrimChecks:: FS ()
 incSafePrimChecks = FS (\st -> return (st{safePrimChecks = (safePrimChecks st) + 1},()))
 
@@ -136,10 +142,13 @@ print_DD flag dno lst =
 
 print_RES :: String -> Int -> [(String,String)] -> FS ()
 print_RES str dno lst =
-    -- getDRE >>= \dre ->
-    -- let new_dno = if str==dre then 100+
-    putStrFS_DD dno (">>>>>>>>"++str++">>>>>>>>") >>
-    print_DD True dno lst 
+    getDRE >>= \dre ->
+    let new_dno = case dre of
+                       Nothing -> dno;
+                       Just xxx -> if str==xxx then -100 else dno 
+    in
+    putStrFS_DD new_dno (">>>>>>>>"++str++">>>>>>>>") >>
+    print_DD True new_dno lst 
     -- >>
     -- putStrFS_DD dno ("<<<<<<<<"++str++"<<<<<<<<")
 
@@ -151,8 +160,8 @@ putStrFS_DD d s =
   let m = showDebugMSG flags in
   let (flag,str)= 
         if d<0 then 
-          if d>(-50) then (m==d,"EXACT:")
-          else (True,"INFO:")
+          if d==(-100) then (True,"DEBUG:")
+          else (m==d,"EXACT:")
         else if m>50 then (d>=m,"DD_"++":") 
              else if m<10 then (m>=d,"")
                   else if d>=50 then (True,"DD_"++(show d)++":")
@@ -162,7 +171,7 @@ putStrFS_DD d s =
   -- -v:51.. (for tracing only)
   -- -v:-1 (minimal tracing)
   -- -v:-2..(exact tracing only)
-  -- -v<-50 (always printed for info)
+  -- -v=-100 (always print for info)
   in
   when flag (putStrFS (str++s)) >>
   return ()

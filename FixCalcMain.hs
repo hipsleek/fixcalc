@@ -62,6 +62,7 @@ oneArg prevFs arg = case arg of
   "-club:Hull" ->       return $ Just prevFs{whatHull=Hull}
   "-club:ConvexHull" -> return $ Just prevFs{whatHull=ConvexHull}
   '-':'v':':':level ->  return $ Just prevFs{showDebugMSG=read level}
+  '-':'d':'r':'e':':':fname ->  return $ Just prevFs{showDRE=Just fname}
   _ -> 
     putStrLn ("imp: unrecognised flag: " ++ arg) >>
     showHelpMessage

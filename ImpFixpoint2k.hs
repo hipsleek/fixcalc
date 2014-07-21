@@ -286,7 +286,7 @@ bottomUp2k_n dict initFS =
   getFlags >>= \flags -> 
   subrec_genN "K_init" 1 1 dict initFS >>= \initFS1 ->
   subrec_genN "K_init" 2 widen_index dict initFS1 >>= \initFS3 ->
-  print_DD True (-100) [("FS1",show initFS1),("FS3",show initFS3)] >>
+  -- print_DD True (-100) [("FS1",show initFS1),("FS3",show initFS3)] >>
   saturateIdList initFS1 >>= \initS ->
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
   -- compute new mdisj::[(Id,(m,heur,Formula))]
