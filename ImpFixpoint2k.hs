@@ -18,6 +18,7 @@ module ImpFixpoint2k(
   getOneStep,
   subrec_z,
   subrec_z_mut,
+  subrec_gen,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen         -- |Function re-exported from "ImpHullWiden".
@@ -148,7 +149,7 @@ subrec_g dict f_ls =
       --   Nothing ->
       case (find (\(x,_) -> id==x) f_ls) of
         Nothing -> Nothing
-        Just (_,body) -> Just body 
+        Just (_,body) -> Just body
 
 --mk_maybe_dict :: (Eq a) => [(Id,Formula)] -> Id -> Maybe Formula
 mk_maybe_dict :: (Eq a) => [(a,b)] -> a -> Maybe b
@@ -424,9 +425,20 @@ fixTestBU_gen post_dict f_dict =
     return fixok_f
 
 subrec_gen:: [RecPost]->[Formula]-> FS [Formula]
-subrec_gen recpostL candidates=
-  let ziprc=zip recpostL candidates in
-  mapM (\(rc,cd)-> subrec_z rc cd) ziprc
+subrec_gen recpostL candidates =
+  getFlags >>= \flags ->
+  subrec_g (dict flags) input >>= \res ->
+  mapM (\(_,f) -> return f) res
+  where
+    input =
+      let rf_ls = zip recpostL candidates in
+      map (\(rp@(RecPost rid _ _), f) -> (rid,f)) rf_ls
+    dict flags id =
+      let rp = case (find (\ r@(RecPost x _ _) -> id==x) recpostL) of
+                 Nothing -> error "subrec_z_mut : cannot find recpost"
+                 Just r  -> r
+      in
+      (rp,fixFlags flags)
 
 mk_dict :: (Eq a,Show a) => [(a,b)] -> a -> b
 mk_dict ls id =

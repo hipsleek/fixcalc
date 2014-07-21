@@ -2,7 +2,10 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z,subrec_z_mut,combSelHull,getDisjuncts,widen,fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq,pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z)
+import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
+import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
+import ImpFixpoint2k(pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
 import ImpFormula(simplify,subset,pairwiseCheck,hull,apply,debugApply)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
@@ -17,51 +20,52 @@ import Control.Monad(foldM)
 %lexer {lexer} {TkEOF}
 %tokentype {Tk}
 %token
-	lit	{TkAlphaNum $$}
-	intNum	{TkIntNum $$}
-	true	{TkTrue}
-	false	{TkFalse}
-	'+'		{TkPlus}
-	'-'		{TkMinus}
-	'('		{TkLBr}
-	')'		{TkRBr}
-	';'		{TkSemiColon}
-	':='	{TkAssign}
-	'['		{TkLSqBr}
-	']'		{TkRSqBr}
-	'{'		{TkLAcc}
-	'}'		{TkRAcc}
-	','		{TkComma}
-	'='   {TkEq}
-	'<'   {TkLT}
-	'>'   {TkGT}
-	'>='  {TkGTE}
-	'<='  {TkLTE}	
-	'&&'   {TkAnd}
-	'||'  {TkOr}
-	':'   {TkColon}
-	'.'   {TkDot}
-	exists{TkExists}
-	forall{TkForall}
-	prime {TkPrime}
-	rec   {TkRec}
-  widen   {TkKwWiden}
-  subset  {TkKwSubset}
-  bottomup{TkKwBottomup}
-  bottomup_mr{TkKwBottomup_mr}
-  bottomup_gen{TkKwBottomup_gen}
-  topdown {TkKwTopdown}
-  selhull {TkKwSelhull}
-  manualhull {TkKwManualhull}
-  intersection {TkKwIntersection}
-  pairwisecheck {TkKwPairwisecheck}
-  hull    {TkKwHull}
-  fixtestpost {TkKwFixtestpost}
-  fixtestinv {TkKwFixtestinv}
-  pickEqFromEq {TkKwPickEqFromEq}
-  pickGEqFromEq {TkKwPickGEqFromEq}
-  SatEQfromEQ {TkKwSatEQfromEQ}
-  SatGEQfromEQ {TkKwSatGEQfromEQ}
+  lit                     {TkAlphaNum $$}
+  intNum                  {TkIntNum $$}
+  true                    {TkTrue}
+  false                   {TkFalse}
+  '+'                     {TkPlus}
+  '-'                     {TkMinus}
+  '('                     {TkLBr}
+  ')'                     {TkRBr}
+  ';'                     {TkSemiColon}
+  ':='                    {TkAssign}
+  '['                     {TkLSqBr}
+  ']'                     {TkRSqBr}
+  '{'                     {TkLAcc}
+  '}'                     {TkRAcc}
+  ','                     {TkComma}
+  '='                     {TkEq}
+  '<'                     {TkLT}
+  '>'                     {TkGT}
+  '>='                    {TkGTE}
+  '<='                    {TkLTE}
+  '&&'                    {TkAnd}
+  '||'                    {TkOr}
+  ':'                     {TkColon}
+  '.'                     {TkDot}
+  exists                  {TkExists}
+  forall                  {TkForall}
+  prime                   {TkPrime}
+  rec                     {TkRec}
+  apply                   {TkKwApply}
+  widen                   {TkKwWiden}
+  subset                  {TkKwSubset}
+  bottomup                {TkKwBottomup}
+  bottomup_mr             {TkKwBottomup_mr}
+  bottomup_gen            {TkKwBottomup_gen}
+  topdown                 {TkKwTopdown}
+  selhull                 {TkKwSelhull}
+  manualhull              {TkKwManualhull}
+  intersection            {TkKwIntersection}
+  pairwisecheck           {TkKwPairwisecheck}
+  hull                    {TkKwHull}
+  fixtestpost             {TkKwFixtestpost}
+  fixtestinv              {TkKwFixtestinv}
+  pickEqFromEq            {TkKwPickEqFromEq}
+  pickGEqFromEq           {TkKwPickGEqFromEq}
+  SatEQfromEQ             {TkKwSatEQfromEQ}
+  SatGEQfromEQ            {TkKwSatGEQfromEQ}
 %left '||'
 %left '&&'
 %nonassoc '>' '<' '>=' '<=' '='
@@ -75,12 +79,12 @@ import Control.Monad(foldM)
 
 LCommand:: {[RelEnv -> FS RelEnv]}
 LCommand: 
-  Command LCommand       {$1:$2}      
+  Command LCommand       {$1:$2}
   | {- empty -}              {[]}
 
 Command::{RelEnv -> FS RelEnv}
 Command:
-    lit ':=' ParseFormula ';'                                    
+    lit ':=' ParseFormula ';'
     {\env -> putStrNoLnFSOpt ("# " ++ $1 ++ ":=") >>
              $3 env >>= \rhs ->
              putStrFS_debug ("# " ++ $1 ++ ":=" )>>
@@ -100,10 +104,10 @@ Command:
     {\env -> $1 env >>= \res ->
                return res
     }
-  |  '[' Llit2 ']' ':=' ParseFormula1 ';'                                    
+  |  '[' Llit2 ']' ':=' ParseFormula1 ';'
     {\env -> 
         $5 env >>= \fl ->
-        if (length fl /= length $2)  
+        if (length fl /= length $2)
         then 
             error "Mismatch in number of LHS and RHS"
         else 
@@ -257,6 +261,25 @@ ParseFormula1:
       in
       bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
       >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
+  | apply '(' '[' Llit2 ']' ',' '[' Llit2 ']' ')'
+    {\env -> putStrFSOpt ("apply([" ++ show $4 ++ "],[" ++ show $8 ++ "]);") >>
+        if(length $4 ==length $8) then
+            let (mqv,mrp) = unzip (map (\x -> case lookupVar x env of {
+                Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),recpost);
+                _ ->  error ("apply: mismatched argume")}) $4 ) in
+            let mf = map (\(x,qv1) -> case lookupVar x env of {
+                Just (F f) -> f;
+                Just (QF (qv2,f)) ->
+                    let subs = zip qv2 qv1 in
+                    apply subs f;
+                _->  error ("apply: mismatched arguments of relation")}) $ (zip $8 mqv) in
+            subrec_gen mrp mf  >>= \fn ->
+            mapM (\x -> simplify x >>= \f -> return (F f)) fn >>= \fs ->
+            return fs
+        else
+            error ("apply: mismatched arguments of relations!")
+    }
+
 
 ParseFormula2::{RelEnv -> FS RelEnv}
 ParseFormula2:

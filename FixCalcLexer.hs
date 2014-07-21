@@ -2,28 +2,29 @@ module FixCalcLexer where
 import Data.Char(isAlpha,isDigit,isAlphaNum)
 -------Tokens----------------------
 data Tk=
-	TkAlphaNum String
-	| TkTrue | TkFalse | TkIntNum Int | TkFloatNum Float
-	| TkAssign | TkSemiColon | TkLAcc | TkRAcc | TkComma
-	| TkLBr | TkRBr | TkLSqBr | TkRSqBr
-	| TkColon
-  | TkAnd | TkOr 
-	| TkPlus | TkMinus | TkMul | TkDiv
-	| TkEq | TkGT | TkGTE | TkLT | TkLTE | TkNEq | TkNot
-  | TkPrime 
-  | TkDblPercent
-  | TkExists | TkForall | TkDot
-	| TkEOF
-	| TkRec
-	| TkString String
-	| TkKwWiden | TkKwSubset | TkKwBottomup | TkKwBottomup_mr | TkKwBottomup_gen | TkKwTopdown | TkKwSelhull | TkKwWidenppl
-	| TkKwIntersection | TkKwPairwisecheck | TkKwHull | TkKwFixtestpost | TkKwFixtestinv
-	| TkKwManualhull | TkKwPickEqFromEq | TkKwPickGEqFromEq| TkKwSatEQfromEQ| TkKwSatGEQfromEQ
+      TkAlphaNum String
+    | TkTrue | TkFalse | TkIntNum Int | TkFloatNum Float
+    | TkAssign | TkSemiColon | TkLAcc | TkRAcc | TkComma
+    | TkLBr | TkRBr | TkLSqBr | TkRSqBr
+    | TkColon
+    | TkAnd | TkOr 
+    | TkPlus | TkMinus | TkMul | TkDiv
+    | TkEq | TkGT | TkGTE | TkLT | TkLTE | TkNEq | TkNot
+    | TkPrime 
+    | TkDblPercent
+    | TkExists | TkForall | TkDot
+    | TkEOF
+    | TkRec
+    | TkString String
+    | TkKwApply | TkKwWiden | TkKwSubset | TkKwBottomup | TkKwBottomup_mr
+    | TkKwBottomup_gen | TkKwTopdown | TkKwSelhull | TkKwWidenppl
+    | TkKwIntersection | TkKwPairwisecheck | TkKwHull | TkKwFixtestpost | TkKwFixtestinv
+    | TkKwManualhull | TkKwPickEqFromEq | TkKwPickGEqFromEq| TkKwSatEQfromEQ| TkKwSatGEQfromEQ
 
 lexer :: (Tk -> P a) -> P a
-lexer cont = getInput >>= 
-	\input -> lexer' input >>= 
-		\token -> cont token
+lexer cont = getInput >>=
+    \input -> lexer' input >>= 
+        \token -> cont token
 
 lexer' :: String -> P Tk
 lexer' [] = return TkEOF
@@ -71,6 +72,7 @@ lexer' ('T':'r':'u':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkTrue xs
 lexer' ('F':'a':'l':'s':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkFalse xs
 lexer' ('e':'x':'i':'s':'t':'s':xs) | not $ isAlphaNum (head xs) = returnPI TkExists xs
 lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkForall xs
+lexer' ('a':'p':'p':'l':'y':xs) | not $ isAlphaNum (head xs) = returnPI TkKwApply xs
 lexer' ('w':'i':'d':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWiden xs
 lexer' ('w':'i':'d':'e':'n':'p':'p':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWidenppl xs
 lexer' ('s':'u':'b':'s':'e':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkKwSubset xs
