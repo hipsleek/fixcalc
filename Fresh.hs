@@ -136,9 +136,12 @@ print_DD flag dno lst =
 
 print_RES :: String -> Int -> [(String,String)] -> FS ()
 print_RES str dno lst =
+    -- getDRE >>= \dre ->
+    -- let new_dno = if str==dre then 100+
     putStrFS_DD dno (">>>>>>>>"++str++">>>>>>>>") >>
-    print_DD True dno lst >>
-    putStrFS_DD dno ("<<<<<<<<"++str++"<<<<<<<<")
+    print_DD True dno lst 
+    -- >>
+    -- putStrFS_DD dno ("<<<<<<<<"++str++"<<<<<<<<")
 
 
 -- print exact if d is negative; otherwise print when exceed
@@ -147,7 +150,9 @@ putStrFS_DD d s =
   getFlags >>= \flags ->
   let m = showDebugMSG flags in
   let (flag,str)= 
-        if d<0 then (m==d,"EXACT:") 
+        if d<0 then 
+          if d>(-50) then (m==d,"EXACT:")
+          else (True,"INFO:")
         else if m>50 then (d>=m,"DD_"++":") 
              else if m<10 then (m>=d,"")
                   else if d>=50 then (True,"DD_"++(show d)++":")
@@ -157,6 +162,7 @@ putStrFS_DD d s =
   -- -v:51.. (for tracing only)
   -- -v:-1 (minimal tracing)
   -- -v:-2..(exact tracing only)
+  -- -v<-50 (always printed for info)
   in
   when flag (putStrFS (str++s)) >>
   return ()

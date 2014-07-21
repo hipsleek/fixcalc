@@ -39,6 +39,7 @@ data Flags = Flags {
 ---- derive 2 stronger preconditions that need specialization for recursive functions
 ---- otherwise the resulting program may not type-check
   separateFstFromRec:: Bool,
+  dre :: String,                  -- for method-level debugging
   useSelectiveHull:: Bool,       -- ^Used by the old fixpoint. Quicksort (Hanoi and Mergesort) require selectiveHull for precise result.
   widenEarly:: Bool              -- ^Used by the old fixpoint. Quicksort requires widenEarly for precise result.
 } deriving Show
@@ -57,6 +58,7 @@ defaultFlags = Flags {
   whatHull = Hull,
   simplifyCAbst = False,
   separateFstFromRec = False,
+  dre = "widenOne",
   useSelectiveHull = False,
   widenEarly = True
 }
