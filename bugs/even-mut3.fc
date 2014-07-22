@@ -16,7 +16,10 @@ o2:={1=0};
 [EV1,OD1] := apply([meven_new,modd_new],[e2,o2]);
 [EV2,OD2] := apply([meven_new,modd_new],[EV1,OD1]);
 [EV3,OD3] := apply([meven_new,modd_new],[EV2,OD2]);
-# Trung TODO: support selhull, widen 
+[EV3H,OD3H] := selhull([EV3,OD3],[1,1],[SimHeur,SimHeur]);
+[EV4,OD4] := apply([meven_new,modd_new],[EV3H,OD3H]);
+[EV4H,OD4H] := selhull([EV4,OD4],[1,1],[SimHeur,SimHeur]);
+[EV4W,OD4W] := widen([EV3H,OD3H],[EV4H,OD4H],[SimHeur,SimHeur]);
 
 
 #OD1;

@@ -11,7 +11,7 @@ import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
 ------------------------------------------
-import Data.List(nub,elemIndex)
+import Data.List(nub,elemIndex,transpose)
 import Data.Maybe(fromJust)
 import Control.Monad(foldM)
 }
@@ -114,7 +114,7 @@ Command:
            let new_fl = zip $2 fl in
              mapM (\(id,rhs) ->
                case rhs of {
-                 R (RecPost _ f triple) -> 
+                 R (RecPost _ f triple) ->
                    --putStrFS_debug("bach_f_rec="++ show f) >>  
                    return (R (RecPost id f triple)); 
                  (F f) -> 
@@ -262,24 +262,65 @@ ParseFormula1:
       bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
       >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
   | apply '(' '[' Llit2 ']' ',' '[' Llit2 ']' ')'
-    {\env -> putStrFSOpt ("apply([" ++ show $4 ++ "],[" ++ show $8 ++ "]);") >>
+    {\env ->
+        putStrFSOpt ("apply(" ++ show $4 ++ "," ++ show $8 ++ ");") >>
         if(length $4 ==length $8) then
-            let (mqv,mrp) = unzip (map (\x -> case lookupVar x env of {
+            let qv_rp = map (\x -> case lookupVar x env of {
                 Just (R recpost@(RecPost _ _ (sv1,sv2,_)))-> ((sv1++sv2),recpost);
-                _ ->  error ("apply: mismatched argume")}) $4 ) in
+                _ ->  error ("apply: mismatched argume")}) $4 in
+            let (mqv,mrp) = unzip qv_rp in
             let mf = map (\(x,qv1) -> case lookupVar x env of {
                 Just (F f) -> f;
                 Just (QF (qv2,f)) ->
                     let subs = zip qv2 qv1 in
                     apply subs f;
-                _->  error ("apply: mismatched arguments of relation")}) $ (zip $8 mqv) in
+                 _->  error ("apply: mismatched arguments of relation")
+                }) $ (zip $8 mqv) in
             subrec_gen mrp mf  >>= \fn ->
             mapM (\x -> simplify x >>= \f -> return (F f)) fn >>= \fs ->
             return fs
-        else
-            error ("apply: mismatched arguments of relations!")
+        else error ("apply: mismatched arguments of relations!")
     }
-
+  | selhull '(' '[' Llit2 ']' ',' '[' LInt ']' ',' '[' Llit2 ']' ')'
+    {\env ->
+        putStrFSOpt ("selhull(" ++ show $4 ++ "," ++ show $8 ++ "," ++ show $12 ++ ");") >>
+        if ((length $4) == (length $8)) && ((length $4) == (length $8)) then
+            let params = zip3 $4 $8 $12 in
+            mapM (\ (id,val,hr) -> case lookupVar id env of {
+                Just (R recpost) -> error ("Argument of selhull is not a formula\n");
+                Nothing -> error ("Variable not declared - "++ show id ++"\n");
+                Just (QF qf) -> error ("Argument of selhull is not a formula\n");
+                Just (F f) ->
+                    let heur = case hr of {
+                        "SimHeur" -> SimilarityHeur;
+                        "DiffHeur" -> DifferenceHeur;
+                        "HausHeur" -> HausdorffHeur;
+                        lit -> error ("Heuristic not implemented parser.y4 - "++lit)
+                    } in
+                    combSelHull (val,heur) (getDisjuncts f) [] >>= \disj -> return (F (Or disj))
+                }) params
+        else error ("selhull: invalid arguments")
+    }
+  | widen '(' '[' Llit2 ']' ',' '[' Llit2 ']' ',' '[' Llit2 ']' ')'
+    {\env ->
+        putStrFSOpt ("widen(" ++ show $4 ++ "," ++ show $8 ++ "," ++ show $12 ++ ");") >>
+        if ((length $4) == (length $8)) && ((length $4) == (length $8)) then
+            let params = zip3 $4 $8 $12 in
+            mapM (\ (val1,val2,hr) ->
+                case (lookupVar val1 env, lookupVar val2 env) of {
+                    (Just (F f1), Just (F f2)) ->
+                        let heur = case hr of {
+                            "SimHeur" -> SimilarityHeur;
+                            "DiffHeur" -> DifferenceHeur;
+                            "HausHeur" -> HausdorffHeur;
+                            lit -> error ("Heuristic not implemented parser.y4 - "++lit)
+                        } in
+                        widen heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                       return (F (Or disj));
+                    (_,_) -> error "widen: invalid arguments"
+               }) params
+        else error ("widen: invalid arguments")
+    }
 
 ParseFormula2::{RelEnv -> FS RelEnv}
 ParseFormula2:
