@@ -97,6 +97,9 @@ data RecPost = RecPost Lit Formula ([QSizeVar],[QSizeVar],[QSizeVar])
 -- The meaning: (fExists (primeTheseSizeVars imperByValue) body) && noChange(imperByValue).
 
 type Relation = ([QSizeVar],[QSizeVar],Formula)
+
+type QFormula = ([QSizeVar],Formula)
+
 data Formula = And [Formula]
   | Or [Formula]
   | Not Formula

@@ -12,6 +12,9 @@ F3:=R1(F2); F3;
 F3H:=selhull(F3,2,SimHeur); F3H;
 F4:=R1(F3H); F4;
 F4H:=selhull(F4,2,SimHeur); F4H;
+# problem with widen if use QFormula
+# if not using QFormula, how to represent it?
+# if using QFormula, how to do widen?
 F3W:=widen(F3H,F4H,SimHeur); F3W;
 
 fixtestPost([R1],[F3H]);

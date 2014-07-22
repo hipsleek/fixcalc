@@ -13,18 +13,14 @@ o2:={1=0};
 [EV1,OD1] :=bottomupgen([meven_new,modd_new], [1,1], SimHeur);
 #bottomupgen([meven_new,modd_new], [2,2], SimHeur);
 
-#fixtestPost([meven_new,modd_new],[e1,o1]);
-#fixtestPost([meven_new],[e1]);
+[EV1,OD1] := apply([meven_new,modd_new],[e2,o2]);
+[EV2,OD2] := apply([meven_new,modd_new],[EV1,OD1]);
+[EV3,OD3] := apply([meven_new,modd_new],[EV2,OD2]);
+[EV3H,OD3H] := selhull([EV3,OD3],[1,1],[SimHeur,SimHeur]);
+[EV4,OD4] := apply([meven_new,modd_new],[EV3H,OD3H]);
+[EV4H,OD4H] := selhull([EV4,OD4],[1,1],[SimHeur,SimHeur]);
+[EV4W,OD4W] := widen([EV3H,OD3H],[EV4H,OD4H],[SimHeur,SimHeur]);
 
-#bottomupgen([meven_new,modd_new],[e2,o2]);
-
-F0:={[]: 0=1}; 
-# incorrect way to call mutual recursive
-# OD1 := modd_new(F0); 
-# correct way to call: input a list of relation and corresponding value
-OD1 := modd_new([meven_new],[F0]); OD1;
-OD2 := modd_new([meven_new],[e1]); OD2;
-# OD1 := modd_new([meven_new,modd_new],[F0,F1]);
 
 #OD1;
 #EV1 := meven_new(F0); EV1;
