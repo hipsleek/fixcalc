@@ -10,6 +10,7 @@ import System.CPUTime(getCPUTime)
 import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
 import Control.Monad(when,foldM)
+import Text.Regex(mkRegexWithOpts,matchRegex)
 -------FS Fresh---------------------------
 data St = MkState { 
   cnt :: Integer, -- ^Used for unique name generation.
@@ -143,9 +144,16 @@ print_DD flag dno lst =
 print_RES :: String -> Int -> [(String,String)] -> FS ()
 print_RES str dno lst =
     getDRE >>= \dre ->
-    let new_dno = case dre of
-                       Nothing -> dno;
-                       Just xxx -> if str==xxx then -100 else dno 
+    let new_dno = case dre of {
+        Nothing -> dno;
+        Just pattern ->
+          -- use RegExp to match from the beginning of lines
+          let new_pattern = "^"++pattern in
+          let regex = mkRegexWithOpts new_pattern True True in
+          case (matchRegex regex str) of {
+              Just _ -> -100;
+              Nothing -> dno
+          }}
     in
     putStrFS_DD new_dno (">>>>>>>>"++str++">>>>>>>>") >>
     print_DD True new_dno lst 
