@@ -1,0 +1,30 @@
+R:={[a,b,RECa,RECb]:
+ (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)};
+complement R;
+
+RCheck :={[a,b]:
+forall(RECa,RECb: not(
+(((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)
+) ||
+(RECb<0||RECb>0||RECa<=0)
+)};
+RCheck;
+
+ICheck := {[a,b]:
+(b<0||b>0||a<=0)
+};
+ICheck;
+Inv := {[a,b]:
+(b>=0 && a>=0)
+};
+
+P:=(RCheck intersection ICheck) intersection Inv;
+P;
+PairWiseCheck P;
+
+
+Base := {[a,b]:
+(not(b=0) | a<=0)
+};
+
+PairWiseCheck (Inv intersection Base);
