@@ -51,6 +51,7 @@ import Control.Monad(foldM)
   rec                     {TkRec}
   apply                   {TkKwApply}
   widen                   {TkKwWiden}
+  narrow                   {TkKwNarrow}
   subset                  {TkKwSubset}
   bottomup                {TkKwBottomup}
   bottomup_mr             {TkKwBottomup_mr}
@@ -563,6 +564,9 @@ ParseFormula:
                         error ("Length of the list " ++ show $6 ++ " is different than the number of disjuncts in formula.")
                     _ -> error ("First argument of manualhull is not a formula.")
         }
+  | narrow '(' lit ',' lit ')'
+  {\env -> error ("imcomplete narrow operator")
+  }
   | widen '(' lit ',' lit ',' lit ')' 
         {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
