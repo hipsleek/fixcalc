@@ -236,6 +236,7 @@ countAppRecPost formula = case formula of
   GEq us -> 0
   EqK us -> 0
   Exists qsvs f -> countAppRecPost f
+  Forall qsvs f -> countAppRecPost f
   Not f -> countAppRecPost f
   AppRecPost _ _ -> 1
   _ -> error ("countAppRecPost: unexpected argument: "++show formula)

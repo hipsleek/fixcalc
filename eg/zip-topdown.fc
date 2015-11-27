@@ -11,8 +11,7 @@ F2:=topdown(loop,2,SimHeur); F2;
 # (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)
 
 RCheck :={[a,b]:
-forall(RECa,RECb: 
-(
+forall(RECa,RECb: !(
 (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)
 ) ||
 (RECb<0||RECb>0||RECa<=0)
