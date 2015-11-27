@@ -11,7 +11,7 @@
 #   } else { void }
 # }
 
-mnF:={[x,m] -> [PRMx,PRMm] -> []: (exists (g_6,PRMg_6 : exists (g_35,g_36,g_37,g_38 : ((g_36 >= 1 && g_36 = x && 0 = g_6 && not(0 = PRMg_6) && mnF(g_35,g_36,g_37,g_38) && g_36 = g_35 + 1 && g_37 = PRMx && g_38 = PRMm) || (x >= 1 && g_36 = m && 0 = g_6 && 0 = PRMg_6 && mnF(g_35,g_36,g_37,g_38) && x = g_35 + 1 && g_37 = PRMx && g_38 = PRMm) || (0 >= PRMx && PRMx = x && PRMm = m && 0 = g_6 && 0 = PRMg_6)))))};
+mnF:={[x,m] -> [PRMx,PRMm] -> []: (exists (g_6,PRMg_6 : exists (g_35,g_36,g_37,g_38 : ((g_36 >= 1 && g_36 = x && 0 = g_6 && 0 = PRMg_6 && mnF(g_35,g_36,g_37,g_38) && g_36 = g_35 + 1 && g_37 = PRMx && g_38 = PRMm) || (x >= 1 && g_36 = m && 0 = g_6 && 0 = PRMg_6 && mnF(g_35,g_36,g_37,g_38) && x = g_35 + 1 && g_37 = PRMx && g_38 = PRMm) || (0 >= PRMx && PRMx = x && PRMm = m && 0 = g_6 && 0 = PRMg_6)))))};
 
 F0:={[]: 0=1};
 F1:=mnF(F0); F1;
