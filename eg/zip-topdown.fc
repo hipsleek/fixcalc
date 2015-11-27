@@ -14,19 +14,20 @@ RCheck :={[a,b]:
 forall(RECa,RECb: !(
 (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)
 ) ||
-(RECb<0||RECb>0||RECa<=0)
+(!(RECb=0)||RECa<=0)
+#(RECb<0||RECb>0||RECa<=0)
 )};
 RCheck;
 
 ICheck := {[a,b]:
-(b<0||b>0||a<=0)
+#(b<0||b>0||a<=0)
+(!(b=0)||a<=0)
 };
 ICheck;
+
 Inv := {[a,b]:
 (b>=0 && a>=0)
 };
-
-
 
 
 

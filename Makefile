@@ -13,6 +13,7 @@ RAZVAN_DIR_HS=../omega_stub/lib.hs
 LOC_DIR_HS=../omega_stub/src.hs
 #HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(RAZVAN_DIR_HS)
 HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(LOC_DIR_HS)
+HC_SOPTS = -O2 --make -static -optc-static -optl-static -optl-pthread $(HC_OPTS)
 
 RAZVAN_DIR_C=../omega_stub/lib
 RAZVAN_DIR_SRC_HS=../omega_stub/src.hs
@@ -75,6 +76,9 @@ fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
 #####
 
+static: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
+	rm -f fixcalc
+	ghc -o fixcalc $(HC_SOPTS) -lstdc++ FixCalcMain.hs $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
 
 depend: ImpParser.hs FixCalcParser.hs
 	ghc -M $(HC_OPTS) -i$(RAZVAN_DIR_SRC_HS) $(SRCS)
