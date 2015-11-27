@@ -9,7 +9,7 @@ data Tk=
     | TkColon
     | TkAnd | TkOr 
     | TkPlus | TkMinus | TkMul | TkDiv
-    | TkEq | TkGT | TkGTE | TkLT | TkLTE | TkNEq | TkNot | TkNegate
+    | TkEq | TkGT | TkGTE | TkLT | TkLTE | TkNEq | TkNot 
     | TkPrime 
     | TkDblPercent
     | TkExists | TkForall | TkDot
@@ -72,7 +72,6 @@ lexer' ('T':'r':'u':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkTrue xs
 lexer' ('F':'a':'l':'s':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkFalse xs
 lexer' ('e':'x':'i':'s':'t':'s':xs) | not $ isAlphaNum (head xs) = returnPI TkExists xs
 lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkForall xs
-lexer' ('n':'o':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkNegate xs
 lexer' ('a':'p':'p':'l':'y':xs) | not $ isAlphaNum (head xs) = returnPI TkKwApply xs
 lexer' ('w':'i':'d':'e':'n':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWiden xs
 lexer' ('w':'i':'d':'e':'n':'p':'p':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkKwWidenppl xs

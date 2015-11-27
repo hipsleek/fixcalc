@@ -44,9 +44,9 @@ import Control.Monad(foldM)
   '||'                    {TkOr}
   ':'                     {TkColon}
   '.'                     {TkDot}
+  '!'                     {TkNot}
   exists                  {TkExists}
   forall                  {TkForall}
-  not                     {TkNot} 
   prime                   {TkPrime}
   rec                     {TkRec}
   apply                   {TkKwApply}
@@ -641,7 +641,7 @@ QFormula: LBExpr { let (f,rest)=$1 in f}
     { fExists (reverse $3) $5 }
   | forall '(' LPorUSizeVar1 ':' Formula ')' 
     { fForall (reverse $3) $5 }
-  | not '(' Formula ')' 
+  | '!' '(' Formula ')' 
     { fNot $3 }
 
   
