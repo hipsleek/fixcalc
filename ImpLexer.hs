@@ -61,7 +61,7 @@ data Tk=
   | TkPrime 
   | TkDblPercent
   | TkWhere
-  | TkExists | TkForall | TkDot
+  | TkExists | TkForall | TkDot | TkNegate
   | TkError
 	| TkEOF
 	| TkRec
@@ -133,6 +133,7 @@ lexer' ('d':'o':xs) | not $ isAlphaNum (head xs) = returnPI TkKwDo xs
 lexer' ('w':'h':'e':'r':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkWhere xs
 lexer' ('e':'x':'i':'s':'t':'s':xs) | not $ isAlphaNum (head xs) = returnPI TkExists xs
 lexer' ('f':'o':'r':'a':'l':'l':xs) | not $ isAlphaNum (head xs) = returnPI TkForall xs
+lexer' ('n':'o':'t':xs) | not $ isAlphaNum (head xs) = returnPI TkNegate xs
 lexer' ('e':'r':'r':'o':'r':xs) | not $ isAlphaNum (head xs) = returnPI TkError xs
 lexer' ('i':'n':'c':'l':'u':'d':'e':xs) | not $ isAlphaNum (head xs) = returnPI TkKwInclude xs
 lexer' ('r':'e':'f':xs) | not $ isAlphaNum (head xs) = returnPI TkKwRef xs

@@ -46,6 +46,7 @@ import Control.Monad(foldM)
   '.'                     {TkDot}
   exists                  {TkExists}
   forall                  {TkForall}
+  not                     {TkNegate} 
   prime                   {TkPrime}
   rec                     {TkRec}
   apply                   {TkKwApply}
@@ -640,6 +641,8 @@ QFormula: LBExpr { let (f,rest)=$1 in f}
     { fExists (reverse $3) $5 }
   | forall '(' LPorUSizeVar1 ':' Formula ')' 
     { fForall (reverse $3) $5 }
+  | not '(' Formula ')' 
+    { fNot $3}
   
 -- from the final result of qs, only Formula is useful
 -- [[Update]] is needed only in the intermediate productions
