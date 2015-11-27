@@ -100,7 +100,8 @@ type Relation = ([QSizeVar],[QSizeVar],Formula)
 
 type QFormula = ([QSizeVar],Formula)
 
-data Formula = And [Formula]
+data Formula = 
+    And [Formula]
   | Or [Formula]
   | Not Formula
   | Exists [QSizeVar] Formula
