@@ -4,6 +4,7 @@ import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
 import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z)
 import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
+import ImpHullWiden(narrow)
 import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
 import ImpFixpoint2k(pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
 import ImpFormula(simplify,subset,pairwiseCheck,hull,apply,debugApply)
@@ -565,7 +566,16 @@ ParseFormula:
                     _ -> error ("First argument of manualhull is not a formula.")
         }
   | narrow '(' lit ',' lit ')'
-        {\env -> error ("imcomplete narrow operator")
+         {\env -> putStrFSOpt ("narrow(" ++ $3 ++ "," ++ $5 ++ ");") >>
+                 case (lookupVar $3 env,lookupVar $5 env) of
+                   (Just (F f1),Just (F f2)) -> 
+                     narrow [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                     return (F (Or disj))
+                   (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
+                   (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
+                   (Just (QF qf),_) -> error ("Argument of widen is not a formula\n")
+                   (_,Just (QF qf)) -> error ("Argument of widen is not a formula\n")
+                   (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
   | widen '(' lit ',' lit ',' lit ')' 
         {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>

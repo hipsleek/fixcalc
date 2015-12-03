@@ -5,6 +5,7 @@ module ImpHullWiden(
   combHull,       -- |Given F in DNF-form, performs convex-hulling and returns a conjunctive formula.
   combSelHull,    -- |Given F in DNF-form and m, performs selective hulling. Ensures that length(res)=m. The third argument is not used.
   widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
+  narrow,
   widenOne,       -- |Conjunctive widening. 
   countDisjuncts, -- |Given F in DNF-form (e.g. result of simplify), returns the number of disjuncts from F.
   getDisjuncts,   -- |Given F in DNF-form (e.g. result of simplify), returns a list with the disjuncts from F.
@@ -312,6 +313,16 @@ moreSelHull xs ys heur =
           combSelHull (y_len,heur) xs [] >>= \new_xs ->
           helper new_xs ys 
 
+
+cartProd xs ys = [(x,y) | x <- xs, y <- ys]
+
+narrow :: [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
+narrow fbase_ls (xs,ys) = 
+  let pair = cartProd xs ys in
+  mapM (\(i,j) -> simplify (And [i,j])) pair >>= \res ->
+  let ans = Or res in
+  print_DD True 2 [("widen(res)",show ans)] >>
+  return res
 ----------------------------------
 --------Widening powersets--------
 ----------------------------------
