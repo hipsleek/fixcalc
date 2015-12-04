@@ -23,8 +23,8 @@ P;
 PairWiseCheck P;
 
 
-Base := {[a,b]:
-(not(b=0) | a<=0)
-};
+#Base := {[a,b]:
+#(not(b=0) | a<=0)
+#};
 
-PairWiseCheck (Inv intersection Base);
+#PairWiseCheck (Inv intersection Base);
