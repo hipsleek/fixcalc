@@ -638,6 +638,10 @@ subrec_n_mut rp@(RecPost formalMN f1 (formalI,formalO,qsvByVal)) dc dict =
       Exists vars ff -> 
           helper ff >>= \res -> 
           return (Exists vars res)
+      Forall vars ff ->
+          helper ff >>= \res ->
+          return (Forall vars res)
+      Not fs -> return (Not fs)
       GEq us -> return f
       EqK us -> return f
       AppRecPost actualMN actualIO ->

@@ -9,9 +9,12 @@ F1:=f91(F0); F1;
 F2:=f91(F1); F2;
 F3:=f91(F2); F3; F3H:=selhull(F3,2,SimHeur);F3H;
 F4:=f91(F3H); F4; F4H:=selhull(F4,2,SimHeur);F4H;
-F3W:=widen(F3H,F4H,SimHeur);F3W; fixtestPost(f91,F3W);
-F5:=f91(F3W); F5; F5H:=selhull(F5,2,SimHeur);F5H;
-F4W:=widen(F3W,F5H,SimHeur);F4W; fixtestPost(f91,F4W);
+F3W:=widen(F3H,F4H,SimHeur);
+F3W; 
+#fixtestPost(f91,F3W);
+F5:=f91(F3W); F5; 
+#F5H:=selhull(F5,2,SimHeur);F5H;
+F4W:=widen(F3W,F5H,SimHeur);F4W; #fixtestPost(f91,F4W);
 
 Fix1:=bottomup(f91,1,SimHeur);
 Fix2:=bottomup(f91,2,SimHeur);
