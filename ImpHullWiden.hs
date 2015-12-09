@@ -320,34 +320,25 @@ narrow :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 narrow heur fbase_ls (xs,ys) =
-  -- let fbase_ls = getConjunctsN fbase in
-  putStrFS_debug "widen!" >> 
   getFlags >>= \flags ->
-  -- let x_len = length xs in
-  -- let y_len = length ys in
   moreSelHull xs ys heur >>= \ (xs,ys) ->
   mapM hullExistentials xs >>= \xsNoEx ->
   mapM hullExistentials ys >>= \ysNoEx ->
-  addOmegaStr ("Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
-  addOmegaStr ("Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
-  -- let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
   let (mxs,mys) = (xsNoEx,ysNoEx) in
   computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
   mapM (\(i,j) -> narrowOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
-  -- WN :causing LOOP?
-  let ans = Or res in
-  print_DD True 2 [("widen(affixMx)",show affinMx),("widen(list)",show ijs),("widen(res)",show ans)] >>
-  addOmegaStr ("WidenOUT:=" ++ showSet(ans)) >> 
-  return res
+  subset (fOr res) (fOr xs) >>= \bool1 -> 
+  subset (fOr res) (fOr ys) >>= \bool2 ->
+  let result = (if (bool1 && bool2) then res else [fFalse]) in
+  return result
   
 checkConjunct :: [Formula] -> Disjunct -> Bool
 checkConjunct conjuncts disjunct =
   case conjuncts of
     [conjunct] -> isInfixOf (show conjunct) (show disjunct)
     x:xs -> (isInfixOf (show x) (show disjunct)) && (checkConjunct  xs disjunct)
-  
-  
+
 narrowOne :: [Formula] -> (Disjunct,Disjunct) -> FS Disjunct
               -- requires: fcrt, fnext are conjunctive formulae
 narrowOne fbase_ls (fcrt,fnext) = 
