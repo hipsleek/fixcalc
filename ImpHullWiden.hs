@@ -22,11 +22,13 @@ import MyPrelude(numsFrom,updateList,singleton,concatSepBy)
 ---------------
 import Data.Array(Array,(//),(!),array,assocs,bounds)
 import Data.Char(digitToInt,isDigit)
-import Data.List(nub,union,(\\),sortBy)
+import Data.List(nub,union,(\\),sortBy,isInfixOf)
 import Data.Maybe(catMaybes,fromJust)
 import Control.Monad(filterM,when,foldM)
 
 type Disjunct = Formula 
+fFalseDisjunct :: Disjunct
+fFalseDisjunct = EqK [Const 1]
 type DisjFormula = [Formula] 
 
 ----------------------------------
@@ -313,16 +315,65 @@ moreSelHull xs ys heur =
           combSelHull (y_len,heur) xs [] >>= \new_xs ->
           helper new_xs ys 
 
-
-cartProd xs ys = [(x,y) | x <- xs, y <- ys]
-
-narrow :: [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
-narrow fbase_ls (xs,ys) = 
-  let pair = cartProd xs ys in
-  mapM (\(i,j) -> simplify (And [i,j])) pair >>= \res ->
+  
+narrow :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
+-- requires (length xs)=(length ys)
+-- ensures (length res)=(length xs)
+narrow heur fbase_ls (xs,ys) =
+  -- let fbase_ls = getConjunctsN fbase in
+  putStrFS_debug "widen!" >> 
+  getFlags >>= \flags ->
+  -- let x_len = length xs in
+  -- let y_len = length ys in
+  moreSelHull xs ys heur >>= \ (xs,ys) ->
+  mapM hullExistentials xs >>= \xsNoEx ->
+  mapM hullExistentials ys >>= \ysNoEx ->
+  addOmegaStr ("Widen1IN:=" ++ showSet(Or xsNoEx)) >> 
+  addOmegaStr ("Widen2IN:=" ++ showSet(Or ysNoEx)) >> 
+  -- let (mxs,mys) = (map (\x -> Just x) xsNoEx,map (\y -> Just y) ysNoEx) in
+  let (mxs,mys) = (xsNoEx,ysNoEx) in
+  computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
+  iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
+  mapM (\(i,j) -> narrowOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
+  -- WN :causing LOOP?
   let ans = Or res in
-  print_DD True 2 [("widen(res)",show ans)] >>
+  print_DD True 2 [("widen(affixMx)",show affinMx),("widen(list)",show ijs),("widen(res)",show ans)] >>
+  addOmegaStr ("WidenOUT:=" ++ showSet(ans)) >> 
   return res
+  
+checkConjunct :: [Formula] -> Disjunct -> Bool
+checkConjunct conjuncts disjunct =
+  case conjuncts of
+    [conjunct] -> isInfixOf (show conjunct) (show disjunct)
+    x:xs -> (isInfixOf (show x) (show disjunct)) && (checkConjunct  xs disjunct)
+  
+  
+narrowOne :: [Formula] -> (Disjunct,Disjunct) -> FS Disjunct
+              -- requires: fcrt, fnext are conjunctive formulae
+narrowOne fbase_ls (fcrt,fnext) = 
+  putStrFS_DD 1 ("fcrt: " ++ showSet fcrt) >>
+  putStrFS_DD 1 ("fnext: " ++ showSet fnext) >>
+  addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
+  -- WN : cause LOOP?
+  addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
+  saturateFS fcrt >>= \satf ->    -- 
+  let satf_l = getConjunctsN satf in
+  -- closure fcrt >>= \fcrts ->    --
+  let new_ls = (satf_l++fbase_ls) in
+  keepProp new_ls fnext >>= \implied_ls ->
+  let fwid = fAnd (implied_ls) in
+  print_RES "narrowOne" (3) [("fcrt",show fcrt),
+                      ("fnext",show fnext),
+                      ("fbase_ls",show fbase_ls),
+                      ("Sat(fcrt)",show satf_l),
+                      ("result",show fwid)
+                      -- ,("closure",show fcrts)
+                     ] >>
+  addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
+  let check = (checkConjunct implied_ls fcrt) && (checkConjunct implied_ls fnext) in
+  let result = (if check then fwid else fFalse) in
+  return result
+
 ----------------------------------
 --------Widening powersets--------
 ----------------------------------
@@ -344,6 +395,7 @@ widen heur fbase_ls (xs,ys) =
   let (mxs,mys) = (xsNoEx,ysNoEx) in
   computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
+  putStrFS_DD 1 ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx") >>
   mapM (\(i,j) -> widenOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   -- WN :causing LOOP?
   let ans = Or res in
@@ -433,6 +485,8 @@ replaceRelatedWithNoth (disjCrt,disjNxt) (i,j) =
 widenOne :: [Formula] -> (Disjunct,Disjunct) -> FS Disjunct
 -- requires: fcrt, fnext are conjunctive formulae
 widenOne fbase_ls (fcrt,fnext) = 
+  putStrFS_DD 1 ("fcrt: " ++ showSet fcrt) >>
+  putStrFS_DD 1 ("fnext: " ++ showSet fnext) >>
   addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
   -- WN : cause LOOP?
   addOmegaStr("WidenNxt:=" ++ showSet fnext) >>

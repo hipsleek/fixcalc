@@ -565,14 +565,21 @@ ParseFormula:
                         error ("Length of the list " ++ show $6 ++ " is different than the number of disjuncts in formula.")
                     _ -> error ("First argument of manualhull is not a formula.")
         }
-  | narrow '(' lit ',' lit ')'
-       {\env -> putStrFSOpt ("narrow(" ++ $3 ++ "," ++ $5 ++ ");") >>
+
+  | narrow '(' lit ',' lit ',' lit ')' 
+        {\env -> putStrFSOpt ("narrow(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
-                   (Just (F f1),Just (F f2)) ->
-                      simplify (And [f1,f2]) >>= \f3 -> 
-                      return (F f3)
-                   (_,_) -> error ("Argument of intersection is not a valid formula\n")
-         }
+                   (Just (F f1),Just (F f2)) -> 
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y5 - "++lit)} in
+                     narrow heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                     return (F (Or disj))
+                   (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
+                   (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
+                   (Just (QF qf),_) -> error ("Argument of widen is not a formula\n")
+                   (_,Just (QF qf)) -> error ("Argument of widen is not a formula\n")
+                   (_,_) -> error ("Variable not declared - "++$3++"\n")
+        }
+
   | widen '(' lit ',' lit ',' lit ')' 
         {\env -> putStrFSOpt ("widen(" ++ $3 ++ "," ++ $5 ++ "," ++ $7 ++ ");") >>
                  case (lookupVar $3 env,lookupVar $5 env) of
