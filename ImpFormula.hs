@@ -4,7 +4,7 @@ module ImpFormula where
 import Fresh(FS(..),fresh,takeFresh,addOmegaStr,getFlags,putStrFS,putStrFS_debug)
 import ImpAST
 import ImpConfig(isIndirectionIntArray,whatHull,Hull(..))
-import InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impPairwiseCheck,impIntersection)
+import InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impPairwiseCheck)
 import MyPrelude
 ------------------------------------------
 import Data.List(nub,(\\),intersect,union)
@@ -31,11 +31,6 @@ subset f1 f2 =
   let v1 = fqsv f1 in let v2 = fqsv f2 in
   impSubset (v1,[],f1) (v2,[],f2)
 
-intersection:: Formula -> Formula -> FS Formula
-intersection f1 f2 =
-  let v1 = fqsv f1 in let v2 = fqsv f2 in
-  impIntersection (v1,[],f1) (v2,[],f2)
-  
 hull:: Formula -> FS Formula
 -- ^Applies a Hull or a ConvexHull operation depending on the flag 'whatHull'.
 hull f = 

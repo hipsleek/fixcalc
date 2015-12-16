@@ -2,7 +2,7 @@
   Provides an interface to the Omega functions. 
   Does some conversions (Imp->Omega) and (Omega->Imp).
 -}
-module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impCompose,impPairwiseCheck,impIntersection) where
+module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impCompose,impPairwiseCheck) where
 import qualified Omega as Omega
 import qualified PFOmega as Omega
 import qualified Omega_types as Omega
@@ -83,25 +83,6 @@ impConvexHull (qsv1,[],f1) =
   replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->
   let res = removeUnions repl_back_rf in
 --    addOmegaStr ("AftConvexHull:=" ++ show (vf1,res)) >> 
-  return res
-
-impIntersection:: Relation -> Relation -> FS Formula
-impIntersection (qsv1,qsv1',f1) (qsv2,qsv2',f2) = 
-  let vf1 = map showTest3 qsv1 in
-  let vf2 = map showTest3 qsv2 in
-  let vf1' = map showTest3 qsv1' in
-  let vf2' = map showTest3 qsv2' in
-  let impF1 = canonicalF f1 in
-  let impF2 = canonicalF f2 in
---    addOmegaStr (show (vf1,vf1',impF1)) >> 
---    addOmegaStr (show (vf2,vf2',impF2)) >> 
-  let rf1 = Omega.replace_vars_in_rformula (vf1 `intersect` vf1') (Omega.Formula (impToOmF impF1)) in
-  let rf2 = Omega.replace_vars_in_rformula (vf2 `intersect` vf2') (Omega.Formula (impToOmF impF2)) in
-  let back_rf = unsafePerformIO (Omega.intersection (vf1,vf1',rf1) (vf2,vf2',rf2)) in
-  let res_vars = vf1 `intersect` vf1' in
-  replace_vars_from_rformula res_vars back_rf >>= \repl_back_rf ->
-  let res = removeUnions repl_back_rf in
-    addOmegaStr ("Intersectioned:=" ++ show (vf1,vf1',res)) >> 
   return res
 
 impUnion:: Relation -> Relation -> FS Formula
