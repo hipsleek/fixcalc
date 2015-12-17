@@ -1,7 +1,7 @@
 loop:={[x] -> [] -> []: 
   (!(x=0)) &&
 # ((x=0) || (exists (v: v=x-1 && loop(v))))
-  (exists (v: x=v+1 && (!(v+1=0) || loop(v))))
+  (exists (v: x=v+1 && ((v+1=0) || loop(v))))
 };
 
 I:={[]: 1=1};
