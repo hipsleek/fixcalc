@@ -752,7 +752,7 @@ gfp2k recpost (m,heur) postFromBU =
   addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
   combSelHull (mdisj,heur) (getDisjuncts g2) [] >>= \disjG2 ->
-  iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
+  iterGFP2k recpost (mdisj,heur) disjG2 oneStep 3
 
 iterTD2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
 iterTD2k recpost (m,heur) gcrt oneStep cnt = 
@@ -766,6 +766,19 @@ iterTD2k recpost (m,heur) gcrt oneStep cnt =
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)
     else iterTD2k recpost (m,heur) gcrtW oneStep (cnt+1)
+         
+iterGFP2k:: RecPost -> FixFlags -> DisjFormula -> Relation -> Int -> FS (Formula,Int)
+iterGFP2k recpost (m,heur) gcrt oneStep cnt = 
+  if (cnt>maxIter) then return (fTrue,-1)
+  else
+    compose (Or gcrt) oneStep >>= \gcomp ->
+    simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
+    addOmegaStr ("# G" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
+    combSelHull (m,heur) (getDisjuncts gcompPlusOne) [] >>= \gnext ->
+    widen heur [] (gcrt,gnext) >>= \gcrtW ->
+    fixTestTD oneStep (Or gcrtW) >>= \fixok ->
+    if fixok then return (Or gcrtW,cnt)
+    else iterGFP2k recpost (m,heur) gcrtW oneStep (cnt+1)
 
 fixTestTD:: Relation -> Formula -> FS Bool
 fixTestTD oneStep candidate = 
