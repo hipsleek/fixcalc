@@ -29,4 +29,5 @@ F3:=PairwiseCheck F3;
 F4:=PairwiseCheck F4;
 F3;
 F4;
-
+F5:=gfp(loop,1,SimHeur);
+F5;

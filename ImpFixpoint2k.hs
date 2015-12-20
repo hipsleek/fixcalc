@@ -812,6 +812,10 @@ getRecCtxs recs io postFromBU formula = case formula of
   Exists exQsv f -> 
     getRecCtxs recs io postFromBU f >>= \(genCtx,recCtxs) ->
     return (Exists exQsv genCtx,map (Exists exQsv) recCtxs)
+  Forall exQsv f ->
+    getRecCtxs recs io postFromBU f >>= \(genCtx,recCtxs) ->
+    return (Forall exQsv genCtx,map (Forall exQsv) recCtxs)
+  Not ups -> return (Not ups,[])
   EqK ups -> return (formula,[])
   GEq ups -> return (formula,[])
   AppRecPost _ insouts ->
