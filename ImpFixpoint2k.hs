@@ -7,6 +7,7 @@ module ImpFixpoint2k(
   bottomUp_mr,
   bottomUp2k_gen,
   topDown2k,
+  gfp2k,
   getEq,
   pickEqFromEq,
   pickGEQfromEQ,
@@ -738,6 +739,18 @@ topDown2k recpost (m,heur) postFromBU =
   addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
 --  when (showDebugMSG flags >=1) (putStrFS("Deciding a value for m: limit from command line (m="++show m++"), from heuristic (m=" ++ show (countDisjuncts g2) ++ ") => m="++ show mdisj)) >>
+  combSelHull (mdisj,heur) (getDisjuncts g2) [] >>= \disjG2 ->
+  iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
+  
+gfp2k:: RecPost -> FixFlags -> Formula -> FS (Formula,Int)
+gfp2k recpost (m,heur) postFromBU = 
+  getFlags >>= \flags -> 
+  getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
+  addOmegaStr ("# G1:="++showRelation oneStep) >>
+  compose g1 oneStep >>= \gcomp ->
+  pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
+  addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
+  let mdisj = min m (countDisjuncts g2) in
   combSelHull (mdisj,heur) (getDisjuncts g2) [] >>= \disjG2 ->
   iterTD2k recpost (mdisj,heur) disjG2 oneStep 3
 

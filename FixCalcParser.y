@@ -2,7 +2,7 @@
 module FixCalcParser where
 import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
-import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,subrec_z)
+import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,gfp2k,subrec_z)
 import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
 import ImpHullWiden(narrow)
 import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
@@ -58,6 +58,7 @@ import Control.Monad(foldM)
   bottomup_mr             {TkKwBottomup_mr}
   bottomup_gen            {TkKwBottomup_gen}
   topdown                 {TkKwTopdown}
+  gfp                     {TkKwGFP}
   selhull                 {TkKwSelhull}
   manualhull              {TkKwManualhull}
   intersection            {TkKwIntersection}
@@ -543,6 +544,17 @@ ParseFormula:
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
                      topDown2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
+
+  | gfp '(' lit ',' intNum ',' lit ')'
+        {\env -> putStrFSOpt ("gfp(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
+                 case lookupVar $3 env of
+                   Just (F f) -> error ("Argument of gfp is not a constraint abstraction\n")
+                   Just (QF qf) -> error ("Argument of gfp is not a constraint abstraction\n")
+                   Nothing -> error ("Variable not declared - "++$3++"\n")
+                   Just (R recpost) -> 
+                     let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
+                     gfp2k recpost ($5,heur) fFalse >>= \(inv,cnt) -> return (F inv)}
+
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
