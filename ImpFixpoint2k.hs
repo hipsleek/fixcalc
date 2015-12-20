@@ -22,14 +22,15 @@ module ImpFixpoint2k(
   subrec_gen,
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
-  widen         -- |Function re-exported from "ImpHullWiden".
+  widen,         -- |Function re-exported from "ImpHullWiden".
+  narrow        -- |Function re-exported from "ImpHullWiden".
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,print_RES,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula
   -- (debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(closure,widen,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
+import ImpHullWiden(closure,widen,narrow,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import Data.List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
@@ -775,7 +776,7 @@ iterGFP2k recpost (m,heur) gcrt oneStep cnt =
     simplify (Or (getDisjuncts(thd3 oneStep)++getDisjuncts gcomp)) >>=  \gcompPlusOne ->
     addOmegaStr ("# G" ++ show (cnt) ++ " hulled to G" ++ show (cnt) ++ "r") >>
     combSelHull (m,heur) (getDisjuncts gcompPlusOne) [] >>= \gnext ->
-    widen heur [] (gcrt,gnext) >>= \gcrtW ->
+    narrow heur [] (gcrt,gnext) >>= \gcrtW ->
     fixTestTD oneStep (Or gcrtW) >>= \fixok ->
     if fixok then return (Or gcrtW,cnt)
     else iterGFP2k recpost (m,heur) gcrtW oneStep (cnt+1)
