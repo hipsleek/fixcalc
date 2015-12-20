@@ -328,25 +328,19 @@ narrow heur fbase_ls (xs,ys) =
   computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
   mapM (\(i,j) -> narrowOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
-  subset (fOr res) (fOr xs) >>= \bool1 -> 
-  subset (fOr res) (fOr ys) >>= \bool2 ->
-  let result = (if (bool1 && bool2) then res else [fFalse]) in
-  return result
+  return res
   
 checkConjunct :: [Formula] -> Disjunct -> Bool
 checkConjunct conjuncts disjunct =
   case conjuncts of
     [conjunct] -> isInfixOf (show conjunct) (show disjunct)
     x:xs -> (isInfixOf (show x) (show disjunct)) && (checkConjunct  xs disjunct)
-
+  
 narrowOne :: [Formula] -> (Disjunct,Disjunct) -> FS Disjunct
               -- requires: fcrt, fnext are conjunctive formulae
 narrowOne fbase_ls (fcrt,fnext) = 
-  putStrFS_DD 1 ("fcrt: " ++ showSet fcrt) >>
-  putStrFS_DD 1 ("fnext: " ++ showSet fnext) >>
-  addOmegaStr ("WidenCrt:=" ++ showSet fcrt) >> 
-  -- WN : cause LOOP?
-  addOmegaStr("WidenNxt:=" ++ showSet fnext) >>
+  addOmegaStr ("NarrowCrt:=" ++ showSet fcrt) >> 
+  addOmegaStr("NarrowNxt:=" ++ showSet fnext) >>
   saturateFS fcrt >>= \satf ->    -- 
   let satf_l = getConjunctsN satf in
   -- closure fcrt >>= \fcrts ->    --
@@ -360,9 +354,10 @@ narrowOne fbase_ls (fcrt,fnext) =
                       ("result",show fwid)
                       -- ,("closure",show fcrts)
                      ] >>
-  addOmegaStr ("WidenRes:=" ++ showSet fwid) >>
-  let check = (checkConjunct implied_ls fcrt) && (checkConjunct implied_ls fnext) in
-  let result = (if check then fwid else fFalse) in
+  
+  subset fcrt fnext >>= \bool1 -> 
+  subset fnext fcrt >>= \bool2 ->
+  let result = (if (bool1 && bool2) then fwid else fFalse) in
   return result
 
 ----------------------------------
