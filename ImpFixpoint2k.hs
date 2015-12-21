@@ -748,7 +748,9 @@ gfp2k recpost (m,heur) postFromBU =
   getFlags >>= \flags -> 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("# G1:="++showRelation oneStep) >>
+  putStrFS_DD 0 ("before compose") >>
   compose g1 oneStep >>= \gcomp ->
+  putStrFS_DD 0 ("before pairwiseCheck") >>
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
@@ -989,10 +991,10 @@ topDown:: RecPost -> Formula -> FS (Formula,Int)
 topDown recpost postFromBU = 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("#\tG1:="++showRelation oneStep) >>
-      compose g1 (ins,recs,g1) >>= \gcomp ->
-      addOmegaStr ("#\tG2 hulled to G2r") >>
-      combHull [] [g1,gcomp] >>= \g2 ->
-      iterTD recpost g2 oneStep 3
+  compose g1 (ins,recs,g1) >>= \gcomp ->
+  addOmegaStr ("#\tG2 hulled to G2r") >>
+  combHull [] [g1,gcomp] >>= \g2 ->
+  iterTD recpost g2 oneStep 3
 
 iterTD:: RecPost -> Formula -> Relation -> Int -> FS (Formula,Int)
 iterTD recpost gcrt oneStep cnt = 

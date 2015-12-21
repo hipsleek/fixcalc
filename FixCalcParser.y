@@ -553,7 +553,7 @@ ParseFormula:
                    Nothing -> error ("Variable not declared - "++$3++"\n")
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
-                     gfp2k recpost ($5,heur) fFalse >>= \(inv,cnt) -> return (F inv)}
+                     gfp2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
 
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>

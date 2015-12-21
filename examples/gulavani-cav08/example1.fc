@@ -16,11 +16,12 @@ wh := {[x,z,i] -> [PRMx,PRMz,PRMi] -> []: x>=40 && x=PRMx && z=PRMz && i=PRMi ||
 #DesiredFixTD:={[x,z,i,RECx,RECz,RECi]: x<RECx<=41 && i<RECi && z=RECz && x-i<=RECx-RECi};
 #fixtestInv(wh,DesiredFixTD);
 
-F0:={[]: 0=1};
-F1:=wh(F0); F1;
-F2:=wh(F1); F2;
-F2H:=selhull(F2,2,SimHeur); F2H;
-MyF2H:=manualhull(F2,[1,2,2,2]); MyF2H;
-MyF2H:=manualhull(F2,[1,2,3,3]); MyF2H;
-MyF2H:=manualhull(F2,[1,2,3,4]); MyF2H;
-MyF2H:=manualhull(F2,[4,3,2,1]); MyF2H;
+#F0:={[]: 0=1};
+#F1:=wh(F0); F1;
+#F2:=wh(F1); F2;
+#F2H:=selhull(F2,2,SimHeur); F2H;
+#MyF2H:=manualhull(F2,[1,2,2,2]); MyF2H;
+#MyF2H:=manualhull(F2,[1,2,3,3]); MyF2H;
+#MyF2H:=manualhull(F2,[1,2,3,4]); MyF2H;
+#MyF2H:=manualhull(F2,[4,3,2,1]); MyF2H;
+TD:=topdown(wh,1,SimHeur); TD;
