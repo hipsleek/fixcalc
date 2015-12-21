@@ -109,7 +109,6 @@ keepProp fbase orig =
   let ans = (map fst fcrt') in
   let kept = filter (isEqualF) ans in
   let ans2 =if kept==[] && length to_keep<2 then to_keep++ans else ans in
-  putStrFS_DD 0 ("before keepProp result") >>
   print_RES "keepProp" (3) [("fbase",show fbase),
                       ("orig",show orig),
                       ("to_keep",show to_keep),
