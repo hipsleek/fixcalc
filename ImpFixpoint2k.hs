@@ -748,9 +748,7 @@ gfp2k recpost (m,heur) postFromBU =
   getFlags >>= \flags -> 
   getOneStep recpost postFromBU >>= \oneStep@(ins,recs,g1) ->
   addOmegaStr ("# G1:="++showRelation oneStep) >>
-  putStrFS_DD 0 ("before compose") >>
   compose g1 oneStep >>= \gcomp ->
-  putStrFS_DD 0 ("before pairwiseCheck") >>
   pairwiseCheck (fOr [g1,gcomp]) >>= \g2 -> 
   addOmegaStr ("# G2:="++showRelation (ins,recs,g2)) >>
   let mdisj = min m (countDisjuncts g2) in
