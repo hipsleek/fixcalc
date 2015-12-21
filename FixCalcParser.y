@@ -54,7 +54,7 @@ import Control.Monad(foldM)
   widen                   {TkKwWiden}
   narrow                  {TkKwNarrow}
   subset                  {TkKwSubset}
-  difference              {TkKwDifference}
+  complement              {TkKwComplement}
   bottomup                {TkKwBottomup}
   bottomup_mr             {TkKwBottomup_mr}
   bottomup_gen            {TkKwBottomup_gen}
@@ -241,8 +241,8 @@ Command:
                  else error ("Arguments of subset are not valid QFormulas\n")
                (_,_) -> error ("Arguments of subset are not valid\n")
      }
-  | lit difference lit ';' 
-    {\env -> putStrFSOpt("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
+  | lit complement lit ';' 
+    {\env -> putStrFSOpt("# "++ $1 ++ " complement " ++ $3 ++ ";") >>
              case (lookupVar $1 env,lookupVar $3 env) of
                (Just (F f1),Just (F f2)) ->
                  difference f1 f2 >>= \result -> 
