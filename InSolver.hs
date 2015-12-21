@@ -2,7 +2,7 @@
   Provides an interface to the Omega functions. 
   Does some conversions (Imp->Omega) and (Omega->Imp).
 -}
-module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impCompose,impPairwiseCheck) where
+module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impDifference,impCompose,impPairwiseCheck) where
 import qualified Omega as Omega
 import qualified PFOmega as Omega
 import qualified Omega_types as Omega
@@ -103,6 +103,25 @@ impUnion (qsv1,qsv1',f1) (qsv2,qsv2',f2) =
   let res = removeUnions repl_back_rf in
     addOmegaStr ("Unioned:=" ++ show (vf1,vf1',res)) >> 
   return res
+  
+impDifference:: Relation -> Relation -> FS Formula
+impDifference (qsv1,qsv1',f1) (qsv2,qsv2',f2) = 
+  let vf1 = map showTest3 qsv1 in
+  let vf2 = map showTest3 qsv2 in
+  let vf1' = map showTest3 qsv1' in
+  let vf2' = map showTest3 qsv2' in
+  let impF1 = canonicalF f1 in
+  let impF2 = canonicalF f2 in
+--    addOmegaStr (show (vf1,vf1',impF1)) >> 
+--    addOmegaStr (show (vf2,vf2',impF2)) >> 
+  let rf1 = Omega.replace_vars_in_rformula (vf1 `union` vf1') (Omega.Formula (impToOmF impF1)) in
+  let rf2 = Omega.replace_vars_in_rformula (vf2 `union` vf2') (Omega.Formula (impToOmF impF2)) in
+  let back_rf = unsafePerformIO (Omega.difference (vf1,vf1',rf1) (vf2,vf2',rf2)) in
+  let res_vars = vf1 `union` vf1' in
+  replace_vars_from_rformula res_vars back_rf >>= \repl_back_rf ->
+  let res = removeUnions repl_back_rf in
+    addOmegaStr ("Differenced:=" ++ show (vf1,vf1',res)) >> 
+  return res
 
 impCompose:: Relation -> Relation -> FS Formula
 impCompose (qsv1,qsv1',f1) (qsv2,qsv2',f2) = 
@@ -128,7 +147,7 @@ impPairwiseCheck (qsv1,qsv1',f1) =
   let vf1 = map showTest3 qsv1 in
   let vf1' = map showTest3 qsv1' in
   let impF1 = canonicalF f1 in
---    addOmegaStr (show (vf1,vf1',impF1)) >>
+  --    addOmegaStr (show (vf1,vf1',impF1)) >>
   let rf1 = Omega.replace_vars_in_rformula (vf1 `union` vf1') (Omega.Formula (impToOmF impF1)) in
   let back_rf = unsafePerformIO (Omega.pairwiseCheck (vf1,vf1',rf1)) in
   replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->

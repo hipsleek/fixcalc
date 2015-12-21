@@ -7,7 +7,7 @@ import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
 import ImpHullWiden(narrow)
 import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
 import ImpFixpoint2k(pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
-import ImpFormula(simplify,subset,pairwiseCheck,hull,apply,debugApply)
+import ImpFormula(simplify,subset,difference,pairwiseCheck,hull,apply,debugApply)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
@@ -54,6 +54,7 @@ import Control.Monad(foldM)
   widen                   {TkKwWiden}
   narrow                  {TkKwNarrow}
   subset                  {TkKwSubset}
+  difference              {TkKwDifference}
   bottomup                {TkKwBottomup}
   bottomup_mr             {TkKwBottomup_mr}
   bottomup_gen            {TkKwBottomup_gen}
@@ -238,6 +239,15 @@ Command:
                    putStrFSOpt("\n# " ++ show subok ++ "\n") >> 
                    return env
                  else error ("Arguments of subset are not valid QFormulas\n")
+               (_,_) -> error ("Arguments of subset are not valid\n")
+     }
+  | lit difference lit ';' 
+    {\env -> putStrFSOpt("# "++ $1 ++ " subset " ++ $3 ++ ";") >>
+             case (lookupVar $1 env,lookupVar $3 env) of
+               (Just (F f1),Just (F f2)) ->
+                 difference f1 f2 >>= \result -> 
+                 putStrFSOpt("\n# " ++ showSet result ++ "\n") >> 
+                 return env
                (_,_) -> error ("Arguments of subset are not valid\n")
      }
   | lit ';'
