@@ -241,15 +241,7 @@ Command:
                  else error ("Arguments of subset are not valid QFormulas\n")
                (_,_) -> error ("Arguments of subset are not valid\n")
      }
-  | lit complement lit ';' 
-    {\env -> putStrFSOpt("# "++ $1 ++ " complement " ++ $3 ++ ";") >>
-             case (lookupVar $1 env,lookupVar $3 env) of
-               (Just (F f1),Just (F f2)) ->
-                 difference f1 f2 >>= \result -> 
-                 putStrFSOpt("\n# " ++ showSet result ++ "\n") >> 
-                 return env
-               (_,_) -> error ("Arguments of subset are not valid\n")
-     }
+ 
   | lit ';'
     {\env -> putStrFSOpt("\n# "++ $1 ++ ";") >>
              case lookupVar $1 env of 
@@ -565,6 +557,14 @@ ParseFormula:
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
                      gfp2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
 
+ | lit complement lit
+    {\env -> putStrFSOpt("# "++ $1 ++ " complement " ++ $3 ++ ";") >>
+             case (lookupVar $1 env,lookupVar $3 env) of
+               (Just (F f1),Just (F f2)) ->
+                 difference f1 f2 >>= \result -> 
+                 return (F result)
+               (_,_) -> error ("Arguments of complement are not valid\n")
+     }
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
