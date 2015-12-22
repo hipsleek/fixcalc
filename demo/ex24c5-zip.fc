@@ -35,8 +35,7 @@ F3C;F4C;
 F3WC:=widen(F3C,F4C,SimHeur);
 F3WC;
 F3N:=narrow(F3,F4,SimHeur);
-F3N;
-PairwiseCheck F3N;
+
 
 #F4N:=narrow(F3,F4,SimHeur);
 #F4N;
