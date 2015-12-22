@@ -336,8 +336,10 @@ narrow2 heur fbase_ls (xs,ys) =
   let xs_f = Or xs in
   let ys_f = Or ys in
   complement xs_f >>= \xs_compl ->
+  pairwiseCheck xs_compl >>= \xs_pwc ->
   complement ys_f >>= \ys_compl ->
-  widen heur fbase_ls (getDisjuncts xs_compl, getDisjuncts ys_compl) >>= \widen_result ->
+  pairwiseCheck ys_compl >>= \ys_pwc ->
+  widen heur fbase_ls (getDisjuncts xs_pwc, getDisjuncts ys_pwc) >>= \widen_result ->
   complement (Or widen_result) >>= \result ->
   return (getDisjuncts result)
   
