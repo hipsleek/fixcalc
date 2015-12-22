@@ -398,7 +398,6 @@ widen heur fbase_ls (xs,ys) =
   let (mxs,mys) = (xsNoEx,ysNoEx) in
   computeMx_full heur fbase_ls (mxs,mys) >>= \affinMx ->
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
-  putStrFS_DD 1 ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx") >>
   mapM (\(i,j) -> widenOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   -- WN :causing LOOP?
   let ans = Or res in
