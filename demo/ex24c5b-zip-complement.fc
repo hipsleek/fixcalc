@@ -31,9 +31,9 @@ F3;
 F4;
 
 CF3:=complement F3;
-CF3:=PairwiseCheck CF3;
+#CF3:=PairwiseCheck CF3;
 CF4:=complement F4;
-CF4:=PairwiseCheck CF4;
+#CF4:=PairwiseCheck CF4;
 
 CF3; CF4;
 
