@@ -2,7 +2,7 @@
   Provides an interface to the Omega functions. 
   Does some conversions (Imp->Omega) and (Omega->Imp).
 -}
-module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impDifference,impCompose,impPairwiseCheck) where
+module InSolver(impSubset,impSimplify,impGist,impHull,impConvexHull,impUnion,impDifference,impComplement,impCompose,impPairwiseCheck) where
 import qualified Omega as Omega
 import qualified PFOmega as Omega
 import qualified Omega_types as Omega
@@ -155,6 +155,16 @@ impPairwiseCheck (qsv1,qsv1',f1) =
 --    addOmegaStr ("PairwiseChk:=" ++ show (vf1,vf1',res)) >> 
   return res
 
+impComplement:: Relation -> FS Formula
+impComplement (qsv1,qsv1',f1) =
+  let vf1 = map showTest3 qsv1 in
+  let vf1' = map showTest3 qsv1' in
+  let impF1 = canonicalF f1 in
+  let rf1 = Omega.replace_vars_in_rformula (vf1 `union` vf1') (Omega.Formula (impToOmF impF1)) in
+  let back_rf = unsafePerformIO (Omega.complement (vf1,vf1',rf1)) in
+  replace_vars_from_rformula vf1 back_rf >>= \repl_back_rf ->
+  let res = removeUnions (repl_back_rf) in
+  return res
 
 -------Imp -> Omega----------------
 impToOmF:: Formula -> Omega.Formula

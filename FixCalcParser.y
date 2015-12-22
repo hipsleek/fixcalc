@@ -7,7 +7,7 @@ import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
 import ImpHullWiden(narrow)
 import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
 import ImpFixpoint2k(pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
-import ImpFormula(simplify,subset,difference,pairwiseCheck,hull,apply,debugApply)
+import ImpFormula(simplify,subset,difference,complement,pairwiseCheck,hull,apply,debugApply)
 import Fresh
 import FixCalcLexer(runP,P(..),Tk(..),lexer,getLineNum,getInput)
 import MyPrelude
@@ -565,6 +565,15 @@ ParseFormula:
                  return (F result)
                (_,_) -> error ("Arguments of complement are not valid\n")
      }
+ | complement lit
+    {\env -> putStrFSOpt("complement " ++ $2 ++ ";") >>
+             case (lookupVar $2 env) of
+               Just (F f1) ->
+                 complement f1 >>= \result -> 
+                 return (F result)
+               _ -> error ("Arguments of complement are not valid\n")
+     }
+
   | selhull '(' lit ',' intNum ',' lit ')'
         {\env -> putStrFSOpt ("selhull(" ++ $3 ++ "," ++ show $5 ++ "," ++ $7 ++ ");") >>
                  case lookupVar $3 env of
