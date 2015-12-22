@@ -31,6 +31,7 @@ subset f1 f2 =
   let v1 = fqsv f1 in let v2 = fqsv f2 in
   impSubset (v1,[],f1) (v2,[],f2)
 
+complement:: Formula -> FS Formula
 complement f1 =
   let v1 = fqsv f1 in
   impComplement (v1,[],f1)

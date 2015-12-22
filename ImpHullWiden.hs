@@ -6,6 +6,7 @@ module ImpHullWiden(
   combSelHull,    -- |Given F in DNF-form and m, performs selective hulling. Ensures that length(res)=m. The third argument is not used.
   widen,          -- |Disjunctive widening. Given xs and ys, requires that length xs=length ys.
   narrow,
+  narrow2,
   widenOne,       -- |Conjunctive widening. 
   countDisjuncts, -- |Given F in DNF-form (e.g. result of simplify), returns the number of disjuncts from F.
   getDisjuncts,   -- |Given F in DNF-form (e.g. result of simplify), returns a list with the disjuncts from F.
@@ -329,6 +330,16 @@ narrow heur fbase_ls (xs,ys) =
   iterateMx_full heur fbase_ls (mxs,mys) affinMx [] >>= \ijs ->
   mapM (\(i,j) -> narrowOne fbase_ls (xsNoEx!!i,ysNoEx!!j)) ijs >>= \res ->
   return res
+  
+narrow2 :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
+narrow2 heur fbase_ls (xs,ys) =
+  let xs_f = Or xs in
+  let ys_f = Or ys in
+  complement xs_f >>= \xs_compl ->
+  complement ys_f >>= \ys_compl ->
+  widen heur fbase_ls (getDisjuncts xs_compl, getDisjuncts ys_compl) >>= \widen_result ->
+  complement (Or widen_result) >>= \result ->
+  return (getDisjuncts result)
   
 checkConjunct :: [Formula] -> Disjunct -> Bool
 checkConjunct conjuncts disjunct =

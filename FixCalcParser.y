@@ -4,7 +4,7 @@ import ImpAST
 import ImpConfig(defaultFlags,Flags(..),Heur(..))
 import ImpFixpoint2k(bottomUp2k,bottomUp2k_gen,bottomUp_mr,topDown2k,gfp2k,subrec_z)
 import ImpFixpoint2k(subrec_z_mut,subrec_gen,combSelHull,getDisjuncts,widen)
-import ImpHullWiden(narrow)
+import ImpHullWiden(narrow,narrow2)
 import ImpFixpoint2k(fixTestBU,fixTestTD,getOneStep,getEq,pickEqFromEq)
 import ImpFixpoint2k(pickGEQfromEQ,fixTestBU_Lgen,satEQfromEQ,satGEQfromEQ)
 import ImpFormula(simplify,subset,difference,complement,pairwiseCheck,hull,apply,debugApply)
@@ -602,12 +602,12 @@ ParseFormula:
                  case (lookupVar $3 env,lookupVar $5 env) of
                    (Just (F f1),Just (F f2)) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y5 - "++lit)} in
-                     narrow heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
+                     narrow2 heur [] (getDisjuncts f1,getDisjuncts f2) >>= \disj ->
                      return (F (Or disj))
-                   (Just (R recpost),_) -> error ("Argument of widen is not a formula\n")
-                   (_,Just (R recpost)) -> error ("Argument of widen is not a formula\n")
-                   (Just (QF qf),_) -> error ("Argument of widen is not a formula\n")
-                   (_,Just (QF qf)) -> error ("Argument of widen is not a formula\n")
+                   (Just (R recpost),_) -> error ("Argument of narrow is not a formula\n")
+                   (_,Just (R recpost)) -> error ("Argument of narrow is not a formula\n")
+                   (Just (QF qf),_) -> error ("Argument of narrow is not a formula\n")
+                   (_,Just (QF qf)) -> error ("Argument of narrow is not a formula\n")
                    (_,_) -> error ("Variable not declared - "++$3++"\n")
         }
 
