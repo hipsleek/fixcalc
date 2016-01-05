@@ -1,6 +1,11 @@
 R:={[a,b,RECa,RECb]:
  (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a)};
-complement R;
+#complement R;
+R; # top-down fixed point
+
+RIn := {[a,b]: exists(RECa,RECb:
+  (((RECa >= 0 && a >= 1 + RECa) && RECa + b >= a) && RECa + b = RECb + a))};
+#RIn;
 
 RCheck :={[a,b]:
 forall(RECa,RECb: not(
@@ -14,13 +19,14 @@ ICheck := {[a,b]:
 (b<0||b>0||a<=0)
 };
 ICheck;
+
 Inv := {[a,b]:
 (b>=0 && a>=0)
 };
 
-P:=(RCheck intersection ICheck) intersection Inv;
-P;
-PairWiseCheck P;
+Pre:=(RCheck intersection ICheck) intersection Inv;
+Pre;
+PairWiseCheck Pre;
 
 
 #Base := {[a,b]:
