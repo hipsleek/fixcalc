@@ -20,3 +20,9 @@ R01;
 
 R2 := loop(R01); R2;
 
+R01Intersect:= {[i,n,s]:  (n <= i)  ||
+ (0, n-1 <= i < s ) ||
+ (0 <= i <= s-2)
+};
+
+R01Intersect;
