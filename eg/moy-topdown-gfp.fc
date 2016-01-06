@@ -1,9 +1,11 @@
 # Constraint-abstraction from figure 1a from Moy's paper in VMCAI'08
 
-loop:={[i,n,s]->[Pi,Pn,Ps]->[]: 
-  exists(i1,n1,s1: 
-     (i1=i+1 && n1=n && s1=s && loop(i1,n1,s1,Pi,Pn,Ps))
-	)};
+loop:={[i,n,s] -> [] -> []: 
+ (!(i < n) || (0 <= i && i < s)  ) 
+&&
+   (forall (a,b,c:  !(a = i+ 1 && b = n && c = s) || loop(a,b,c)  )   
+  )
+};
 
 I:={[]: 1=1};
 
