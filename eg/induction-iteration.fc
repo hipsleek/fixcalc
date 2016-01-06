@@ -34,3 +34,17 @@ RQE := {[n,s]: forall (i:
 )
 };
 RQE;
+
+#induction-iteration for i < s
+W0 :={[i,n,s]:
+!(i<n) || (i < s)
+};
+W1 := loop(W0); W1;
+#(i + 1 >= n || s >= 2 + i)
+W01:= {[n,s]: forall(i:
+!(!(i < n) || ( i < s)) ||
+(i + 1 >= n || (s >= 2 + i))
+)
+};
+W01;
+# s >= n;
