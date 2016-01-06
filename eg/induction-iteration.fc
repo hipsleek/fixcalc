@@ -26,3 +26,11 @@ R01Intersect:= {[i,n,s]:  (n <= i)  ||
 };
 
 R01Intersect;
+
+RQE := {[n,s]: forall (i:
+ (n <= i)  ||
+ (0, n-1 <= i < s ) ||
+ (0 <= i <= s-2)
+)
+};
+RQE;
