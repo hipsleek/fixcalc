@@ -16,6 +16,8 @@ Inv := {[i,n,s]: 0=0};
 Pre:=(RCheck intersection ICheck) intersection Inv;
 #Pre;
 PairWiseCheck Pre;
+# {[i,n,s]: n <= i} union {[i,n,s]: 0 <= i < s && n <= s}
+
 
 P:={[i,n,s]:
   (n<=i) || (0<=i && n<=s)
