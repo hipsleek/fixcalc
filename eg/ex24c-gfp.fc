@@ -1,0 +1,5 @@
+P:={[x,y] -> [] -> []: (x<=0 || 1<=x && ((y<0) || (y>0))) &&  (exists (PRIv_int_11_1755: (exists (PRIv_int_11_1754:(!(y=PRIv_int_11_1754+1 && x=PRIv_int_11_1755+1 && 0<=1+PRIv_int_11_1754 && 0<=PRIv_int_11_1755) || P(PRIv_int_11_1755,PRIv_int_11_1754)))) )) 
+};
+
+gfp([P], [2], SimHeur);
+
