@@ -23,14 +23,14 @@ module ImpFixpoint2k(
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen,         -- |Function re-exported from "ImpHullWiden".
-  narrow        -- |Function re-exported from "ImpHullWiden".
+  narrow2        -- |Function re-exported from "ImpHullWiden".
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,print_RES,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula
   -- (debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(closure,widen,narrow,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
+import ImpHullWiden(closure,widen,narrow2,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import Data.List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
@@ -220,12 +220,12 @@ iterBU2k_n dict fbase_dict scrt cnt =
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
-    putStrFS_DD 2 "!!iterBU2k_n" >>
+    putStrFS_DD 2 "!!iterBU2xxxk_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
-    putStrFS_debug "iterBU2k_n! -> combSelHull" >>
+    putStrFS_DD 2 "iterBU2kxxxxx_n! -> combSelHull" >>
     mapM (\(id,f3r) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
            combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
@@ -240,7 +240,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
     -- let widen_new = if cnt>4 then widen_f e
-    print_RES "iterBU2k_n" (3) [("input(orig)",show (cnt,scrt)),
+    print_RES "iterBU2k_nres" (3) [("input(orig)",show (cnt,scrt)),
                       ("selhull",show zip1),
                       ("widen",show widen_f)
                      ] >>
@@ -252,7 +252,6 @@ iterBU2k_n dict fbase_dict scrt cnt =
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
     let reach_fixpt = all (\(_,(_,b))->b) fixok_f in
-    let new_ls = map (\(id,(f,_))->(id,(f,cnt))) fixok_f in
     if reach_fixpt
     then 
       return (map (\(id,(f,_))->(id,(f,cnt))) fixok_f)
@@ -265,44 +264,41 @@ iterGFP2k_n :: DictOK -> (Id -> (Int,Heur,[Formula])) -> [(Id,Formula)] -> Int -
 iterGFP2k_n dict fbase_dict scrt cnt =
   -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
   -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
-  putStrFS_debug "iterGFP2k_n!" >> 
+  putStrFS_debug "iterBU2k_n!" >> 
   if (cnt>maxIter) 
   then 
-    return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
+    return (map (\(id,_)->(id,(fFalse,-1))) scrt) 
   else
-    putStrFS_DD 2 "!!iterGFP2k_n" >>
+    putStrFS_DD 2 "!!iterBU2xxxk_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
-    -- fnext :: [(Id,(Formula))]
-    -- selective hull
-    putStrFS_debug "iterGFP2k_n! -> combSelHull" >>
+    -- fnext :: [(Id,(Formula))]    
     mapM (\(id,f3r) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
-           combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
+       --    combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
+           return (getDisjuncts f3r) >>= \new_f ->
                return (id,new_f)) fnext >>= \hull_f -> 
-    -- hullf :: [(Id,(Formula))]
     let zip1 = zipId scrt hull_f in
     putStrFS_debug "iterBU2k_n! -> widen" >>
     mapM (\(id,(sc,fnextHMany)) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
-           narrow heur fbase_ls (getDisjuncts sc,fnextHMany) >>= \new_f ->
+           narrow2 heur fbase_ls (getDisjuncts sc,fnextHMany) >>= \new_f ->
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
     -- let widen_new = if cnt>4 then widen_f e
-    print_RES "iterGFP2k_n" (3) [("input(orig)",show (cnt,scrt)),
-                      ("selhull",show zip1),
+    print_RES "iterBU2k_nres" (3) [("input(orig)",show (cnt,scrt)),
+                      ("selhull",show fnext),
                       ("narrow",show widen_f)
                      ] >>
     let n_fdict = mk_maybe_dict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
-    putStrFS_debug "iterGFP2k_n! -> fixTestBU_n" >>
+    putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
            fixTestGFP_n n_fdict dict recpost (Or snext) >>= \fixok ->
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
     let reach_fixpt = all (\(_,(_,b))->b) fixok_f in
-    let new_ls = map (\(id,(f,_))->(id,(f,cnt))) fixok_f in
     if reach_fixpt
     then 
       return (map (\(id,(f,_))->(id,(f,cnt))) fixok_f)
@@ -318,6 +314,7 @@ bottomUp2k_gen_new recpost flagsl initFormula =
     addOmegaStr("+++++++++++++++++++++++++++") >> 
     let dict = zip1 recpost flagsl in
     let init_f = zip2 recpost initFormula in
+    print_DD True 1 [("initFormula",show init_f)] >>
     bottomUp2k_n (findId dict) init_f >>= \bt_ans ->
     -- bt_ans ::[(Id,(Formula,Int))]
     return (map (\(id,_)->findId bt_ans id) dict)
@@ -331,13 +328,15 @@ bottomUp2k_gen_new recpost flagsl initFormula =
       
 gfp2k :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 gfp2k recpost flagsl initFormula = 
-    putStrFS_DD (13) "gfp2k" >>
+    putStrFS_DD (13) "bottomUp2k_gen_new" >>
     addOmegaStr("+++++++++++++++++++++++++++") >> 
-    addOmegaStr(" gen_new gfp fix point iteration") >> 
+    addOmegaStr(" gen_new M fix point iteration") >> 
     addOmegaStr("+++++++++++++++++++++++++++") >> 
     let dict = zip1 recpost flagsl in
     let init_f = zip2 recpost initFormula in
+    print_DD True 1 [("initFormula",show init_f)] >>
     gfp2k_n (findId dict) init_f >>= \bt_ans ->
+    -- bt_ans ::[(Id,(Formula,Int))]
     return (map (\(id,_)->findId bt_ans id) dict)
     where
       zip1 [] [] = []
@@ -346,7 +345,7 @@ gfp2k recpost flagsl initFormula =
       zip2 [] [] = []
       zip2 ((a@(RecPost mn _ _)):ls1) (ff:ls2) = (mn,ff):(zip2 ls1 ls2)
       zip2 _ _ = error "Error in zip2"
-
+      
 bottomUp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 bottomUp2k_n dict initFS = 
   let widen_index = 4 in
@@ -381,7 +380,7 @@ bottomUp2k_n dict initFS =
   
 gfp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 gfp2k_n dict initFS = 
-  let narrow_index = 4 in
+  let widen_index = 4 in
   putStrFS_DD 13 "bottomUp2k_n" >>
   addOmegaStr("+++++++++++++++++++++++++++") >> 
   addOmegaStr("  k_n M fix point iteration") >> 
@@ -389,7 +388,7 @@ gfp2k_n dict initFS =
   -- let fdict x = Nothing in
   getFlags >>= \flags -> 
   subrec_genN "K_init" 1 1 dict initFS >>= \initFS1 ->
-  subrec_genN "K_init" 2 narrow_index dict initFS1 >>= \initFS3 ->
+  subrec_genN "K_init" 2 widen_index dict initFS1 >>= \initFS3 ->
   -- print_DD True (-100) [("FS1",show initFS1),("FS3",show initFS3)] >>
   saturateIdList initFS1 >>= \initS ->
   mapM (\(id,f) -> ((pairwiseCheck f) >>= \nf -> return (id,nf))) initFS3 >>= \pwF3l -> 
@@ -406,11 +405,10 @@ gfp2k_n dict initFS =
   let fbase = map (\(i,(f1,(m,heur,f3)))->(i,(m,heur,f1))) zipf1 in
   let fbase_dict = findId fbase in
   mapM (\(id,(fbase_ls,(mdisj,heur,f3r))) ->
-         combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
+         return (getDisjuncts f3r) >>= \new_f ->
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
-  iterGFP2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) (narrow_index+1)
-
+  iterGFP2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) (widen_index+1)
 
 bottomUp2k_gen :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen x = bottomUp2k_gen_new x 

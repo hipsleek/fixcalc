@@ -321,6 +321,8 @@ narrow :: Heur -> [Formula] -> (DisjFormula,DisjFormula) -> FS DisjFormula
 -- requires (length xs)=(length ys)
 -- ensures (length res)=(length xs)
 narrow heur fbase_ls (xs,ys) =
+  print_DD True 1 [("xs",show xs)] >>
+  print_DD True 1 [("ys",show ys)] >>
   getFlags >>= \flags ->
   moreSelHull xs ys heur >>= \ (xs,ys) ->
   mapM hullExistentials xs >>= \xsNoEx ->

@@ -17,6 +17,7 @@ F3:=loop(F2); F3;
 F4:=loop(F3); F4; 
 
 F4N:=narrow(F3,F4,SimHeur);
+F4N;
 Pre:=PairwiseCheck F4N;
 Pre;
 
@@ -25,3 +26,6 @@ PreN:=loop(Pre); PreN;
 Pre subset PreN;
 PreN subset Pre;
 #(0 >= 1 + y || (y >= x && y >= 0))
+
+
+
