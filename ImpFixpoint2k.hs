@@ -23,14 +23,14 @@ module ImpFixpoint2k(
   combSelHull,  -- |Function re-exported from "ImpHullWiden".
   getDisjuncts, -- |Function re-exported from "ImpHullWiden".
   widen,         -- |Function re-exported from "ImpHullWiden".
-  narrow2        -- |Function re-exported from "ImpHullWiden".
+  narrow        -- |Function re-exported from "ImpHullWiden".
 ) where
 import Fresh(FS,fresh,takeFresh,addOmegaStr,getFlags,putStrFS, putStrFS_debug,putStrFS_DD,print_DD,print_RES,getCPUTimeFS)
 import ImpAST
 import ImpConfig(showDebugMSG,Heur(..),fixFlags,FixFlags,simplifyCAbst,simulateOldFixpoint,useSelectiveHull,widenEarly)
 import ImpFormula
   -- (debugApply,noChange,simplify,subset,recTheseQSizeVars,pairwiseCheck,equivalent)
-import ImpHullWiden(closure,widen,narrow2,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
+import ImpHullWiden(closure,widen,narrow,widenOne,combHull,combSelHull,countDisjuncts,getDisjuncts,DisjFormula)
 import MyPrelude
 ---------------
 import Data.List((\\),nub,find,zip4,zip5,zip,partition,sortBy)
@@ -282,7 +282,7 @@ iterGFP2k_n dict fbase_dict scrt cnt =
     putStrFS_debug "iterBU2k_n! -> widen" >>
     mapM (\(id,(sc,fnextHMany)) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
-           narrow2 heur fbase_ls (getDisjuncts sc,fnextHMany) >>= \new_f ->
+           narrow heur fbase_ls (getDisjuncts sc,fnextHMany) >>= \new_f ->
                return (id,new_f)) zip1 >>= \widen_f -> 
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
