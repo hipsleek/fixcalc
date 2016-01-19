@@ -220,12 +220,12 @@ iterBU2k_n dict fbase_dict scrt cnt =
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
-    putStrFS_DD 2 "!!iterBU2xxxk_n" >>
+    putStrFS_DD 2 "!!iterBU2k_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
-    putStrFS_DD 2 "iterBU2kxxxxx_n! -> combSelHull" >>
+    putStrFS_debug "iterBU2k_n! -> combSelHull" >>
     mapM (\(id,f3r) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
            combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
@@ -240,7 +240,7 @@ iterBU2k_n dict fbase_dict scrt cnt =
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
     -- let widen_new = if cnt>4 then widen_f e
-    print_RES "iterBU2k_nres" (3) [("input(orig)",show (cnt,scrt)),
+    print_RES "iterBU2k_n" (3) [("input(orig)",show (cnt,scrt)),
                       ("selhull",show zip1),
                       ("widen",show widen_f)
                      ] >>
