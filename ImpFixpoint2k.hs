@@ -265,17 +265,17 @@ iterGFP2k_n :: DictOK -> (Id -> (Int,Heur,[Formula])) -> [(Id,Formula)] -> Int -
 iterGFP2k_n dict fbase_dict scrt cnt =
   -- let (scrt_ok,scrt_no) = partition (\(_,(_,b,_))->b) scrt in 
   -- let scrt_ok = map (\(id,(f,_,i))->(id,(f,i))) scrt_no in
-  putStrFS_debug "iterBU2k_n!" >> 
+  putStrFS_debug "iterGFP2k_n!" >> 
   if (cnt>maxIter) 
   then 
     return (map (\(id,_)->(id,(fTrue,-1))) scrt) 
   else
-    putStrFS_DD 2 "!!iterBU2k_n" >>
+    putStrFS_DD 2 "!!iterGFP2k_n" >>
     -- unfold once
     subrec_genN "G_init" cnt cnt dict scrt >>= \fnext ->
     -- fnext :: [(Id,(Formula))]
     -- selective hull
-    putStrFS_debug "iterBU2k_n! -> combSelHull" >>
+    putStrFS_debug "iterGFP2k_n! -> combSelHull" >>
     mapM (\(id,f3r) ->
            let (mdisj,heur,fbase_ls)=fbase_dict id in
            combSelHull (mdisj,heur) (getDisjuncts f3r) fbase_ls >>= \new_f ->
@@ -290,15 +290,15 @@ iterGFP2k_n dict fbase_dict scrt cnt =
     -- widen_f :: [(Id,(DisjFormula))]
     -- WN : to rewrite fixTestBU_n
     -- let widen_new = if cnt>4 then widen_f e
-    print_RES "iterBU2k_n" (3) [("input(orig)",show (cnt,scrt)),
+    print_RES "iterGFP2k_n" (3) [("input(orig)",show (cnt,scrt)),
                       ("selhull",show zip1),
-                      ("widen",show widen_f)
+                      ("narrow",show widen_f)
                      ] >>
     let n_fdict = mk_maybe_dict (map (\(i,dj)-> (i,(Or dj))) widen_f) in
-    putStrFS_debug "iterBU2k_n! -> fixTestBU_n" >>
+    putStrFS_debug "iterGFP2k_n! -> fixTestBU_n" >>
     mapM (\(id,snext) ->
            let (recpost,_)=dict id in
-           fixTestBU_n n_fdict dict recpost (Or snext) >>= \fixok ->
+           fixTestGFP_n n_fdict dict recpost (Or snext) >>= \fixok ->
                return (id,(Or snext,fixok))) widen_f >>= \fixok_f -> 
     -- fixok_f :: [(Id,(Formula,Bool))]
     let reach_fixpt = all (\(_,(_,b))->b) fixok_f in
@@ -308,7 +308,7 @@ iterGFP2k_n dict fbase_dict scrt cnt =
       return (map (\(id,(f,_))->(id,(f,cnt))) fixok_f)
     else
       let new_ls = map (\(id,(f,_))->(id,f)) fixok_f in
-      iterBU2k_n dict fbase_dict new_ls (cnt+1)
+      iterGFP2k_n dict fbase_dict new_ls (cnt+1)
 
 bottomUp2k_gen_new :: [RecPost] -> [FixFlags] -> [Formula] -> FS [(Formula,Int)] 
 bottomUp2k_gen_new recpost flagsl initFormula = 
@@ -338,7 +338,6 @@ gfp2k recpost flagsl initFormula =
     let dict = zip1 recpost flagsl in
     let init_f = zip2 recpost initFormula in
     gfp2k_n (findId dict) init_f >>= \bt_ans ->
-    -- bt_ans ::[(Id,(Formula,Int))]
     return (map (\(id,_)->findId bt_ans id) dict)
     where
       zip1 [] [] = []
@@ -379,7 +378,7 @@ bottomUp2k_n dict initFS =
          return (id,new_f)) zipf1 >>= \hf1 -> 
   -- hf1::[(Id,DisjFormula)]
   iterBU2k_n dict fbase_dict (map (\(id,f)->(id,Or f)) hf1) (widen_index+1)
-
+  
 gfp2k_n :: DictOK -> [(Id,Formula)] -> FS [(Id,(Formula,Int))] 
 gfp2k_n dict initFS = 
   let narrow_index = 4 in
@@ -513,6 +512,13 @@ fixTestBU_n fdict dict recpost candidate =
     addOmegaStr ("#\tObtained postcondition?") >>
     subrec_n_mut recpost fdict dict >>= \fnext -> 
     subset fnext candidate
+
+fixTestGFP_n :: FDict -> DictOK -> RecPost -> Formula -> FS Bool
+fixTestGFP_n fdict dict recpost candidate = 
+    putStrFS_debug "fixTestGFP_n" >>
+    addOmegaStr ("#\tObtained precondition?") >>
+    subrec_n_mut recpost fdict dict >>= \fnext -> 
+    subset candidate fnext
 
 {- |Given CAbst and F, returns True if F is a reductive point of CAbst: CAbst(F) => F. -}
 fixTestBU:: RecPost -> Formula -> FS Bool

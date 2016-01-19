@@ -4,7 +4,7 @@ loop:={[x,y] -> [] -> []:
     (!(y=PRIv_int_11_1754+1 && x=PRIv_int_11_1755+1 && 0<=1+PRIv_int_11_1754 && 0<=PRIv_int_11_1755) || loop(PRIv_int_11_1755,PRIv_int_11_1754)))) )) 
 };
 
-# gfp([loop], [2], SimHeur);
+gfp([loop], [2], SimHeur);
 
 F0:={[]: 1=1};
 
@@ -24,4 +24,4 @@ PreN:=loop(Pre); PreN;
 
 Pre subset PreN;
 PreN subset Pre;
-
+#(0 >= 1 + y || (y >= x && y >= 0))
