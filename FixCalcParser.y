@@ -268,17 +268,6 @@ ParseFormula1:
       bottomUp2k_gen ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fFalse) ($4 env)) 
       >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
 
-  | gfp '(' '[' Llit ']' ',' '[' LInt ']' ',' lit ')' 
-    {\env -> 
-      let heur = case $11 of {"SimHeur" -> SimilarityHeur; 
-                             "DiffHeur" -> DifferenceHeur; 
-                             "HausHeur" -> HausdorffHeur; 
-                             "InterHeur" -> SimInteractiveHeur; 
-                             lit -> error ("Heuristic not implemented parser.y - "++lit)} 
-      in
-      gfp2k ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fTrue) ($4 env)) 
-      >>= \resl -> return (map (\x -> F x) (fst (unzip resl)))}
-
   | apply '(' '[' Llit2 ']' ',' '[' Llit2 ']' ')'
     {\env ->
         putStrFSOpt ("apply(" ++ show $4 ++ "," ++ show $8 ++ ");") >>
@@ -558,6 +547,17 @@ ParseFormula:
                    Just (R recpost) -> 
                      let heur = case $7 of {"SimHeur" -> SimilarityHeur; "DiffHeur" -> DifferenceHeur; "HausHeur" -> HausdorffHeur; lit -> error ("Heuristic not implemented parser.y3 - "++lit)} in
                      topDown2k recpost ($5,heur) fTrue >>= \(inv,cnt) -> return (F inv)}
+
+ | gfp '(' '[' Llit ']' ',' '[' LInt ']' ',' lit ')' 
+    {\env -> 
+      let heur = case $11 of {"SimHeur" -> SimilarityHeur; 
+                             "DiffHeur" -> DifferenceHeur; 
+                             "HausHeur" -> HausdorffHeur; 
+                             "InterHeur" -> SimInteractiveHeur; 
+                             lit -> error ("Heuristic not implemented parser.y - "++lit)} 
+      in
+      gfp2k ($4 env) (map (\x -> (x,heur)) ($8)) (map (\x -> fTrue) ($4 env)) 
+        >>= \resl -> return (F (fOr (fst (unzip resl))))}
 
  | lit complement lit
     {\env -> putStrFSOpt("# "++ $1 ++ " complement " ++ $3 ++ ";") >>
