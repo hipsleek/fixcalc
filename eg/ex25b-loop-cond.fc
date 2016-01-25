@@ -1,0 +1,84 @@
+loop:={[x,y] -> [] -> []: 
+  (!(x = 0)) && 
+  (forall (x1: (forall (y1:
+    (!(y1=y+1 && x1=x+y) || loop(x1, y1)))) )) 
+};
+
+#loop:={[x,y] -> [] -> []: 
+#  (!(x = 0)) && 
+#  (exists (x1: (exists (y1:
+#    ((y1=y+1 && x1=x+y) && loop(x1, y1)))) )) 
+#};
+
+FP:={[]: x>0 && y>=0};
+FP;
+
+FPN:=loop(FP);
+PairwiseCheck FPN;
+
+FP subset FPN;
+FPN subset FP;
+
+F0:={[]: 1=1};
+
+F1:=loop(F0); 
+F1:=PairwiseCheck F1;
+F1;
+
+F2:=loop(F1); 
+F2:=PairwiseCheck F2;
+F2;
+
+F2M:={[]: 
+  (!(x = 0)) && 
+  (forall (x1: (forall (y1:
+    (!(y1=y+1 && x1=x+y) || !(x1=0)))) )) 
+};
+
+F2M subset F2;
+F2 subset F2M;
+
+F3:=loop(F2); 
+F3:=PairwiseCheck F3;
+F3;
+
+F4:=loop(F3); 
+F4:=PairwiseCheck F4;
+F4;
+############################################
+
+FPC:=complement FP;
+FPC;
+
+F3C:=complement F3;
+F3C;
+
+F4C:=complement F4; F4C;
+PairwiseCheck F4C;
+
+#FPC subset F3C;
+#F3C subset FPC;
+
+#FPC subset F4C;
+#F4C subset FPC;
+
+#F3C subset F4C;
+#F4C subset F3C;
+
+F3H:=selhull(F3C, 3, SimHeur);
+PairwiseCheck F3H;
+
+F4H:=selhull(F4C, 3, SimHeur);
+PairwiseCheck F4H;
+
+FW:=widen(F3H,F4H,SimHeur);
+FW;
+
+#FWH:=selhull(FW,3,SimHeur);
+#FWH;
+
+FWN:=loop(FW);
+FWN;
+
+FWH:=selhull(FWN, 3, SimHeur);
+PairwiseCheck FWH;

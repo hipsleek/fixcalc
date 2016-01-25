@@ -1,5 +1,6 @@
 zip:={[x,y] -> [] -> []: 
   (x > 0 || x < 0 || y >= 0) && 
+  (x > 0 || x < 0) &&
   (forall (x1: (forall (y1:
     (!(y=y1+1 && x=x1+1) || zip(x1, y1)))) )) 
 };
@@ -23,13 +24,4 @@ PreN:=zip(Pre); PreN;
 Pre subset PreN;
 PreN subset Pre;
 
-PreS:={[]: x>=0 && x<=y};
-
-Pre subset PreS; # False
-PreS subset Pre; # True
-
-FP:=gfp([zip], [2], SimHeur);
-FP;
-
-Pre subset FP;
-FP subset Pre;
+gfp([zip], [2], SimHeur);

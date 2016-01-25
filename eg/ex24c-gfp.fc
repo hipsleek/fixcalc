@@ -27,5 +27,8 @@ Pre subset PreN;
 PreN subset Pre;
 #(0 >= 1 + y || (y >= x && y >= 0))
 
+Base:={[]: (x<=0 || 1<=x && ((y<0) || (y>0)))};
+Pre subset Base;
+Base subset Pre;
 
 

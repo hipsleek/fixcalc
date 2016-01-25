@@ -30,3 +30,5 @@ PreCC:={[]: !(x=0) || y>=0};
 
 PreCC subset PreSS;
 PreSS subset PreCC;
+
+gfp([zipE], [2], SimHeur);
