@@ -1,7 +1,7 @@
 loop:={[x,y] -> [] -> []: 
   (!(x = 0)) && 
   (forall (x1: (forall (y1:
-    (!(y1=y+1 && x1=x+y) || loop(x1, y1)))) )) 
+    (!(y1=y+1 && x1=x+y) || loop(x1, y1)))))) 
 };
 
 #loop:={[x,y] -> [] -> []: 
@@ -19,6 +19,14 @@ PairwiseCheck FPN;
 
 FP subset FPN;
 FPN subset FP;
+
+ABD:={[]: 
+  (forall (x: 
+    (forall (x1: (forall (y1:
+      (!(x>0 && y1=y+1 && x1=x+y) || x1>0)))))
+  )) 
+};
+ABD;
 
 F0:={[]: 1=1};
 
