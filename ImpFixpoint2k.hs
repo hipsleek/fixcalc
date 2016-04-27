@@ -329,7 +329,15 @@ gfp2k recpost flagsl initFormula =
     let init_f = zip2 recpost initFormula in
     gfp2k_n (findId dict) init_f >>= \bt_ans ->
     -- bt_ans ::[(Id,(Formula,Int))]
-    return (map (\(id,_)->findId bt_ans id) dict)
+    let result = map (\(id,_)->findId bt_ans id) dict in
+    let resFormula = fOr(fst (unzip result)) in
+    subset resFormula fFalse >>= \isFalse ->
+    if isFalse then 
+       bottomUp2k_gen_new recpost flagsl initFormula >>= \bottomUpRes ->
+       let new_input = fst (unzip bottomUpRes) in
+       gfp2k recpost flagsl new_input >>= \new_result ->
+       return new_result
+    else return result
     where
       zip1 [] [] = []
       zip1 ((a@(RecPost mn _ _)):ls1) (ff:ls2) = (mn,(a,ff)):(zip1 ls1 ls2)
