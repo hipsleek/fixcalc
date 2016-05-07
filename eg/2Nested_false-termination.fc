@@ -1,0 +1,5 @@
+loop:={[x,y] -> [] -> []: x>0-(1) &&  (forall (PRIx: (forall (PRIy:(!(PRIy=y+1 && PRIx=y+x && 0<=x) || loop(PRIx,PRIy)))) )) 
+};
+
+
+gfp([loop], [2], SimHeur);
