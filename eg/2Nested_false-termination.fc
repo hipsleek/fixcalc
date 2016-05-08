@@ -13,5 +13,5 @@ F3:=loop(F2); F3;
 
 F4:=loop(F3); F4; 
 
-F4N:=narrow(F3,F4,SimHeur);
-F4N;
+F3C:= complement F3; F3C;
+F4C:= complement F4; F4C;
