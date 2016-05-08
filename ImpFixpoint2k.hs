@@ -333,10 +333,14 @@ gfp2k recpost flagsl initFormula =
     let resFormula = fOr(fst (unzip result)) in
     subset resFormula fFalse >>= \isFalse ->
     if isFalse then 
-       bottomUp2k_gen_new recpost flagsl initFormula >>= \bottomUpRes ->
-       let new_input = fst (unzip bottomUpRes) in
-       gfp2k recpost flagsl new_input >>= \new_result ->
-       return new_result
+       bottomUp2k_gen_new recpost flagsl initFormula >>= \bottomUpResult ->
+       let bottomUpFormula = fOr(fst (unzip bottomUpResult)) in
+       subset fTrue bottomUpFormula >>= \isTrue ->
+       if isTrue then return result
+       else 
+         let new_input = fst (unzip bottomUpResult) in
+         gfp2k recpost flagsl new_input >>= \new_result ->
+         return new_result
     else return result
     where
       zip1 [] [] = []
