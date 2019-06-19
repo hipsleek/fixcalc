@@ -1,5 +1,7 @@
 module FixCalcLexer where
 import Data.Char(isAlpha,isDigit,isAlphaNum)
+import Control.Monad(liftM,ap)
+
 -------Tokens----------------------
 data Tk=
       TkAlphaNum String
@@ -144,6 +146,13 @@ instance Monad P where
     (P a) >>= f = P (\st -> let (st', a') = (a st)
 	                        (P b)     = (f a')
 	                    in b st')
+
+instance Functor P where
+  fmap = liftM
+
+instance Applicative P where
+  pure = return
+  (<*>) = ap
 
 runP :: String -> P a -> a
 runP s (P a) = snd $ a initState

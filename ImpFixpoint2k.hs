@@ -1316,7 +1316,7 @@ pickDisjSatEq f =
 satGEQfromEQ :: Formula -> FS [Formula]
 satGEQfromEQ f =
   pickGEQfromEQ f >>= \gEq ->
-  let ans=concat (mapM (\x -> return x) gEq) in
+  let ans=concat (mapM (\x -> return x) gEq :: [[Formula]]) in
   --putStrFS_debug("#SatGEQEQ="++show (ans)) >>  
   print_RES "satGEQfromEQ" 100 [("inp",show f),("ans",show ans)] >>
   return (ans)

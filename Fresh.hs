@@ -9,7 +9,7 @@ import MyPrelude
 import System.CPUTime(getCPUTime)
 import System.IO(hFlush,stdout,Handle)
 import System.IO.Unsafe(unsafePerformIO)
-import Control.Monad(when,foldM)
+import Control.Monad(when,foldM,liftM,ap)
 import Text.Regex(mkRegexWithOpts,matchRegex)
 -------FS Fresh---------------------------
 data St = MkState { 
@@ -33,6 +33,10 @@ instance Monad FS where
       let (FS b) = (f a') in 
       (b st') >>= \(st'',b') ->
       return (st'',b'))
+
+instance Applicative FS where
+  pure = return
+  (<*>) = ap
 
 instance Functor FS where
   -- fmap:: (a->b) -> FS a -> FS b
