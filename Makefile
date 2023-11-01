@@ -1,7 +1,7 @@
 # Speed and NoDebug for Omega libraries
 # BASEDIR=../omega
 # Debug version of Omega libraries
-BASEDIR=/usr/local
+# BASEDIR=/usr/local
 
 # With Haskell profiling information
 #RAZVAN_DIR_HS=../omega_stub/lib.prof.hs
@@ -19,7 +19,10 @@ RAZVAN_DIR_C=../omega_stub/lib
 RAZVAN_DIR_SRC_HS=../omega_stub/src.hs
 
 HC=ghc
-LIBS=-L$(BASEDIR)/lib
+# LIBS=-L$(BASEDIR)/lib
+LIBS=-L/Users/darius/hipsleek/omega_modified/omega_lib/obj -L/Users/darius/hipsleek/omega_modified/code_gen/obj
+# BASEDIR=/Users/darius/hipsleek/omega_modified/omega_lib/include
+# OMEGA_LIBS=-lcode_gen -lomega -lm
 OMEGA_LIBS=-lcode_gen -lomega -lm
 RAZVAN_LIBS= 	$(RAZVAN_DIR_C)/omega_stub.o $(RAZVAN_DIR_C)/Exit.o
 
