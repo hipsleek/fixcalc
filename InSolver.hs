@@ -14,8 +14,7 @@ import ImpAST(Relation(..),Formula(..),Update(..),QSizeVar(..),Test3(..),showTes
 import Fresh(FS(..),fresh,addOmegaStr,putStrFS,putStrFS_debug)
 import MyPrelude
 -----------------------------
-import Foreign(nullPtr)
-import System.IO.Unsafe(unsafePerformIO)
+import Foreign(nullPtr,unsafePerformIO)
 import Data.List(union,intersect)
 
 impSimplify:: Relation -> FS Formula

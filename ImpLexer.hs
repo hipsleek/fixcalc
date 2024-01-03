@@ -3,7 +3,6 @@
 
 module ImpLexer(lexer,getLineNum,getInput,runP,P(..),Tk(..)) where
 import Data.Char(isAlpha,isDigit,isAlphaNum)
-import Control.Monad(liftM,ap)
 
 -------Parser Monad-----------------
 data St = MkState {input :: String, linenum :: Int}
@@ -17,13 +16,6 @@ instance Monad P where
     (P a) >>= f = P (\st -> let (st', a') = (a st)
 	                        (P b)     = (f a')
 	                    in b st')
-
-instance Functor P where
-  fmap = liftM
-
-instance Applicative P where
-  pure = return
-  (<*>) = ap
 
 runP :: String -> P a -> a
 runP s (P a) = snd $ a initState

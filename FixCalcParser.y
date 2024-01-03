@@ -381,7 +381,7 @@ ParseFormula2:
       putStrFS_debug("#After parse Formula GEq: "++show (fl)) >>
       pickGEQfromEQ fl >>= \gEq ->
       --mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
-      let rhs=concat (mapM (\x -> return x) gEq :: [[Formula]]) in
+      let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>    
       return (extendRelEnv env ($1,(F (And rhs))))
       --return env
@@ -397,7 +397,7 @@ ParseFormula2:
       putStrFS_debug("#After parse Formula GEq: "++show (fl)) >>
       pickGEQfromEQ fl >>= \gEq ->
       --mapM (\g1 ->putStrFS_debug("#list GEq after pick="++show (g1))) gEq >>
-      let rhs=concat (mapM (\x -> return x) gEq :: [[Formula]]) in
+      let rhs=concat (mapM (\x -> return x) gEq) in
       putStrFS_debug("#concat="++show (rhs)) >>
       putStrFS("#pickGEqFromEq of "++$3++" : "++show (And rhs)) >>     
       return (extendRelEnv env (" ",(F (And rhs))))
