@@ -11,8 +11,8 @@
 # Without Haskell profiling information
 RAZVAN_DIR_HS=../omega_stub/lib.hs
 LOC_DIR_HS=../omega_stub/src.hs
-#HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(RAZVAN_DIR_HS)
-HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -i$(LOC_DIR_HS)
+#HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -package array -i$(RAZVAN_DIR_HS)
+HC_OPTS = -fglasgow-exts -XOverlappingInstances -package containers -package array -i$(LOC_DIR_HS)
 HC_SOPTS = -O2 --make -static -optc-static -optl-static -optl-pthread $(HC_OPTS)
 
 RAZVAN_DIR_C=../omega_stub/lib
