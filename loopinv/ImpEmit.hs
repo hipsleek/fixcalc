@@ -10,12 +10,65 @@ emitImp (Program funcs) =
     "#include \"Primitives.imp\"\n\n" ++
     intercalate "\n\n" (map emitFunc funcs)
 
--- | Emit a function
+-- | Emit a function (with variable hoisting for imp tool compatibility)
 emitFunc :: Func -> String
 emitFunc (Func retType name params body) =
-    emitType retType ++ " " ++ name ++ "(" ++ emitParams params ++ ") {\n" ++
-    emitStmts 1 body ++
-    "}"
+    let (hoisted, transformedBody) = hoistVarDecls body
+    in emitType retType ++ " " ++ name ++ "(" ++ emitParams params ++ ") {\n" ++
+       -- Emit hoisted declarations first (without initial value)
+       concatMap (emitHoistedDecl 1) hoisted ++
+       emitStmts 1 transformedBody ++
+       "}"
+
+-- | Emit a hoisted declaration (with default initialization - Imp requires it)
+emitHoistedDecl :: Int -> (Type, String) -> String
+emitHoistedDecl indent (typ, name) =
+    replicate (indent * 2) ' ' ++ emitType typ ++ " " ++ name ++ " := 0;\n"
+
+-- | Hoist variable declarations from inside loops to function level
+-- Returns (hoisted declarations, transformed statements)
+hoistVarDecls :: [Stmt] -> ([(Type, String)], [Stmt])
+hoistVarDecls stmts = 
+    let (hoisted, transformed) = unzip $ map hoistFromStmt stmts
+    in (concat hoisted, transformed)
+
+-- | Hoist from a single statement
+hoistFromStmt :: Stmt -> ([(Type, String)], Stmt)
+hoistFromStmt (While cond body) =
+    let (hoisted, transformedBody) = hoistFromBody body
+    in (hoisted, While cond transformedBody)
+hoistFromStmt (If cond thenBody elseBody) =
+    let (hoistedThen, transformedThen) = hoistFromBody thenBody
+        (hoistedElse, transformedElse) = case elseBody of
+            Just eb -> let (h, t) = hoistFromBody eb in (h, Just t)
+            Nothing -> ([], Nothing)
+    in (hoistedThen ++ hoistedElse, If cond transformedThen transformedElse)
+hoistFromStmt stmt = ([], stmt)
+
+-- | Hoist from body (inside a loop or if)
+-- This is where we actually hoist - VarDecls become assignments
+hoistFromBody :: [Stmt] -> ([(Type, String)], [Stmt])
+hoistFromBody stmts = 
+    let (hoisted, transformed) = unzip $ map hoistAndTransform stmts
+    in (concat hoisted, concat transformed)
+
+-- | Hoist a statement and transform VarDecl to Assign
+hoistAndTransform :: Stmt -> ([(Type, String)], [Stmt])
+hoistAndTransform (VarDecl typ name maybeExpr) =
+    -- Hoist the declaration, keep assignment in place
+    case maybeExpr of
+        Just expr -> ([(typ, name)], [Assign name expr])
+        Nothing -> ([(typ, name)], [Assign name (Lit 0)])
+hoistAndTransform (While cond body) =
+    let (hoisted, transformedBody) = hoistFromBody body
+    in (hoisted, [While cond transformedBody])
+hoistAndTransform (If cond thenBody elseBody) =
+    let (hoistedThen, transformedThen) = hoistFromBody thenBody
+        (hoistedElse, transformedElse) = case elseBody of
+            Just eb -> let (h, t) = hoistFromBody eb in (h, Just t)
+            Nothing -> ([], Nothing)
+    in (hoistedThen ++ hoistedElse, [If cond transformedThen transformedElse])
+hoistAndTransform stmt = ([], [stmt])
 
 -- | Emit type
 emitType :: Type -> String
