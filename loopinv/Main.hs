@@ -4,6 +4,7 @@
 -- 1. Converts C code to Imp syntax (constraint abstraction)
 -- 2. Runs the imp tool which uses fixCalc to compute LFP
 -- 3. Extracts disjuncts and outputs in prime notation
+-- 4. Verifies if the LFP is exact (EX) or over-approximate (OX)
 --
 module Main where
 
@@ -17,6 +18,7 @@ import Data.Char (isSpace)
 
 import Lexer (tokenize)
 import Parser (parse)
+import AST (Program(..), Func(..), Stmt(..), Expr(..), BinOp(..), UnaryOp(..))
 import ImpEmit (emitImp)
 
 main :: IO ()
@@ -109,6 +111,44 @@ processFile inputFile = do
             mapM_ (\c -> putStrLn $ "  " ++ formatCaseClause c) cases
             putStrLn "}"
             putStrLn ""
+            
+            -- Step 4: Verify EX/OX (exactness check)
+            putStrLn "=== Exactness Verification (EX/OX) ==="
+            putStrLn ""
+            
+            -- Find the first while loop in the AST
+            case findWhileLoop ast of
+                Just (loopCond, loopBody, loopVars) -> do
+                    -- Generate fixcalc verification query
+                    let fcQuery = generateExactnessQuery loopCond loopBody loopVars primeFormula varMapping
+                    let fcFile = "exactness_check.fc"
+                    writeFile fcFile fcQuery
+                    putStrLn $ "Generated verification query: " ++ fcFile
+                    putStrLn ""
+                    putStrLn "Query:"
+                    putStrLn fcQuery
+                    putStrLn ""
+                    
+                    -- Run fixcalc
+                    (fcExit, fcOut, fcErr) <- readProcessWithExitCode "./fixcalc" [fcFile] ""
+                    case fcExit of
+                        ExitSuccess -> do
+                            putStrLn "fixcalc output:"
+                            putStrLn fcOut
+                            -- Parse result to determine EX/OX
+                            let result = parseExactnessResult fcOut
+                            putStrLn ""
+                            putStrLn $ "=== Result: " ++ result ++ " ==="
+                            putStrLn ""
+                            case result of
+                                "EX" -> putStrLn "The LFP is EXACT - it precisely captures the loop's input-output relation."
+                                "OX" -> putStrLn "The LFP is OVER-APPROXIMATE - it may include behaviors that cannot happen."
+                                _ -> putStrLn "Could not determine exactness."
+                        ExitFailure _ -> do
+                            putStrLn $ "fixcalc error: " ++ fcErr
+                            putStrLn fcOut
+                Nothing -> do
+                    putStrLn "No while loop found in AST for exactness verification."
             
         ExitFailure code -> do
             putStrLn $ "Error: imp tool failed with code " ++ show code
@@ -507,3 +547,211 @@ intercalate :: String -> [String] -> String
 intercalate _ [] = ""
 intercalate _ [x] = x
 intercalate sep (x:xs) = x ++ sep ++ intercalate sep xs
+
+-- ============================================================================
+-- Exactness Verification (EX/OX)
+-- ============================================================================
+
+-- | Find the first while loop in the AST
+-- Returns (condition, body, variables used)
+findWhileLoop :: Program -> Maybe (Expr, [Stmt], [String])
+findWhileLoop (Program funcs) = 
+    case concatMap findInFunc funcs of
+        (w:_) -> Just w
+        [] -> Nothing
+  where
+    findInFunc (Func _ _ params body) = 
+        let paramVars = map snd params
+        in findInStmts paramVars body
+    
+    findInStmts vars stmts = concatMap (findInStmt vars) stmts
+    
+    findInStmt vars (While cond body) = 
+        let bodyVars = collectVarsFromStmts body
+            allVars = vars ++ bodyVars
+        in [(cond, body, allVars)]
+    findInStmt vars (If _ thenB maybeElse) = 
+        findInStmts vars thenB ++ maybe [] (findInStmts vars) maybeElse
+    findInStmt _ _ = []
+    
+    collectVarsFromStmts stmts = concatMap collectVarsFromStmt stmts
+    collectVarsFromStmt (VarDecl _ name _) = [name]
+    collectVarsFromStmt (Assign name _) = [name]
+    collectVarsFromStmt (While _ body) = collectVarsFromStmts body
+    collectVarsFromStmt (If _ thenB maybeElse) = 
+        collectVarsFromStmts thenB ++ maybe [] collectVarsFromStmts maybeElse
+    collectVarsFromStmt _ = []
+
+-- | Generate fixcalc query to verify exactness
+-- F = base ∪ (F ∘ step) => EX
+-- F ⊃ base ∪ (F ∘ step) => OX
+generateExactnessQuery :: Expr -> [Stmt] -> [String] -> String -> [(String, String)] -> String
+generateExactnessQuery loopCond loopBody allVars lfpFormula varMapping =
+    let -- Get the variables from the mapping (these are the actual loop variables)
+        vars = map snd varMapping
+        -- fixcalc uses P prefix for primed vars, _t suffix for temp vars
+        primedVars = map ("P" ++) vars
+        tempVars = map (++ "_t") vars
+        
+        -- Format variable lists for fixcalc
+        varList = intercalate "," vars
+        primedList = intercalate "," primedVars
+        tempList = intercalate "," tempVars
+        
+        -- Convert LFP to fixcalc format (replace ' with P prefix)
+        lfpFixcalc = convertToFixcalcFormat lfpFormula vars
+        
+        -- Generate condition expression
+        condExpr = exprToFixcalc loopCond
+        negCondExpr = "!(" ++ condExpr ++ ")"
+        
+        -- Generate step relation from loop body
+        stepExpr = generateStepExpr loopBody vars tempVars
+        
+        -- Build the identity assignments for base case (Px = x)
+        identityAssigns = intercalate " && " [("P" ++ v) ++ " = " ++ v | v <- vars]
+        
+        -- Build combined condition inline (since fixcalc doesn't have union)
+        baseCondition = "(" ++ negCondExpr ++ " && " ++ identityAssigns ++ ")"
+        stepCondition = "(" ++ condExpr ++ " && " ++ stepExpr ++ ")"
+        -- Composition: exists temp vars such that step and F hold
+        compositionCondition = "exists(" ++ tempList ++ ": " ++ stepCondition ++ " && " ++ lfpFixcalc ++ ")"
+        -- Replace vars with temp vars in LFP for composition
+        lfpWithTemp = convertVarsToTemp lfpFormula vars tempVars
+        compositionCondition2 = "exists(" ++ tempList ++ ": " ++ stepCondition ++ " && " ++ lfpWithTemp ++ ")"
+        
+        -- Build the query
+    in unlines
+        [ "# Exactness verification for loop LFP"
+        , "# Variables: " ++ varList
+        , ""
+        , "# Computed LFP from imp tool"
+        , "F := {[" ++ varList ++ "," ++ primedList ++ "]: " ++ lfpFixcalc ++ "};"
+        , ""
+        , "# Combined: base || (exists temp. step && F(temp, post))"
+        , "# Base: condition false, vars unchanged"  
+        , "# Step+Compose: condition true, one iteration, then F"
+        , "combined := {[" ++ varList ++ "," ++ primedList ++ "]: "
+        , "  " ++ baseCondition
+        , "  || " ++ compositionCondition2
+        , "};"
+        , ""
+        , "# Exactness check: F = combined iff both subset checks pass"
+        , "F subset combined;"
+        , "combined subset F;"
+        ]
+
+-- | Convert prime notation to fixcalc format
+-- x' -> Px, n' -> Pn, etc.
+convertToFixcalcFormat :: String -> [String] -> String
+convertToFixcalcFormat formula vars =
+    let -- Replace x' with Px for each variable
+        withPrimed = foldl (\f v -> replaceAll (v ++ "'") ("P" ++ v) f) formula vars
+        -- Replace == with =
+        cleaned = replaceAll "==" "=" withPrimed
+    in cleaned
+
+-- | Convert vars to temp vars for composition
+-- In F(temp, post), the unprimed vars become temp vars
+-- x -> x_t, but Px stays as Px
+convertVarsToTemp :: String -> [String] -> [String] -> String
+convertVarsToTemp formula vars tempVars =
+    let -- First convert to fixcalc format (x' -> Px)
+        fixcalc = convertToFixcalcFormat formula vars
+        -- Then replace unprimed vars with temp vars
+        -- Need to be careful not to replace inside "Px"
+        -- Do this by first marking primed, then replacing, then unmarking
+        marked = foldl (\f v -> replaceAll ("P" ++ v) ("__PRIMED_" ++ v ++ "__") f) fixcalc vars
+        withTemp = foldl (\f (v, tv) -> replaceWholeWord v tv f) marked (zip vars tempVars)
+        unmarked = foldl (\f v -> replaceAll ("__PRIMED_" ++ v ++ "__") ("P" ++ v) f) withTemp vars
+    in unmarked
+
+-- | Replace whole word only (not as part of another word)
+replaceWholeWord :: String -> String -> String -> String
+replaceWholeWord old new str = go str
+  where
+    go [] = []
+    go s@(c:cs)
+        | old `isPrefixOf` s && not (isVarChar (safeLast (take (length str - length s) str))) && not (isVarChar (safeHead (drop (length old) s))) = 
+            new ++ go (drop (length old) s)
+        | otherwise = c : go cs
+    
+    isVarChar c = c `elem` (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_")
+    safeLast [] = ' '
+    safeLast xs = last xs
+    safeHead [] = ' '
+    safeHead (x:_) = x
+
+-- | Convert AST expression to fixcalc format
+exprToFixcalc :: Expr -> String
+exprToFixcalc (Var v) = v
+exprToFixcalc (Lit n) = show n
+exprToFixcalc (BinOp op e1 e2) = 
+    let s1 = exprToFixcalc e1
+        s2 = exprToFixcalc e2
+    in case op of
+        Add -> "(" ++ s1 ++ " + " ++ s2 ++ ")"
+        Sub -> "(" ++ s1 ++ " - " ++ s2 ++ ")"
+        Mul -> "(" ++ s1 ++ " * " ++ s2 ++ ")"
+        Div -> "(" ++ s1 ++ " / " ++ s2 ++ ")"
+        Mod -> "(" ++ s1 ++ " % " ++ s2 ++ ")"
+        Lt  -> "(" ++ s1 ++ " < " ++ s2 ++ ")"
+        Le  -> "(" ++ s1 ++ " <= " ++ s2 ++ ")"
+        Gt  -> "(" ++ s1 ++ " > " ++ s2 ++ ")"
+        Ge  -> "(" ++ s1 ++ " >= " ++ s2 ++ ")"
+        Eq  -> "(" ++ s1 ++ " = " ++ s2 ++ ")"
+        Ne  -> "(" ++ s1 ++ " != " ++ s2 ++ ")"
+        And -> "(" ++ s1 ++ " && " ++ s2 ++ ")"
+        Or  -> "(" ++ s1 ++ " || " ++ s2 ++ ")"
+exprToFixcalc (UnaryOp op e) =
+    let s = exprToFixcalc e
+    in case op of
+        Neg -> "(-" ++ s ++ ")"
+        Not -> "(!(" ++ s ++ "))"
+exprToFixcalc (Call _ _) = "true"  -- Function calls not supported, assume true
+
+-- | Generate step expression from loop body (one iteration)
+-- vars: original variable names (x, n)
+-- tempVars: temp variable names (x_t, n_t)
+generateStepExpr :: [Stmt] -> [String] -> [String] -> String
+generateStepExpr stmts vars tempVars =
+    let -- Find all assignments in the body
+        assigns = collectAssigns stmts
+        -- Create var -> tempVar mapping
+        varToTemp = zip vars tempVars
+        -- For each variable, determine its new value
+        -- Variables not assigned keep their value
+        stepParts = map (varStep assigns varToTemp) (zip vars tempVars)
+    in intercalate " && " stepParts
+  where
+    varStep assigns varToTemp (v, tv) =
+        case lookup v assigns of
+            Just expr -> tv ++ " = " ++ exprToFixcalc expr
+            Nothing -> tv ++ " = " ++ v  -- unchanged
+    
+    collectAssigns :: [Stmt] -> [(String, Expr)]
+    collectAssigns = concatMap collectFromStmt
+    
+    collectFromStmt (Assign v e) = [(v, e)]
+    collectFromStmt (VarDecl _ v (Just e)) = [(v, e)]
+    collectFromStmt (While _ body) = collectAssigns body  -- nested loops
+    collectFromStmt (If _ thenB maybeElse) = 
+        collectAssigns thenB ++ maybe [] collectAssigns maybeElse
+    collectFromStmt _ = []
+
+-- | Parse fixcalc output to determine EX or OX
+parseExactnessResult :: String -> String
+parseExactnessResult output =
+    let ls = lines output
+        -- Look for the two subset check results
+        -- fixcalc outputs "True" or "False" for subset checks
+        results = filter isResultLine ls
+        -- We need both "True" for EX
+    in if length results >= 2
+       then let r1 = "true" `isInfixOf` (map toLower (results !! 0))
+                r2 = "true" `isInfixOf` (map toLower (results !! 1))
+            in if r1 && r2 then "EX" else "OX"
+       else "UNKNOWN"
+  where
+    isResultLine l = "true" `isInfixOf` map toLower l || "false" `isInfixOf` map toLower l
+    toLower c = if c >= 'A' && c <= 'Z' then toEnum (fromEnum c + 32) else c
