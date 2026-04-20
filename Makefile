@@ -48,7 +48,7 @@ OBJS = ImpMain.o ImpParser.o ImpTypeChecker.o ImpFormula.o ImpAST.o \
 .y.hs:
 	happy -agci $<
   
-all: imp fixcalc
+all: imp fixcalc loopinv
 
 imp : $(OBJS) ImpParser.y ImpMain.hs
 	rm -f $@
@@ -58,6 +58,7 @@ imp : $(OBJS) ImpParser.y ImpMain.hs
 
 clean:
 	rm -f *.hi *.o *~ imp ImpParser.hs *.info a.omega a.all.c a.c a.out a.impi a.impt a.omega-err a.pre oc.out fixcalc FixCalcParser.hs log
+	rm -f loopinv-bin $(LOOPINV_DIR)/*.hi $(LOOPINV_DIR)/*.o
 
 install: fixcalc
 	scp fixcalc popeeaco@loris-7.ddns:/home/popeeaco/bin/.
@@ -75,6 +76,23 @@ FixCalcOBJS = FixCalcLexer.o FixCalcParser.o ImpAST.o MyPrelude.o Fresh.o ImpCon
 fixcalc: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
 	rm -f fixcalc
 	ghc -o fixcalc $(HC_OPTS) -lstdc++ FixCalcMain.hs $(LIBS) $(OMEGA_LIBS)  $(RAZVAN_LIBS)
+#####
+
+##### LoopInv - Loop Invariant Generator
+LOOPINV_DIR = loopinv
+LOOPINV_SRCS = $(LOOPINV_DIR)/AST.hs $(LOOPINV_DIR)/Lexer.hs \
+               $(LOOPINV_DIR)/Parser.hs $(LOOPINV_DIR)/ImpEmit.hs \
+               $(LOOPINV_DIR)/Main.hs
+
+loopinv: $(LOOPINV_SRCS) imp
+	ghc -o loopinv-bin -i$(LOOPINV_DIR) -package process -package filepath \
+	    --make $(LOOPINV_DIR)/Main.hs
+
+loopinv-test: loopinv
+	cd $(LOOPINV_DIR)/examples && ../../loopinv-bin test1.c
+
+loopinv-clean:
+	rm -f loopinv-bin $(LOOPINV_DIR)/*.hi $(LOOPINV_DIR)/*.o
 #####
 
 static: $(FixCalcOBJS) FixCalcParser.y FixCalcMain.hs
